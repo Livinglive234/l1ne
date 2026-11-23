@@ -32,7 +32,14 @@ final class SIPEngine: ObservableObject {
     @Published var registration: [UUID: String] = [:]   // account id -> "Registered" / "Failed 403 ..."
     @Published var calls: [CallInfo] = []
     /// Per account: why texting isn't available on that server (set when it refuses a MESSAGE).
-    @Published var messagingNote: [UUID: String] = [:]
+    /// Accounts whose server answered a text with "not supported" (405/501/415). Remembered across launches, and cleared
+    /// as soon as a text goes through.
+    @Published var messagingNote: [UUID: String] = {
+        let d = UserDefaults.standard.dictionary(forKey: "messaging.unsupported") as? [String: String] ?? [:]
+        return Dictionary(uniqueKeysWithValues: d.compactMap { k, v in UUID(uuidString: k).map { ($0, v) } })
+    }() {
+        didSet { UserDefaults.standard.set(Dictionary(uniqueKeysWithValues: messagingNote.map { ($0.key.uuidString, $0.value) }), forKey: "messaging.unsupported") }
+    }
     /// New voicemail messages per account (from the message-waiting indicator).
     @Published var voicemail: [UUID: Int] = [:]
     @Published var recording: Set<Int32> = []

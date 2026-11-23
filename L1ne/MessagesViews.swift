@@ -15,31 +15,50 @@ struct ConversationsView: View {
     @State private var path: [ThreadTarget] = []
     @State private var composing = false
 
-    var body: some View {
-        NavigationStack(path: $path) {
-            List {
-                ForEach(messages.conversations) { c in
-                    NavigationLink(value: ThreadTarget(accountID: c.accountID, peer: c.peer)) {
-                        HStack(spacing: 12) {
-                            Circle().fill(c.unread > 0 ? Theme.brand : .clear).frame(width: 10, height: 10)
-                            VStack(alignment: .leading, spacing: 3) {
-                                HStack {
-                                    Text(displayName(c.peer, contacts: contacts)).font(.headline).foregroundStyle(Theme.text)
-                                    Spacer()
-                                    if let d = c.last?.date { Text(d, format: .dateTime.hour().minute()).font(.caption).foregroundStyle(Theme.muted) }
-                                }
-                                Text(c.last?.text ?? "").lineLimit(2).font(.subheadline).foregroundStyle(Theme.muted)
+    private var list: some View {
+        List {
+            ForEach(messages.conversations) { c in
+                NavigationLink(value: ThreadTarget(accountID: c.accountID, peer: c.peer)) {
+                    HStack(spacing: 12) {
+                        Circle().fill(c.unread > 0 ? Theme.brand : .clear).frame(width: 10, height: 10)
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Text(displayName(c.peer, contacts: contacts)).font(.headline).foregroundStyle(Theme.text)
+                                Spacer()
+                                if let d = c.last?.date { Text(d, format: .dateTime.hour().minute()).font(.caption).foregroundStyle(Theme.muted) }
                             }
+                            Text(c.last?.text ?? "").lineLimit(2).font(.subheadline).foregroundStyle(Theme.muted)
                         }
                     }
-                    .listRowBackground(Theme.surface)
                 }
-                .onDelete { idx in messages.delete(idx.map { messages.conversations[$0].id }) }
+                .listRowBackground(Theme.surface)
             }
-            .overlay {
-                if messages.conversations.isEmpty {
-                    ContentUnavailableView("No conversations", systemImage: "bubble.left.and.bubble.right",
-                                           description: Text("Texts need a server that supports SIP messages."))
+            .onDelete { idx in messages.delete(idx.map { messages.conversations[$0].id }) }
+        }
+        .overlay {
+            if messages.conversations.isEmpty {
+                ContentUnavailableView("No conversations", systemImage: "bubble.left.and.bubble.right",
+                                       description: Text("Tap the pencil to start one."))
+            }
+        }
+    }
+
+    /// Texting is off for the connected account when it has no account at all or its server said it has no text routing.
+    private var unavailableReason: String? {
+        guard let a = store.selected else { return "Add an account to send text messages." }
+        if let note = engine.messagingNote[a.id] { return note }
+        return nil
+    }
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            Group {
+                if let reason = unavailableReason, messages.conversations.isEmpty {
+                    // nothing to read and nothing to send with this server: a fixed screen, not a scrolling list
+                    ContentUnavailableView("Messaging isn't available", systemImage: "bubble.left.and.bubble.right",
+                                           description: Text(reason))
+                } else {
+                    list
                 }
             }
             .mainBackground()
@@ -52,7 +71,7 @@ struct ConversationsView: View {
                 ProfileToolbar()
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { composing = true } label: { Image(systemName: "square.and.pencil") }
-                        .disabled(store.accounts.isEmpty)
+                        .disabled(unavailableReason != nil)
                 }
             }
             .sheet(isPresented: $composing) {
