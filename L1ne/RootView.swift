@@ -237,7 +237,7 @@ struct CallScreen: View {
                         Text(String(format: "%d:%02d", s / 60, s % 60)).font(.title3).foregroundStyle(Theme.muted).monospacedDigit()
                     }
                 } else {
-                    Text(c.incoming ? "incoming call" : c.state.lowercased()).font(.title3).foregroundStyle(Theme.muted)
+                    Text(c.incoming ? "Incoming call" : c.state).font(.title3).foregroundStyle(Theme.muted)
                 }
                 if let line = securityLine(c) { Label(line.text, systemImage: line.icon).font(.footnote).foregroundStyle(line.color) }
                 if engine.held.contains(c.id) { Label("On hold", systemImage: "pause.circle.fill").font(.footnote).foregroundStyle(Theme.brand) }

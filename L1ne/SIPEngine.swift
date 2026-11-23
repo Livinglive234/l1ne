@@ -503,7 +503,7 @@ final class SIPEngine: ObservableObject {
         let entry = CallInfo(
             id: call,
             remote: Self.callerName(from: str(ci.remote_info)),
-            state: str(ci.state_text),
+            state: Self.friendlyState(ci),
             incoming: incoming ?? (old?.incoming ?? false),
             connected: connected,
             since: connected ? (old?.since ?? Date()) : nil,
@@ -662,6 +662,18 @@ final class SIPEngine: ObservableObject {
             if let n = ContactsStore.shared.name(forUser: p[0], domain: p[1]) { return n }
         }
         return displayName(from: remote)
+    }
+
+    /// What to show while a call is being set up, instead of PJSIP's internal names ("EARLY", "CONNECTING"):
+    /// 180 Ringing means it is ringing at the other end; anything else before the answer is just "calling".
+    static func friendlyState(_ ci: pjsua_call_info) -> String {
+        switch ci.state {
+        case PJSIP_INV_STATE_CALLING: return "Calling…"
+        case PJSIP_INV_STATE_INCOMING: return "Incoming"
+        case PJSIP_INV_STATE_EARLY: return ci.last_status == PJSIP_SC_RINGING ? "Ringing…" : "Calling…"
+        case PJSIP_INV_STATE_CONNECTING: return "Connecting…"
+        default: return str(ci.state_text).capitalized
+        }
     }
 
     /// `"Max" <sip:7201@pbx>` -> `Max`, `sip:7201@pbx` -> `7201`
