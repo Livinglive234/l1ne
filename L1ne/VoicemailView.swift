@@ -11,19 +11,17 @@ struct VoicemailView: View {
     var body: some View {
         NavigationStack {
             List(accounts) { a in
-                Button { engine.callVoicemail(a.id) } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "recordingtape").font(.title3).foregroundStyle(Theme.brand)
-                            .frame(width: 42, height: 42).background(Theme.brand.opacity(0.14), in: Circle())
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(accounts.count > 1 ? a.title : "Voicemail").font(.body.weight(.medium)).foregroundStyle(Theme.text)
-                            let n = engine.voicemail[a.id] ?? 0
-                            Text(n > 0 ? "\(n) new message\(n == 1 ? "" : "s")" : "No new messages")
-                                .font(.footnote).foregroundStyle(n > 0 ? Theme.brand : Theme.muted)
-                        }
-                        Spacer()
-                        Image(systemName: "phone.fill").font(.footnote).foregroundStyle(Theme.brand)
+                HStack(spacing: 14) {
+                    Image(systemName: "recordingtape").font(.title3).foregroundStyle(Theme.brand)
+                        .frame(width: 48, height: 48).background(Theme.brand.opacity(0.14), in: Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(accounts.count > 1 ? a.title : "Voicemail").font(.body.weight(.medium)).foregroundStyle(Theme.text)
+                        let n = engine.voicemail[a.id] ?? 0
+                        Text(n > 0 ? "\(n) new message\(n == 1 ? "" : "s")" : "No new messages")
+                            .font(.footnote).foregroundStyle(n > 0 ? Theme.brand : Theme.muted)
                     }
+                    Spacer(minLength: 8)
+                    CallCircleButton { engine.callVoicemail(a.id) }
                 }
                 .listRowBackground(Color.clear)
                 .listRowSeparatorTint(Theme.border)
