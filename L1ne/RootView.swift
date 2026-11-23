@@ -195,7 +195,7 @@ struct RecentsView: View {
 
     private func name(_ r: CallRecord) -> String {
         let p = r.peer.split(separator: "@").map(String.init)
-        if p.count == 2, let n = contacts.name(forUser: p[0], domain: p[1]) { return n }
+        if let n = contacts.name(forUser: p.first ?? r.peer, domain: p.count == 2 ? p[1] : nil) { return n }
         return p.first ?? r.peer
     }
 

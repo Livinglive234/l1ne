@@ -101,10 +101,24 @@ final class ContactsStore: ObservableObject {
     func removeAll() { contacts = []; persist() }
 
     /// For caller display: match the user part (and domain when known).
-    func name(forUser user: String, domain: String? = nil) -> String? {
-        contacts.first {
-            $0.user == user && (domain == nil || $0.address.hasSuffix("@" + domain!.lowercased()))
-        }?.name
+    /// Finds who a call was with. Tries, in order: the same extension on the same server; the same extension on any server
+    /// (when only one contact has it); a phone number that matches by its last ten digits (so +1 612… finds 612…).
+    func name(forUser rawUser: String, domain rawDomain: String? = nil) -> String? {
+        let user = rawUser.lowercased().replacingOccurrences(of: "sip:", with: "")
+        let domain = rawDomain?.lowercased().split(separator: ":").first.map(String.init)
+        func domainOf(_ c: Contact) -> String { c.address.split(separator: "@").dropFirst().first.map { String($0).lowercased() } ?? "" }
+
+        if let exact = contacts.first(where: { $0.user.lowercased() == user && (domain == nil || domainOf($0) == domain) }) { return exact.name }
+        let sameUser = contacts.filter { $0.user.lowercased() == user }
+        if sameUser.count == 1 { return sameUser[0].name }
+
+        let digits = user.filter(\.isNumber)
+        if digits.count >= 7 {
+            let tail = String(digits.suffix(10))
+            let sameNumber = contacts.filter { let d = $0.user.filter(\.isNumber); return d.count >= 7 && String(d.suffix(10)) == tail }
+            if sameNumber.count == 1 { return sameNumber[0].name }
+        }
+        return nil
     }
 
     private func persist() {
