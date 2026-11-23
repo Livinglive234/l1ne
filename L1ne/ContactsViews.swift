@@ -11,6 +11,7 @@ struct ContactsView: View {
     @State private var importing = false
     @State private var picking = false
     @State private var message: String?
+    @State private var detail: PersonTarget?
 
     enum Sheet: String, Identifiable { case url, add; var id: String { rawValue } }
 
@@ -39,22 +40,24 @@ struct ContactsView: View {
                 ForEach(sections, id: \.0) { letter, items in
                     Section {
                         ForEach(items) { c in
-                            Button {
-                                if let a = (c.accountID.flatMap { store.account($0) } ?? store.selected) {
-                                    engine.call("sip:" + c.address, from: a.id)
-                                }
-                            } label: {
-                                HStack(spacing: 14) {
-                                    Text(initials(c.name))
-                                        .font(.system(size: 16, weight: .semibold)).foregroundStyle(Theme.brand)
-                                        .frame(width: 42, height: 42)
-                                        .background(Theme.brand.opacity(0.14), in: Circle())
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(c.name).font(.body.weight(.medium)).foregroundStyle(Theme.text)
-                                        Text(c.address).font(.footnote).foregroundStyle(Theme.muted)
+                            HStack(spacing: 14) {
+                                Button { detail = PersonTarget(name: c.name, address: c.address, accountID: c.accountID) } label: {
+                                    HStack(spacing: 14) {
+                                        Text(initials(c.name))
+                                            .font(.system(size: 16, weight: .semibold)).foregroundStyle(Theme.brand)
+                                            .frame(width: 48, height: 48)
+                                            .background(Theme.brand.opacity(0.14), in: Circle())
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(c.name).font(.body.weight(.medium)).foregroundStyle(Theme.text).lineLimit(1)
+                                            Text(c.address).font(.footnote).foregroundStyle(Theme.muted).lineLimit(1)
+                                        }
+                                        Spacer(minLength: 8)
                                     }
-                                    Spacer()
-                                    Image(systemName: "phone.fill").font(.footnote).foregroundStyle(Theme.brand)
+                                }.buttonStyle(.plain)
+                                CallCircleButton {
+                                    if let a = (c.accountID.flatMap { store.account($0) } ?? store.selected) {
+                                        engine.call("sip:" + c.address, from: a.id)
+                                    }
                                 }
                             }
                             .listRowBackground(Color.clear)
@@ -67,6 +70,7 @@ struct ContactsView: View {
                 }
             }
             .listStyle(.plain).scrollContentBackground(.hidden)
+            .navigationDestination(item: $detail) { ContactDetailView(person: $0) }
             .searchable(text: $search)
             .overlay { if contacts.contacts.isEmpty { ContentUnavailableView("No contacts", systemImage: "person.2", description: Text("Pick contacts that have a SIP address, import a vCard, or add one by hand.")) } }
             .mainBackground()

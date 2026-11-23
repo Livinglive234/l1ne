@@ -175,6 +175,7 @@ struct RecentsView: View {
     @EnvironmentObject var callLog: CallLogStore
 
     @State private var missedOnly = false
+    @State private var detail: PersonTarget?
     private var shown: [CallRecord] { missedOnly ? callLog.records.filter { $0.direction == .missed } : callLog.records }
 
     var body: some View {
@@ -182,7 +183,7 @@ struct RecentsView: View {
             List {
                 ForEach(shown) { r in
                     HStack(spacing: 14) {
-                        Button { callBack(r) } label: {
+                        Button { detail = PersonTarget(name: name(r), address: r.peer, accountID: r.accountID) } label: {
                             HStack(spacing: 14) {
                                 avatar(r)
                                 VStack(alignment: .leading, spacing: 3) {
@@ -198,10 +199,7 @@ struct RecentsView: View {
                                 Text(when(r.date)).font(.subheadline).foregroundStyle(Theme.muted)
                             }
                         }.buttonStyle(.plain)
-                        Button { callBack(r) } label: {
-                            Image(systemName: "phone.fill").font(.body).foregroundStyle(Theme.brand)
-                                .frame(width: 44, height: 44).background(Theme.surface, in: Circle())
-                        }.buttonStyle(.plain)
+                        CallCircleButton { callBack(r) }
                     }
                     .listRowBackground(Color.clear)
                     .listRowSeparatorTint(Theme.border)
@@ -209,6 +207,7 @@ struct RecentsView: View {
                 }
             }
             .listStyle(.plain).scrollContentBackground(.hidden)
+            .navigationDestination(item: $detail) { ContactDetailView(person: $0) }
             .overlay {
                 if shown.isEmpty {
                     ContentUnavailableView(missedOnly ? "No missed calls" : "No recent calls", systemImage: "clock")
