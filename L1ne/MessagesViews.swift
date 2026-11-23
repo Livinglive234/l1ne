@@ -136,7 +136,9 @@ struct ThreadView: View {
                 Button { info = person } label: {
                     VStack(spacing: 1) {
                         Text(person.name).font(.headline).foregroundStyle(Theme.text).lineLimit(1)
-                        Text("from \(line?.title ?? "—")").font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
+                        if store.accounts.count > 1 {
+                            Text("from \(line?.title ?? "—")").font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
+                        }
                     }
                 }.buttonStyle(.plain)
             }
@@ -213,8 +215,6 @@ struct NewMessageSheet: View {
                         ForEach(store.accounts) { Text($0.title).tag($0.id) }
                     }
                     .listRowBackground(Theme.surface)
-                } else if let a = account {
-                    LabeledContent("From", value: a.title).listRowBackground(Theme.surface)
                 }
                 Section {
                     TextField("Extension or user@domain", text: $typed)

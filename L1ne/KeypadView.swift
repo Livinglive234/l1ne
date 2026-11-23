@@ -111,7 +111,7 @@ struct KeypadView: View {
         }
     }
 
-    /// Which line the call goes out on: a menu in the top bar with several accounts, plain text with one.
+    /// Which line the call goes out on: a menu in the top bar, only when there is more than one account.
     @ViewBuilder private var lineMenu: some View {
         if store.accounts.count > 1 {
             Menu {
@@ -127,9 +127,7 @@ struct KeypadView: View {
                 }
                 .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
             }
-        } else if let a = store.accounts.first {
-            Text(a.title).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
-        }
+        }       // with one account there is nothing to choose, so nothing is shown
     }
 
     /// Contacts whose name (typed on the letters of the keys) or extension matches what has been dialled so far.
