@@ -11,6 +11,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument("cert"); ap.add_argument("key"); ap.add_argument("log")
 ap.add_argument("--port", type=int, default=5061)
 ap.add_argument("--message"); ap.add_argument("--mwi", type=int, default=3)
+ap.add_argument("--route", choices=["drop", "echo", "405"], default="drop",
+                help="what to do with a MESSAGE: accept and drop it (like a stock Asterisk), route it back to the sender's registration, or refuse it with 405")
 ap.add_argument("--answer", action="store_true", help="answer INVITEs with 200 OK (SDES SRTP, PCMU) instead of refusing them")
 args = ap.parse_args()
 LOG = open(args.log, "a", buffering=1)
@@ -76,7 +78,11 @@ async def handle(reader, writer):
                     await send(reply(200, "OK", hs, vias, totag=srvtag))
                 elif method == "MESSAGE":
                     log("MESSAGE from app:", hs["from"], "->", start.split()[1], "|", body.strip())
+                    if args.route == "405":
+                        await send(reply(405, "Method Not Allowed", hs, vias, totag=srvtag)); continue
                     await send(reply(200, "OK", hs, vias, totag=srvtag))
+                    if args.route == "echo" and contact_of_client:
+                        asyncio.create_task(deliver(send, hs, contact_of_client, body))
                 elif method == "SUBSCRIBE":
                     log("SUBSCRIBE", hs.get("event"), "for", start.split()[1])
                     await send(reply(200, "OK", hs, vias, [f"Contact: <{me}>", "Expires: " + hs.get("expires", "3600")], totag=srvtag))
@@ -106,6 +112,14 @@ async def handle(reader, writer):
         log("connection ended:", e)
     finally:
         writer.close()
+
+async def deliver(send, hs, client_contact, body):
+    # a server that routes texts: the recipient (here the same registration) gets the MESSAGE
+    await asyncio.sleep(0.3)
+    m = (f"MESSAGE {client_contact} SIP/2.0\r\nVia: SIP/2.0/TLS 127.0.0.1:{args.port};branch=z9hG4bK-{uuid.uuid4().hex[:10]};rport\r\nMax-Forwards: 70\r\n"
+         f"From: {hs['from']}\r\nTo: {hs['to']}\r\nCall-ID: {uuid.uuid4().hex}\r\nCSeq: 1 MESSAGE\r\n"
+         f"Content-Type: text/plain\r\nContent-Length: {len(body.encode())}\r\n\r\n{body}")
+    await send(m); log("-> routed MESSAGE back to app:", body.strip())
 
 async def after_register(send, hs, client_contact, me, srvtag):
     if not args.message: return

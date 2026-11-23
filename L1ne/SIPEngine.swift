@@ -32,6 +32,17 @@ final class SIPEngine: ObservableObject {
     @Published var registration: [UUID: String] = [:]   // account id -> "Registered" / "Failed 403 ..."
     @Published var calls: [CallInfo] = []
     /// Per account: why texting isn't available on that server (set when it refuses a MESSAGE).
+    /// What the hidden self-text showed about an account's server.
+    enum MessagingCheck: Equatable {
+        case unknown, checking
+        case working                      // the test text came back to us: the server routes texts
+        case notDelivered                 // the server took it but never delivered it back
+    }
+    @Published var messagingCheck: [UUID: MessagingCheck] = [:]
+    private var probeTags: [Int: UUID] = [:]                 // pjsua send tag -> account, for the test text
+    private var probeTokens: [UUID: String] = [:]            // account -> the tag carried in the test text
+    private static let probePrefix = "L1NE-CHECK:"
+
     /// Accounts whose server answered a text with "not supported" (405/501/415). Remembered across launches, and cleared
     /// as soon as a text goes through.
     @Published var messagingNote: [UUID: String] = {
@@ -268,6 +279,36 @@ final class SIPEngine: ObservableObject {
         let code = Int(info.status.rawValue)
         let text = str(info.status_text)
         registration[id] = (code >= 200 && code < 300 && info.expires > 0) ? "Registered" : "\(code) \(text)"
+        // once per launch, a registered account tests whether its server routes texts
+        if registration[id] == "Registered", (messagingCheck[id] ?? .unknown) == .unknown {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 2_000_000_000)      // let the registration settle (and MWI subscribe)
+                self?.checkMessaging(id)
+            }
+        }
+    }
+
+    /// Sends one hidden text to the account's own address. A server that routes texts hands it back to this registration;
+    /// one that takes it and drops it does not. The test text never shows up in any conversation.
+    func checkMessaging(_ id: UUID) {
+        guard let acc = pjAccounts[id], let a = AccountStore.shared.account(id), registration[id] == "Registered" else { return }
+        if messagingCheck[id] == .checking { return }
+        let token = UUID().uuidString
+        probeTokens[id] = token
+        messagingCheck[id] = .checking
+        let tag = nextTag; nextTag += 1
+        probeTags[tag] = id
+        let cs = CStrings()
+        var to = cs.make("sip:\(a.username)@\(a.domain)"), mime = cs.make("text/plain"), content = cs.make(Self.probePrefix + token)
+        let st = pjsua_im_send(acc, &to, &mime, &content, nil, UnsafeMutableRawPointer(bitPattern: tag))
+        if st != 0 {
+            probeTags[tag] = nil; messagingCheck[id] = .unknown; return
+        }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            guard let self, self.probeTokens[id] == token, self.messagingCheck[id] == .checking else { return }
+            self.messagingCheck[id] = .notDelivered
+        }
     }
 
     private func mwiChanged(acc: pjsua_acc_id, new: Int) {
@@ -563,6 +604,16 @@ final class SIPEngine: ObservableObject {
     }
 
     private func sendResult(tag: Int, code: Int, reason: String, acc: pjsua_acc_id) {
+        if let account = probeTags.removeValue(forKey: tag) {              // the hidden test text
+            switch code {
+            case 405, 501, 415:
+                messagingNote[account] = "This server doesn't support text messages (\(code))."
+                messagingCheck[account] = .unknown
+            case 200..<300: break                                        // accepted: now wait to see whether it comes back
+            default: messagingCheck[account] = .notDelivered             // refused (404, 403, ...): not routed
+            }
+            return
+        }
         guard let (target, id) = sendTags.removeValue(forKey: tag) else { return }
         if (200..<300).contains(code) {
             MessageStore.shared.update(id, status: .sent)
@@ -582,6 +633,13 @@ final class SIPEngine: ObservableObject {
 
     private func received(from: String, text: String, acc: pjsua_acc_id) {
         guard let account = accountForPJ[acc] else { return }
+        if text.hasPrefix(Self.probePrefix) {                              // our own test text came back: texting works here
+            if probeTokens[account] == String(text.dropFirst(Self.probePrefix.count)) {
+                messagingCheck[account] = .working
+                messagingNote[account] = nil
+            }
+            return                                                       // never shown as a message
+        }
         let inner = from.firstIndex(of: "<").map { String(from[$0...]).trimmingCharacters(in: CharacterSet(charactersIn: "<>")) } ?? from
         guard let peer = VCard.sipAddress(inner.components(separatedBy: ">").first ?? inner) else { return }
         MessageStore.shared.add(Message(outgoing: false, text: text, status: .sent, read: false), to: ThreadTarget(accountID: account, peer: peer))

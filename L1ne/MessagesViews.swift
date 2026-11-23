@@ -94,6 +94,10 @@ struct ThreadView: View {
                             .padding(10).frame(maxWidth: .infinity).background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
                             .padding(.bottom, 8)
                     }
+                    if engine.messagingCheck[target.accountID] == .notDelivered, engine.messagingNote[target.accountID] == nil {
+                        WarningBanner(text: "This server took a test text but didn't deliver it back to you, so messages from this line probably won't arrive. The server may need texting switched on.")
+                            .padding(.bottom, 4)
+                    }
                     if let other = MessagingWarnings.ownLine(peer: target.peer, from: target.accountID) {
                         WarningBanner(text: "\(other.title) is another line in L1ne. Texts between two lines in the same app, on the same server, usually don't arrive. Use a different phone or app for the other line.")
                             .padding(.bottom, 4)
@@ -192,6 +196,7 @@ private struct Bubble: View {
 
 struct NewMessageSheet: View {
     var open: (ThreadTarget) -> Void
+    @EnvironmentObject var engine: SIPEngine
     @EnvironmentObject var store: AccountStore
     @EnvironmentObject var contacts: ContactsStore
     @Environment(\.dismiss) private var dismiss
@@ -216,6 +221,10 @@ struct NewMessageSheet: View {
                         .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.emailAddress)
                     Button("Start") { start(typed) }.disabled(typed.trimmingCharacters(in: .whitespaces).isEmpty)
                 } footer: {
+                    if let a = account, engine.messagingCheck[a.id] == .notDelivered {
+                        Label("This server doesn't seem to deliver texts: a test text to this line didn't come back.", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    }
                     if let a = account, let other = MessagingWarnings.ownLine(peer: normalized(typed, account: a), from: a.id) {
                         Label("\(other.title) is another line in L1ne. Texts between two lines in the same app usually don't arrive.", systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)

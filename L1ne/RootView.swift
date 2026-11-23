@@ -20,7 +20,7 @@ struct RootView: View {
             ContactsView()
                 .tabItem { Label("Contacts", systemImage: "person.2") }.tag(AppRouter.Tab.contacts)
             ConversationsView()
-                .tabItem { Label("Conversations", systemImage: "bubble.left.and.bubble.right") }
+                .tabItem { Label("Chats", systemImage: "bubble.left.and.bubble.right") }
                 .badge(messages.unread).tag(AppRouter.Tab.conversations)
             KeypadView()
                 .tabItem { Label("Keypad", systemImage: "circle.grid.3x3.fill") }.tag(AppRouter.Tab.keypad)

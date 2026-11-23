@@ -149,6 +149,22 @@ struct AccountEditor: View {
             .listRowBackground(Theme.surface)
 
             Section {
+                LabeledContent("Server") {
+                    switch engine.messagingCheck[account.id] ?? .unknown {
+                    case .working: Label("Delivers texts", systemImage: "checkmark.circle.fill").foregroundStyle(Theme.brand)
+                    case .notDelivered: Label("Doesn't deliver", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    case .checking: ProgressView()
+                    case .unknown: Text(engine.messagingNote[account.id] != nil ? "Not supported" : "Not checked").foregroundStyle(Theme.muted)
+                    }
+                }
+                Button("Check messaging") { engine.messagingNote[account.id] = nil; engine.messagingCheck[account.id] = .unknown; engine.checkMessaging(account.id) }
+                    .disabled(engine.registration[account.id] != "Registered" || engine.messagingCheck[account.id] == .checking)
+            } header: { Text("Messaging") } footer: {
+                Text("L1ne sends one hidden test text to this line itself and sees whether the server delivers it back. Nothing goes to anyone else, and it isn't shown as a message.")
+            }
+            .listRowBackground(Theme.surface)
+
+            Section {
                 text("Voicemail number or address", $account.voicemailURI)
                 Toggle("Message waiting indicator (MWI)", isOn: $account.mwiEnabled)
             } header: { Text("Voicemail") } footer: {
