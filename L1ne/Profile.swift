@@ -31,64 +31,26 @@ struct ProfileToolbar: ToolbarContent {
     }
 }
 
-/// Top-left avatar. Tapping it pops up a small menu (like the profile menu in Messages):
-/// "Accounts" with your picture, then "Settings".
+/// Top-left avatar. Tapping it opens the system menu (Liquid Glass on iOS 26, like the profile menu in Messages):
+/// "Accounts", then "Settings".
 struct ProfileButton: View {
     enum Destination: String, Identifiable { case accounts, settings; var id: String { rawValue } }
-    @State private var menu = false
     @State private var destination: Destination?
 
     var body: some View {
-        Button { menu = true } label: { AvatarView(size: 32) }
-            .accessibilityLabel("Accounts and settings")
-            .popover(isPresented: $menu, attachmentAnchor: .point(.bottomLeading), arrowEdge: .top) {
-                ProfileMenu { picked in
-                    menu = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { destination = picked }
-                }
-                .presentationCompactAdaptation(.popover)
-            }
-            .sheet(item: $destination) { d in
-                switch d {
-                case .accounts: ProfileView()
-                case .settings: SettingsView()
-                }
-            }
-    }
-}
-
-struct ProfileMenu: View {
-    var pick: (ProfileButton.Destination) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button { pick(.accounts) } label: {
-                HStack(spacing: 14) {
-                    AvatarView(size: 44)
-                    Text("Accounts").font(.headline).foregroundStyle(Theme.text)
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 16).padding(.vertical, 14)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            Divider().overlay(Theme.border)
-
-            Button { pick(.settings) } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: "gearshape").font(.title3).frame(width: 44)
-                    Text("Settings").font(.body)
-                    Spacer(minLength: 0)
-                }
-                .foregroundStyle(Theme.text)
-                .padding(.horizontal, 16).padding(.vertical, 14)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+        Menu {
+            Button { destination = .accounts } label: { Label("Accounts", systemImage: "person.crop.circle") }
+            Button { destination = .settings } label: { Label("Settings", systemImage: "gearshape") }
+        } label: {
+            AvatarView(size: 32)
         }
-        .frame(width: 280)
-        .presentationBackground(.regularMaterial)
+        .accessibilityLabel("Accounts and settings")
+        .sheet(item: $destination) { d in
+            switch d {
+            case .accounts: ProfileView()
+            case .settings: SettingsView()
+            }
+        }
     }
 }
 
