@@ -22,6 +22,11 @@ struct RootView: View {
             ConversationsView()
                 .tabItem { Label("Conversations", systemImage: "bubble.left.and.bubble.right") }
                 .badge(messages.unread).tag(AppRouter.Tab.conversations)
+            if settings.showVoicemailTab {
+                VoicemailView()
+                    .tabItem { Label("Voicemail", systemImage: "recordingtape") }
+                    .badge(engine.voicemail.values.reduce(0, +)).tag(AppRouter.Tab.voicemail)
+            }
             KeypadView()
                 .tabItem { Label("Keypad", systemImage: "circle.grid.3x3.fill") }.tag(AppRouter.Tab.keypad)
         }
@@ -88,6 +93,7 @@ struct RootView: View {
 
 struct KeypadView: View {
     @EnvironmentObject var engine: SIPEngine
+    @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var store: AccountStore
     @State private var number = ""
     private let keys = [["1","2","3"],["4","5","6"],["7","8","9"],["*","0","#"]]
@@ -121,7 +127,7 @@ struct KeypadView: View {
                 }
             }
             HStack(spacing: 24) {
-                if let a = account, !a.voicemailURI.isEmpty {
+                if settings.showKeypadVoicemail, let a = account, !a.voicemailURI.isEmpty {
                     Button { engine.callVoicemail(a.id) } label: {
                         Image(systemName: "recordingtape").font(.title2)
                             .frame(width: 76, height: 76).foregroundStyle(Theme.brand)
@@ -168,31 +174,9 @@ struct RecentsView: View {
     @EnvironmentObject var contacts: ContactsStore
     @EnvironmentObject var callLog: CallLogStore
 
-    private var voicemailAccounts: [Account] { store.accounts.filter { !$0.voicemailURI.isEmpty } }
-
     var body: some View {
         NavigationStack {
             List {
-                if !voicemailAccounts.isEmpty {
-                    Section {
-                        ForEach(voicemailAccounts) { a in
-                            Button { engine.callVoicemail(a.id) } label: {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "recordingtape").foregroundStyle(Theme.brand)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(voicemailAccounts.count > 1 ? "Voicemail · \(a.title)" : "Voicemail").foregroundStyle(Theme.text)
-                                        let n = engine.voicemail[a.id] ?? 0
-                                        Text(n > 0 ? "\(n) new message\(n == 1 ? "" : "s")" : "No new messages")
-                                            .font(.footnote).foregroundStyle(n > 0 ? Theme.brand : Theme.muted)
-                                    }
-                                    Spacer()
-                                    Image(systemName: "phone").foregroundStyle(Theme.muted)
-                                }
-                            }
-                            .listRowBackground(Theme.surface)
-                        }
-                    }
-                }
                 Section {
                     ForEach(callLog.records) { r in
                         Button { callBack(r) } label: {
@@ -213,7 +197,7 @@ struct RecentsView: View {
                 }
             }
             .overlay {
-                if callLog.records.isEmpty && voicemailAccounts.isEmpty {
+                if callLog.records.isEmpty {
                     ContentUnavailableView("No recent calls", systemImage: "clock")
                 }
             }

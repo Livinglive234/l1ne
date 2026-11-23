@@ -264,7 +264,9 @@ final class SIPEngine: ObservableObject {
 
     private func mwiChanged(acc: pjsua_acc_id, new: Int) {
         guard let id = accountForPJ[acc] else { return }
+        let old = voicemail[id] ?? 0
         voicemail[id] = new
+        if new > old { VoicemailNotifier.newVoicemail(account: id, count: new) }
     }
 
     // MARK: codecs

@@ -4,7 +4,7 @@ import Foundation
 @MainActor
 final class AppRouter: ObservableObject {
     static let shared = AppRouter()
-    enum Tab: Hashable { case recents, contacts, conversations, keypad }
+    enum Tab: Hashable { case recents, contacts, conversations, voicemail, keypad }
 
     @Published var tab = Tab.recents
     @Published var callMinimized = false

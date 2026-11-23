@@ -16,7 +16,16 @@ final class AppSettings: ObservableObject {
     @Published var codecOrder: [String] { didSet { d.set(codecOrder, forKey: "set.codecOrder") } }
     @Published var codecsOff: [String] { didSet { d.set(codecsOff, forKey: "set.codecsOff") } }
 
+    /// A Voicemail tab (off by default) and the voicemail button beside the keypad's call button (on by default).
+    @Published var showVoicemailTab: Bool { didSet { d.set(showVoicemailTab, forKey: "set.vmTab") } }
+    @Published var showKeypadVoicemail: Bool { didSet { d.set(showKeypadVoicemail, forKey: "set.vmKeypad") } }
+    /// LATER: a notification when a new voicemail arrives. Stored but not acted on yet (see VoicemailNotifier).
+    @Published var voicemailNotify: Bool { didSet { d.set(voicemailNotify, forKey: "set.vmNotify") } }
+
     init() {
+        showVoicemailTab = d.bool(forKey: "set.vmTab")
+        showKeypadVoicemail = d.object(forKey: "set.vmKeypad") as? Bool ?? true
+        voicemailNotify = d.bool(forKey: "set.vmNotify")
         autoRecord = d.bool(forKey: "set.autoRecord")
         acceptEarlyMedia = d.bool(forKey: "set.acceptEarlyMedia")
         allowOutgoingEarlyMedia = d.bool(forKey: "set.outEarlyMedia")

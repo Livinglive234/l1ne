@@ -43,6 +43,15 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Theme.surface)
 
+                Section {
+                    Toggle("Voicemail tab", isOn: $settings.showVoicemailTab)
+                    Toggle("Voicemail button on keypad", isOn: $settings.showKeypadVoicemail)
+                    Toggle("Notify me of new voicemail", isOn: $settings.voicemailNotify).disabled(true)
+                } header: { Text("Voicemail") } footer: {
+                    Text("Notifications for new voicemail are planned for later. They need push, which L1ne doesn't have yet.")
+                }
+                .listRowBackground(Theme.surface)
+
                 Section("Contacts") {
                     NavigationLink("Contacts sync") { DirectorySourcesView() }
                     LabeledContent("In L1ne", value: "\(contacts.contacts.count)")

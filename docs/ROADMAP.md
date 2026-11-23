@@ -35,6 +35,15 @@ needs no change. On an incoming call the gateway pushes the phone, waits for the
 
 The gateway and proxy can be built and tested against a fake push endpoint before the Apple account exists; real pushes need it.
 
+## LATER: voicemail notifications
+
+> **Status: LATER. Skeleton only.** Settings → Voicemail has a "Notify me of new voicemail" switch (disabled) and `VoicemailNotifier`
+> is called whenever the message-waiting count goes up, but it does nothing yet.
+
+While the app is running, a local notification is easy. With the app closed it needs the push gateway above (the gateway would watch the
+message-waiting subscription, or the server's voicemail event, and push the phone). Until then the Voicemail tab badge and the keypad
+button count show new messages only while L1ne is running.
+
 ## LATER: other deferred items
 Opus (many PBXes offer none), conference calls, video calls, and Linphone-server features (end-to-end encrypted chat, file sharing, meetings),
 which a plain SIP server cannot provide.
