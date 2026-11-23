@@ -10,11 +10,11 @@ MODE="${1:-srtp-sdes}"; MAND="${2:-true}"
 APP=$(ls -dt ~/Library/Developer/Xcode/DerivedData/L1ne-*/Build/Products/Debug-iphonesimulator/L1ne.app | head -1)
 xcrun simctl terminate "$U" com.livenet.l1ne 2>/dev/null || true
 pkill -f mock_sip_tls.py || true; sleep 1; rm -f /tmp/l1ne-mock/sip.log
-(nohup python3 "$HERE/mock_sip_tls.py" /tmp/l1ne-mock/server.pem /tmp/l1ne-mock/server.key /tmp/l1ne-mock/sip.log ${MOCK_ARGS:-} >/dev/null 2>&1 &); sleep 1
-python3 - "$U" "$MODE" "$MAND" <<'PY'
+(nohup python3 "$HERE/mock_sip_tls.py" ${MOCK_CERT:-/tmp/l1ne-mock/server.pem} ${MOCK_KEY:-/tmp/l1ne-mock/server.key} /tmp/l1ne-mock/sip.log ${MOCK_ARGS:-} >/dev/null 2>&1 &); sleep 1
+python3 - "$U" "$MODE" "$MAND" "${ACCOUNT_DOMAIN:-localhost}" <<'PY'
 import json,subprocess,sys
-udid,mode,mand=sys.argv[1:4]
-a=[{"id":"AAAAAAAA-0000-0000-0000-000000000001","label":"Mock PBX","displayName":"Alex","domain":"localhost","port":5061,"transport":"tls","media":mode,"mediaMandatory":mand=="true","username":"7100"}]
+udid,mode,mand,domain=sys.argv[1:5]
+a=[{"id":"AAAAAAAA-0000-0000-0000-000000000001","label":"Mock PBX","displayName":"Alex","domain":domain,"port":5061,"transport":"tls","media":mode,"mediaMandatory":mand=="true","username":"7100"}]
 subprocess.run(["xcrun","simctl","spawn",udid,"defaults","write","com.livenet.l1ne","accounts.v1","-data",json.dumps(a).encode().hex()],check=True)
 PY
 xcrun simctl install "$U" "$APP"

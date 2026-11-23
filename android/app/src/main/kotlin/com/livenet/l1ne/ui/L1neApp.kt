@@ -113,7 +113,7 @@ private fun AccountMenu(expanded: Boolean, onDismiss: () -> Unit, onAccounts: ()
 @Composable
 private fun AccountsSheet(onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = L1neColors.Bg) {
+        containerColor = L1neColors.SheetBg) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
             Text("Accounts", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 8.dp, bottom = 12.dp))
             Row(
@@ -132,7 +132,7 @@ private fun AccountsSheet(onDismiss: () -> Unit) {
 @Composable
 private fun SettingsSheet(onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = L1neColors.Bg) {
+        containerColor = L1neColors.SheetBg) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
             Text("Settings", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 8.dp, bottom = 12.dp))
             Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(L1neColors.Surface).padding(16.dp)) {

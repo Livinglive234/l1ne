@@ -10,7 +10,8 @@ object L1neColors {
     val Brand = Color(0xFF22C03C)
     val BrandDim = Color(0xFF178A2B)
     val OnBrand = Color(0xFF04120A)
-    val Bg = Color(0xFF0B0F0C)
+    val Bg = Color(0xFF000000)          // main screens: pure black
+    val SheetBg = Color(0xFF0B0F0C)     // the website's green-tinted black, for sheets and dialogs
     val Surface = Color(0xFF121814)
     val Border = Color(0xFF223024)
     val Text = Color(0xFFE8EFE9)

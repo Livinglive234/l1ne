@@ -153,7 +153,7 @@ struct KeypadView: View {
             }
         }
         .padding()
-        .l1neBackground()
+        .mainBackground()
         .toolbar { ProfileToolbar() }
         .navigationBarTitleDisplayMode(.inline)
         }
@@ -217,7 +217,7 @@ struct RecentsView: View {
                     ContentUnavailableView("No recent calls", systemImage: "clock")
                 }
             }
-            .l1neBackground()
+            .mainBackground()
             .navigationTitle("Recents")
             .toolbar { ProfileToolbar() }
         }
@@ -247,7 +247,6 @@ struct CallScreen: View {
     @EnvironmentObject var engine: SIPEngine
     @EnvironmentObject var store: AccountStore
     @EnvironmentObject var router: AppRouter
-    @State private var expanded = false
     @State private var showKeypad = false
     @State private var showTransfer = false
     @State private var showCalls = false
@@ -256,129 +255,122 @@ struct CallScreen: View {
         if let c = engine.currentCall { screen(c) } else { Theme.bg.ignoresSafeArea() }
     }
 
+    // Laid out like the iOS call screen: name and time at the top, six round buttons, one big end button.
+    // What iOS doesn't normally show (transfer, record, messages, the calls list) lives under "more".
     private func screen(_ c: SIPEngine.CallInfo) -> some View {
-        ZStack(alignment: .bottom) {
-            Theme.bg.ignoresSafeArea()
-            VStack(spacing: 0) {
-                header(c)
+        VStack(spacing: 0) {
+            HStack {
+                Button { router.callMinimized = true } label: { Image(systemName: "chevron.left").font(.title3.weight(.medium)).frame(width: 36, height: 36) }
+                    .buttonStyle(.plain)
                 Spacer()
-                avatar(c)
-                VStack(spacing: 6) {
-                    Text(c.remote).font(.title2.weight(.light))
-                    if !c.address.isEmpty { Text(c.address).font(.callout).foregroundStyle(Theme.muted) }
-                    if engine.held.contains(c.id) { Label("On hold", systemImage: "pause.circle.fill").font(.footnote).foregroundStyle(Theme.brand) }
-                }.padding(.top, 18)
-                Spacer(minLength: expanded ? 360 : 170)
+                if c.connected { SignalBars(level: engine.quality[c.id] ?? 0) }
             }
-            sheet(c)
+            .padding(.horizontal, 18).padding(.top, 8)
+
+            VStack(spacing: 8) {
+                Text(c.remote).font(.system(size: 36, weight: .semibold)).multilineTextAlignment(.center).lineLimit(2).minimumScaleFactor(0.6)
+                if let since = c.since {
+                    TimelineView(.periodic(from: since, by: 1)) { ctx in
+                        let s = Int(ctx.date.timeIntervalSince(since))
+                        Text(String(format: "%d:%02d", s / 60, s % 60)).font(.title3).foregroundStyle(Theme.muted).monospacedDigit()
+                    }
+                } else {
+                    Text(c.incoming ? "incoming call" : c.state.lowercased()).font(.title3).foregroundStyle(Theme.muted)
+                }
+                if let line = securityLine(c) { Label(line.text, systemImage: line.icon).font(.footnote).foregroundStyle(line.color) }
+                if engine.held.contains(c.id) { Label("On hold", systemImage: "pause.circle.fill").font(.footnote).foregroundStyle(Theme.brand) }
+                if engine.recording.contains(c.id) { Label("Recording", systemImage: "record.circle").font(.footnote).foregroundStyle(Theme.danger) }
+            }
+            .padding(.horizontal, 24).padding(.top, 28)
+
+            Spacer()
+            if c.connected || !c.incoming { buttons(c) }
+            Spacer()
+            endButtons(c)
+                .padding(.bottom, 34)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.bg.ignoresSafeArea())
         .sheet(isPresented: $showKeypad) { DTMFSheet(call: c.id).environmentObject(engine) }
         .sheet(isPresented: $showTransfer) { TransferSheet(call: c).environmentObject(engine).environmentObject(store).environmentObject(ContactsStore.shared) }
         .sheet(isPresented: $showCalls) { CallsListSheet().environmentObject(engine) }
     }
 
-    // MARK: top: back, name | time, encryption, signal
-
-    private func header(_ c: SIPEngine.CallInfo) -> some View {
-        HStack(alignment: .top, spacing: 14) {
-            Button { router.callMinimized = true } label: { Image(systemName: "chevron.left").font(.title3.weight(.medium)).frame(width: 30, height: 30) }
-                .buttonStyle(.plain)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 8) {
-                    Text(c.remote).fontWeight(.bold).lineLimit(1)
-                    Text("|").foregroundStyle(Theme.muted)
-                    if let since = c.since {
-                        TimelineView(.periodic(from: since, by: 1)) { ctx in
-                            let s = Int(ctx.date.timeIntervalSince(since))
-                            Text(String(format: "%02d:%02d", s / 60, s % 60)).fontWeight(.bold).monospacedDigit()
-                        }
-                    } else { Text(c.state).fontWeight(.bold) }
-                }.font(.headline)
-                if let line = securityLine(c) { Label(line.text, systemImage: line.icon).font(.footnote).foregroundStyle(line.color) }
-                if engine.recording.contains(c.id) { Label("Recording", systemImage: "record.circle").font(.footnote).foregroundStyle(Theme.danger) }
-            }
-            Spacer()
-            if c.connected { SignalBars(level: engine.quality[c.id] ?? 0) }
-        }
-        .padding(.horizontal, 18).padding(.top, 10)
-    }
-
     private func securityLine(_ c: SIPEngine.CallInfo) -> (text: String, icon: String, color: Color)? {
         guard c.connected else { return nil }
         switch engine.encryption[c.id] ?? .unknown {
-        case .srtp: return ("Point-to-point encrypted by SRTP", "lock.fill", Theme.brand)
-        case .dtls: return ("Point-to-point encrypted by DTLS-SRTP", "lock.fill", Theme.brand)
+        case .srtp: return ("Encrypted by SRTP", "lock.fill", Theme.brand)
+        case .dtls: return ("Encrypted by DTLS-SRTP", "lock.fill", Theme.brand)
         case .none: return ("Not encrypted", "lock.open.fill", Theme.danger)
         case .unknown: return nil
         }
     }
 
-    private func avatar(_ c: SIPEngine.CallInfo) -> some View {
-        let initials = String(c.remote.split(separator: " ").prefix(2).compactMap { $0.first }).uppercased()
-        return ZStack {
-            Circle().fill(Theme.brand.opacity(0.16))
-            Circle().stroke(Theme.brand.opacity(0.5), lineWidth: 1)
-            Text(initials.isEmpty ? "?" : initials).font(.system(size: 96, weight: .semibold, design: .rounded)).foregroundStyle(Theme.brand)
-        }.frame(width: 220, height: 220)
+    // MARK: the six buttons
+
+    private func buttons(_ c: SIPEngine.CallInfo) -> some View {
+        let live = c.connected
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 3), spacing: 26) {
+            roundButton("mic.slash.fill", "mute", on: engine.muted.contains(c.id), enabled: live) { engine.toggleMute(c.id) }
+            roundButton("circle.grid.3x3.fill", "keypad", enabled: live) { showKeypad = true }
+            roundButton("speaker.wave.3.fill", "speaker", on: engine.speaker) { engine.toggleSpeaker() }
+            roundButton("plus", "add call", enabled: live) { router.callMinimized = true; router.tab = .keypad }
+            roundButton(engine.held.contains(c.id) ? "play.fill" : "pause.fill", engine.held.contains(c.id) ? "resume" : "hold",
+                        on: engine.held.contains(c.id), enabled: live) { engine.toggleHold(c.id) }
+            moreMenu(c)
+        }
+        .padding(.horizontal, 28)
     }
 
-    // MARK: bottom sheet: hang up, mute, speaker; expands to the rest
-
-    private func sheet(_ c: SIPEngine.CallInfo) -> some View {
-        VStack(spacing: 18) {
-            Button { withAnimation(.snappy) { expanded.toggle() } } label: {
-                Image(systemName: expanded ? "chevron.compact.down" : "chevron.compact.up").font(.system(size: 34, weight: .light)).foregroundStyle(Theme.text)
-                    .frame(maxWidth: .infinity, minHeight: 28)
-            }.buttonStyle(.plain)
-
-            HStack(spacing: 14) {
-                if c.incoming && !c.connected {
-                    Button { engine.answer(c.id) } label: { Image(systemName: "phone.fill").font(.title2).frame(width: 96, height: 64).background(Theme.brand, in: Capsule()).foregroundStyle(Theme.onBrand) }
-                }
-                Button { engine.hangup(c.id) } label: {
-                    Image(systemName: "phone.down.fill").font(.title2).frame(width: 96, height: 64).background(Theme.danger, in: Capsule()).foregroundStyle(.white)
-                }
-                Spacer()
-                round("mic.slash.fill", on: engine.muted.contains(c.id), enabled: c.connected) { engine.toggleMute(c.id) }
-                round("speaker.wave.3.fill", on: engine.speaker, enabled: true) { engine.toggleSpeaker() }
-            }
-
-            if expanded {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 14) {
-                    item("phone.arrow.right", "Transfer", c.connected) { showTransfer = true }
-                    item("phone.badge.plus", "New call", c.connected) { router.callMinimized = true; router.tab = .keypad }
-                    item("list.bullet", "Calls list", true) { showCalls = true }
-                    item("circle.grid.3x3.fill", "Dialer", c.connected) { showKeypad = true }
-                    item("bubble.left", "Messages", !c.address.isEmpty) { openMessages(c) }
-                    item(engine.held.contains(c.id) ? "play.fill" : "pause.fill", engine.held.contains(c.id) ? "Resume" : "Pause", c.connected, on: engine.held.contains(c.id)) { engine.toggleHold(c.id) }
-                    item("record.circle", "Record", c.connected, on: engine.recording.contains(c.id)) { engine.toggleRecording(c.id) }
-                }
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
+    private func moreMenu(_ c: SIPEngine.CallInfo) -> some View {
+        let live = c.connected
+        return Menu {
+            Button("Transfer…", systemImage: "phone.arrow.right") { showTransfer = true }.disabled(!live)
+            Button(engine.recording.contains(c.id) ? "Stop recording" : "Record call", systemImage: "record.circle") { engine.toggleRecording(c.id) }.disabled(!live)
+            Button("Messages", systemImage: "bubble.left") { openMessages(c) }.disabled(c.address.isEmpty)
+            Button("Calls list", systemImage: "list.bullet") { showCalls = true }
+        } label: {
+            VStack(spacing: 8) {
+                Image(systemName: "ellipsis").font(.title2).frame(width: 78, height: 78)
+                    .background(Theme.surface, in: Circle()).overlay(Circle().stroke(Theme.border)).foregroundStyle(Theme.text)
+                Text("more").font(.footnote).foregroundStyle(Theme.text)
             }
         }
-        .padding(.horizontal, 20).padding(.bottom, 14).padding(.top, 6)
-        .background {
-            UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28).fill(Theme.surface).ignoresSafeArea(edges: .bottom)
-        }
     }
 
-    private func round(_ icon: String, on: Bool, enabled: Bool, _ action: @escaping () -> Void) -> some View {
+    private func roundButton(_ icon: String, _ label: String, on: Bool = false, enabled: Bool = true, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon).font(.title3).frame(width: 64, height: 64)
-                .background(on ? Theme.brand : Theme.bg.opacity(0.6), in: Circle())
-                .foregroundStyle(on ? Theme.onBrand : Theme.text)
-        }.buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.4)
-    }
-
-    private func item(_ icon: String, _ label: String, _ enabled: Bool, on: Bool = false, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 6) {
-                Image(systemName: icon).font(.title3).frame(width: 60, height: 60)
-                    .background(on ? Theme.brand : Theme.bg.opacity(0.6), in: Circle())
+            VStack(spacing: 8) {
+                Image(systemName: icon).font(.title2).frame(width: 78, height: 78)
+                    .background(on ? Theme.brand : Theme.surface, in: Circle())
+                    .overlay(Circle().stroke(Theme.border, lineWidth: on ? 0 : 1))
                     .foregroundStyle(on ? Theme.onBrand : Theme.text)
-                Text(label).font(.footnote).foregroundStyle(Theme.text).lineLimit(1).minimumScaleFactor(0.8)
+                Text(label).font(.footnote).foregroundStyle(Theme.text)
             }
-        }.buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.4)
+        }
+        .buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.4)
+    }
+
+    // MARK: end / answer
+
+    @ViewBuilder private func endButtons(_ c: SIPEngine.CallInfo) -> some View {
+        if c.incoming && !c.connected {
+            HStack(spacing: 90) {
+                bigButton("phone.down.fill", "decline", Theme.danger, .white) { engine.hangup(c.id) }
+                bigButton("phone.fill", "accept", Theme.brand, Theme.onBrand) { engine.answer(c.id) }
+            }
+        } else {
+            bigButton("phone.down.fill", nil, Theme.danger, .white) { engine.hangup(c.id) }
+        }
+    }
+
+    private func bigButton(_ icon: String, _ label: String?, _ fill: Color, _ fg: Color, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(systemName: icon).font(.system(size: 30)).frame(width: 78, height: 78).background(fill, in: Circle()).foregroundStyle(fg)
+                if let label { Text(label).font(.footnote).foregroundStyle(Theme.text) }
+            }
+        }.buttonStyle(.plain)
     }
 
     private func openMessages(_ c: SIPEngine.CallInfo) {
@@ -462,7 +454,7 @@ struct DTMFSheet: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.bg.ignoresSafeArea())
+        .background(Theme.sheet.ignoresSafeArea())
         .presentationDetents([.medium])
     }
 }

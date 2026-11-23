@@ -42,7 +42,7 @@ struct ConversationsView: View {
                                            description: Text("Texts need a server that supports SIP messages."))
                 }
             }
-            .l1neBackground()
+            .mainBackground()
             .navigationTitle("Conversations")
             .navigationDestination(for: ThreadTarget.self) { ThreadView(target: $0) }
             .task(id: router.pendingThread) {
@@ -98,7 +98,7 @@ struct ThreadView: View {
                 messages.markRead(target)
             }
         }
-        .l1neBackground()
+        .mainBackground()
         .navigationTitle(displayName(target.peer, contacts: contacts))
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) { composer }

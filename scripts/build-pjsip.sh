@@ -11,7 +11,15 @@ OUT="$ROOT/vendor/build"
 MIN_IOS=17.0
 JOBS=$(sysctl -n hw.ncpu)
 
-[ -d "$SRC" ] || { echo "missing $SRC (git clone --depth 1 --branch 2.17 https://github.com/pjsip/pjproject.git vendor/pjproject)"; exit 1; }
+[ -d "$SRC" ] || { echo "missing $SRC (run scripts/fetch-deps.sh)"; exit 1; }
+
+# L1ne's patches to pjproject (see scripts/patches). Safe to run again: an applied patch is skipped.
+for p in "$ROOT"/scripts/patches/*.patch; do
+  [ -f "$p" ] || continue
+  if git -C "$SRC" apply --check "$p" 2>/dev/null; then git -C "$SRC" apply "$p"; echo "applied $(basename "$p")"
+  elif git -C "$SRC" apply --check -R "$p" 2>/dev/null; then echo "already applied: $(basename "$p")"
+  else echo "patch does not apply cleanly: $p"; exit 1; fi
+done
 
 build_slice() {
   local name="$1" platform="$2" minflag="$3"

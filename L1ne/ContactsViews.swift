@@ -44,7 +44,7 @@ struct ContactsView: View {
             }
             .searchable(text: $search)
             .overlay { if contacts.contacts.isEmpty { ContentUnavailableView("No contacts", systemImage: "person.2", description: Text("Pick contacts that have a SIP address, import a vCard, or add one by hand.")) } }
-            .l1neBackground()
+            .mainBackground()
             .navigationTitle("Contacts")
             .toolbar {
                 ProfileToolbar()

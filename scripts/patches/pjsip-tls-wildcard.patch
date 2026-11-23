@@ -1,0 +1,70 @@
+diff --git a/pjsip/src/pjsip/sip_transport_tls.c b/pjsip/src/pjsip/sip_transport_tls.c
+index 1b72467..85c723f 100644
+--- a/pjsip/src/pjsip/sip_transport_tls.c
++++ b/pjsip/src/pjsip/sip_transport_tls.c
+@@ -30,6 +30,45 @@
+ #include <pj/pool.h>
+ #include <pj/string.h>
+ 
++/* L1ne patch: accept TLS wildcard certificates as RFC 6125 describes (the pattern's leftmost label is "*",
++ * it stands for exactly one non-empty label of the host, and IP addresses never match). Upstream pjproject
++ * refuses wildcard certificates (RFC 5922 section 7.2), but most deployments use them. */
++static pj_bool_t l1ne_wildcard_match(const pj_str_t *host, const pj_str_t *pattern)
++{
++    const char *h, *dot;
++    pj_ssize_t hlen, tail;
++
++    if (pattern->slen < 4 || pattern->ptr[0] != '*' || pattern->ptr[1] != '.')
++        return PJ_FALSE;
++    /* the part after '*' must contain a dot, so "*.com" style patterns are refused */
++    if (pj_memchr(pattern->ptr + 2, '.', pattern->slen - 2) == NULL)
++        return PJ_FALSE;
++    /* an IP address is never matched by a wildcard */
++    if (pj_memchr(host->ptr, ':', host->slen) != NULL)
++        return PJ_FALSE;
++    h = host->ptr; hlen = host->slen;
++    dot = (const char*)pj_memchr(h, '.', hlen);
++    if (dot == NULL || dot == h)                    /* need a non-empty first label and a dot */
++        return PJ_FALSE;
++    tail = hlen - (dot - h);                        /* ".example.com" */
++    if (tail != pattern->slen - 1)
++        return PJ_FALSE;
++    {
++        pj_str_t a, b;
++        a.ptr = (char*)dot;            a.slen = tail;
++        b.ptr = pattern->ptr + 1;      b.slen = pattern->slen - 1;
++        if (pj_stricmp(&a, &b) != 0)
++            return PJ_FALSE;
++    }
++    /* host must not be all digits and dots (an IPv4 address) */
++    {
++        pj_ssize_t i; pj_bool_t digits = PJ_TRUE;
++        for (i = 0; i < hlen; ++i) if (!((h[i] >= '0' && h[i] <= '9') || h[i] == '.')) { digits = PJ_FALSE; break; }
++        if (digits) return PJ_FALSE;
++    }
++    return PJ_TRUE;
++}
++
+ #if defined(PJSIP_HAS_TLS_TRANSPORT) && PJSIP_HAS_TLS_TRANSPORT!=0
+ 
+ #define THIS_FILE       "sip_transport_tls.c"
+@@ -2101,7 +2140,8 @@ static pj_bool_t on_connect_complete(pj_ssl_sock_t *ssock,
+             switch (serv_cert->subj_alt_name.entry[i].type) {
+             case PJ_SSL_CERT_NAME_DNS:
+             case PJ_SSL_CERT_NAME_IP:
+-                matched = !pj_stricmp(remote_name, cert_name);
++                matched = !pj_stricmp(remote_name, cert_name) ||
++                          l1ne_wildcard_match(remote_name, cert_name);
+                 break;
+             case PJ_SSL_CERT_NAME_URI:
+                 if (pj_strnicmp2(cert_name, "sip:", 4) == 0 ||
+@@ -2125,7 +2165,8 @@ static pj_bool_t on_connect_complete(pj_ssl_sock_t *ssock,
+          * certificate, try with Common Name of Subject field.
+          */
+         if (!matched) {
+-            matched = !pj_stricmp(remote_name, &serv_cert->subject.cn);
++            matched = !pj_stricmp(remote_name, &serv_cert->subject.cn) ||
++                      l1ne_wildcard_match(remote_name, &serv_cert->subject.cn);
+         }
+ 
+         if (!matched) {

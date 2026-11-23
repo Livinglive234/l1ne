@@ -45,7 +45,8 @@ gradle :core:test      # the shared Kotlin core builds with just a JDK
 - `tests/mock`: a local SIP-over-TLS server and scripts that place a call from the simulator and print the encryption lines in the offer.
 - `android/core`: the same fixtures from Kotlin (`gradle :core:test`).
 
-## Third-party components and licensing
-L1ne links **PJSIP** (GPLv2 or later, with a commercial option from its authors), **OpenSSL** (Apache-2.0) and ships Mozilla's CA bundle
-(MPL-2.0). Because PJSIP is GPL, a distributed build of L1ne has to be GPL-compatible. **This repository does not have a license file yet**;
-one has to be chosen before anyone else may use the code.
+## License
+- L1ne's own source code is **MIT** ([LICENSE](LICENSE)).
+- A built copy of L1ne contains **PJSIP (GPL-2.0-or-later)**, so anyone who distributes a build must follow the GPL for the combined work.
+  Using your own build needs nothing; distributing one does. Read [LICENSING.md](LICENSING.md) first, in particular the section about the App Store and TestFlight.
+- Third-party components and their licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
