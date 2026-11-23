@@ -16,6 +16,7 @@ final class CallKitManager: NSObject, CXProviderDelegate {
     private var uuids: [Int32: UUID] = [:]
     private var reportedConnected: Set<Int32> = []
     private var endedBySystem: Set<Int32> = []
+    private var names: [UUID: String] = [:]
     private var startPerformed: Set<UUID> = []       // outgoing calls whose start action CallKit has processed
     private var connectedEarly: Set<UUID> = []       // answered before that happened; reported once it has
 
@@ -53,6 +54,7 @@ final class CallKitManager: NSObject, CXProviderDelegate {
     func reportOutgoing(_ id: Int32, name: String, address: String) {
         guard uuids[id] == nil else { return }
         let u = uuid(id)
+        names[u] = name
         let h = CXHandle(type: .generic, value: address.isEmpty ? name : address)
         let start = CXStartCallAction(call: u, handle: h)
         start.contactIdentifier = name
@@ -70,7 +72,7 @@ final class CallKitManager: NSObject, CXProviderDelegate {
 
     func reportEnded(_ id: Int32) {
         guard let u = uuids.removeValue(forKey: id) else { return }
-        startPerformed.remove(u); connectedEarly.remove(u)
+        startPerformed.remove(u); connectedEarly.remove(u); names[u] = nil
         reportedConnected.remove(id)
         if endedBySystem.remove(id) == nil { provider.reportCall(with: u, endedAt: Date(), reason: .remoteEnded) }
     }
@@ -86,6 +88,12 @@ final class CallKitManager: NSObject, CXProviderDelegate {
     nonisolated func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
         Task { @MainActor in
             provider.reportOutgoingCall(with: action.callUUID, startedConnectingAt: Date())
+            if let n = self.names[action.callUUID] {          // show the contact's name, not the SIP address
+                let up = CXCallUpdate()
+                up.localizedCallerName = n
+                up.supportsHolding = true; up.supportsGrouping = false; up.supportsUngrouping = false; up.supportsDTMF = true
+                provider.reportCall(with: action.callUUID, updated: up)
+            }
             self.startPerformed.insert(action.callUUID)
             if self.connectedEarly.remove(action.callUUID) != nil { provider.reportOutgoingCall(with: action.callUUID, connectedAt: Date()) }
             action.fulfill()

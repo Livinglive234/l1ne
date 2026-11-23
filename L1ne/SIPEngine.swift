@@ -331,8 +331,8 @@ final class SIPEngine: ObservableObject {
         let ok = st == 0
         if ok {
             currentCallID = callID
-            let name = AccountStore.shared.account(account).flatMap { _ in ContactsStore.shared.contacts.first { $0.user == digits }?.name } ?? digits
-            CallKitManager.shared.reportOutgoing(callID, name: name, address: digits)
+            let bare = VCard.sipAddress(uri) ?? digits
+            CallKitManager.shared.reportOutgoing(callID, name: Self.callerName(from: uri), address: bare)
         }
         return ok
     }
