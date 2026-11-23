@@ -344,14 +344,28 @@ struct CallScreen: View {
 }
 
 /// Five bars like a phone's signal meter; filled by call quality.
+/// Call quality as a small pill: five rounded bars in the brand green (amber when fair, red when poor) and the word for it.
 struct SignalBars: View {
     var level: Int
+
+    private var tint: Color { level >= 4 ? Theme.brand : (level == 3 ? .orange : Theme.danger) }
+    private var word: String { ["", "Poor", "Poor", "Fair", "Good", "Excellent"][max(0, min(5, level))] }
+
     var body: some View {
-        HStack(alignment: .bottom, spacing: 3) {
-            ForEach(1...5, id: \.self) { i in
-                RoundedRectangle(cornerRadius: 1.5).fill(i <= level ? Theme.text : Theme.muted.opacity(0.35)).frame(width: 4, height: CGFloat(5 + i * 5))
+        HStack(spacing: 8) {
+            HStack(alignment: .bottom, spacing: 2.5) {
+                ForEach(1...5, id: \.self) { i in
+                    Capsule().fill(i <= level ? tint : Theme.muted.opacity(0.28)).frame(width: 3.5, height: CGFloat(4 + i * 3))
+                }
             }
-        }.frame(height: 32).accessibilityLabel("Call quality \(level) of 5")
+            .frame(height: 19)
+            if level > 0 { Text(word).font(.footnote.weight(.semibold)).foregroundStyle(tint) }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 7)
+        .background(Theme.surface, in: Capsule())
+        .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Call quality \(word.lowercased())")
     }
 }
 
