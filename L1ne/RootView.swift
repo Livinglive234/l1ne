@@ -176,7 +176,13 @@ struct RecentsView: View {
 
     @State private var missedOnly = false
     @State private var detail: PersonTarget?
-    private var shown: [CallRecord] { missedOnly ? callLog.records.filter { $0.direction == .missed } : callLog.records }
+    @State private var search = ""
+    @State private var confirmClear = false
+    private var shown: [CallRecord] {
+        let base = missedOnly ? callLog.records.filter { $0.direction == .missed } : callLog.records
+        guard !search.isEmpty else { return base }
+        return base.filter { name($0).localizedCaseInsensitiveContains(search) || $0.peer.localizedCaseInsensitiveContains(search) }
+    }
 
     var body: some View {
         NavigationStack {
@@ -191,12 +197,12 @@ struct RecentsView: View {
                                         .foregroundStyle(r.direction == .missed ? Theme.danger : Theme.text).lineLimit(1)
                                     HStack(spacing: 4) {
                                         Image(systemName: r.direction == .outgoing ? "arrow.up.right" : "arrow.down.left").font(.caption2.weight(.semibold))
-                                        Text(subtitle(r)).lineLimit(1)
+                                        Text(whenText(r.date)).lineLimit(1)
                                     }
                                     .font(.subheadline).foregroundStyle(Theme.muted)
+                                    if let d = details(r) { Text(d).font(.caption).foregroundStyle(r.direction == .missed ? Theme.danger.opacity(0.85) : Theme.muted).lineLimit(1) }
                                 }
                                 Spacer(minLength: 8)
-                                Text(when(r.date)).font(.subheadline).foregroundStyle(Theme.muted)
                             }
                         }.buttonStyle(.plain)
                         CallCircleButton { callBack(r) }
@@ -208,6 +214,10 @@ struct RecentsView: View {
             }
             .listStyle(.plain).scrollContentBackground(.hidden)
             .navigationDestination(item: $detail) { ContactDetailView(person: $0) }
+            .searchable(text: $search)
+            .confirmationDialog("Delete all recent calls?", isPresented: $confirmClear, titleVisibility: .visible) {
+                Button("Delete all", role: .destructive) { callLog.removeAll() }
+            }
             .overlay {
                 if shown.isEmpty {
                     ContentUnavailableView(missedOnly ? "No missed calls" : "No recent calls", systemImage: "clock")
@@ -223,6 +233,8 @@ struct RecentsView: View {
                             Label("All", systemImage: "phone").tag(false)
                             Label("Missed", systemImage: "phone.arrow.down.left").tag(true)
                         }
+                        Divider()
+                        Button("Delete all calls", systemImage: "trash", role: .destructive) { confirmClear = true }.disabled(callLog.records.isEmpty)
                     } label: { Image(systemName: "line.3.horizontal.decrease") }
                 }
             }
@@ -239,18 +251,21 @@ struct RecentsView: View {
         }.frame(width: 48, height: 48)
     }
 
-    private func subtitle(_ r: CallRecord) -> String {
-        let acc = r.accountID.flatMap { store.account($0) }?.title ?? "L1ne"
-        return r.direction == .missed ? "Missed · \(acc)" : acc
+    /// "Today | 12:37 PM", "Yesterday | 9:10 PM", "11/13 | 10:41 AM": the day and the time of every call.
+    private func whenText(_ d: Date) -> String {
+        let cal = Calendar.current
+        let day = cal.isDateInToday(d) ? "Today" : cal.isDateInYesterday(d) ? "Yesterday" : d.formatted(.dateTime.month(.defaultDigits).day())
+        return "\(day) | \(d.formatted(date: .omitted, time: .shortened))"
     }
 
-    /// Like the Phone app: the time today, "Yesterday", the weekday this week, otherwise the date.
-    private func when(_ d: Date) -> String {
-        let cal = Calendar.current
-        if cal.isDateInToday(d) { return d.formatted(date: .omitted, time: .shortened) }
-        if cal.isDateInYesterday(d) { return "Yesterday" }
-        if let days = cal.dateComponents([.day], from: d, to: Date()).day, days < 7 { return d.formatted(.dateTime.weekday(.wide)) }
-        return d.formatted(.dateTime.month(.defaultDigits).day().year(.twoDigits))
+    /// Missed, how long it lasted, and which account (only when there is more than one).
+    private func details(_ r: CallRecord) -> String? {
+        var parts: [String] = []
+        if r.direction == .missed { parts.append("Missed") }
+        else if r.duration > 0 { parts.append(String(format: "%d:%02d", r.duration / 60, r.duration % 60)) }
+        else { parts.append(r.direction == .outgoing ? "Not answered" : "Declined") }
+        if store.accounts.count > 1, let a = r.accountID.flatMap({ store.account($0) }) { parts.append(a.title) }
+        return parts.joined(separator: " · ")
     }
 
     private func name(_ r: CallRecord) -> String {
