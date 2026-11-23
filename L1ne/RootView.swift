@@ -352,14 +352,13 @@ struct SignalBars: View {
     private var word: String { ["", "Poor", "Poor", "Fair", "Good", "Excellent"][max(0, min(5, level))] }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 0) {
             HStack(alignment: .bottom, spacing: 2.5) {
                 ForEach(1...5, id: \.self) { i in
                     Capsule().fill(i <= level ? tint : Theme.muted.opacity(0.28)).frame(width: 3.5, height: CGFloat(4 + i * 3))
                 }
             }
             .frame(height: 19)
-            if level > 0 { Text(word).font(.footnote.weight(.semibold)).foregroundStyle(tint) }
         }
         .padding(.horizontal, 12).padding(.vertical, 7)
         .background(Theme.surface, in: Capsule())
