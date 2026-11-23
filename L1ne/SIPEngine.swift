@@ -64,6 +64,11 @@ final class SIPEngine: ObservableObject {
     @Published var qualityNumbers: [Int32: QualityNumbers] = [:]   // the raw figures behind that score, shown when you tap the indicator
     struct QualityNumbers: Equatable { var lossPercent: Double; var jitterMs: Double; var roundTripMs: Double }
     private var statsTask: Task<Void, Never>?
+    // Calls that were still ringing when the network changed are redialled once: the request they were waiting on went out
+    // over the old connection, which is gone after the switch.
+    private var outgoingTargets: [Int32: (number: String, account: UUID, attempt: Int)] = [:]
+    private var userEnded: Set<Int32> = []
+    private var unansweredAtNetworkChange: Set<Int32> = []
 
     var currentCall: CallInfo? { calls.first { $0.id == currentCallID } ?? calls.first }
 
@@ -266,8 +271,9 @@ final class SIPEngine: ObservableObject {
         for a in store.accounts { register(a, secret: store.secret(a.id)) }
     }
 
-    private func networkChanged() {
+    func networkChanged() {
         guard started else { return }
+        unansweredAtNetworkChange = Set(calls.filter { !$0.connected && !$0.incoming }.map(\.id))
         if AppSettings.shared.wifiOnly { reregisterAll(); return }
         var p = pjsua_ip_change_param()
         pjsua_ip_change_param_default(&p)
@@ -352,7 +358,7 @@ final class SIPEngine: ObservableObject {
     // MARK: calls
 
     @discardableResult
-    func call(_ number: String, from account: UUID) -> Bool {
+    func call(_ number: String, from account: UUID, attempt: Int = 0) -> Bool {
         guard let acc = pjAccounts[account], let a = AccountStore.shared.account(account) else { return false }
         let digits = number.trimmingCharacters(in: .whitespaces)
         guard !digits.isEmpty else { return false }
@@ -369,6 +375,7 @@ final class SIPEngine: ObservableObject {
         let ok = st == 0
         if ok {
             currentCallID = callID
+            outgoingTargets[callID] = (number, account, attempt)
             let bare = VCard.sipAddress(uri) ?? digits
             CallKitManager.shared.reportOutgoing(callID, name: Self.callerName(from: uri), address: bare)
         }
@@ -397,6 +404,7 @@ final class SIPEngine: ObservableObject {
     }
 
     func hangup(_ id: Int32) {
+        userEnded.insert(id)
         pjsua_call_hangup(id, 0, nil, nil)
     }
 
@@ -406,7 +414,7 @@ final class SIPEngine: ObservableObject {
         pjsua_call_dial_dtmf(id, &d)
     }
 
-    func hangupAll() { pjsua_call_hangup_all() }
+    func hangupAll() { for c in calls { userEnded.insert(c.id) }; pjsua_call_hangup_all() }
 
     func toggleMute(_ id: Int32) {
         var ci = pjsua_call_info()
@@ -481,11 +489,22 @@ final class SIPEngine: ObservableObject {
             let outgoing = ci.role == PJSIP_ROLE_UAC
             let remote = str(ci.remote_info)
             let inner = remote.firstIndex(of: "<").map { String(remote[$0...]).trimmingCharacters(in: CharacterSet(charactersIn: "<>")) } ?? remote
+            // a call that was still ringing when the network changed and wasn't ended by you: try it once more, quietly
+            let target = outgoingTargets.removeValue(forKey: call)
+            let byYou = userEnded.remove(call) != nil
+            let networkCut = unansweredAtNetworkChange.remove(call) != nil          // only calls that were ringing when it changed
+            if outgoing, secs == 0, !byYou, networkCut, let t = target, t.attempt == 0 {
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)           // let the registration move to the new network
+                    self?.call(t.number, from: t.account, attempt: 1)
+                }
+            } else {
             CallLogStore.shared.add(CallRecord(
                 peer: VCard.sipAddress(inner) ?? Self.displayName(from: remote),
                 accountID: accountForPJ[ci.acc_id],
                 direction: outgoing ? .outgoing : (secs > 0 ? .incoming : .missed),
                 duration: secs))
+            }
             if let rec = recorders.removeValue(forKey: call) { pjsua_recorder_destroy(rec) }
             recording.remove(call); muted.remove(call); held.remove(call)
             calls.removeAll { $0.id == call }

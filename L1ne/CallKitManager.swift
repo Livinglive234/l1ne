@@ -59,6 +59,9 @@ final class CallKitManager: NSObject, CXProviderDelegate {
     }
 
     func reportOutgoing(_ id: Int32, name: String, address: String) {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["L1NE_NOCALLKIT"] != nil { return }     // tests/mock: the simulator's CallKit ends unanswered calls
+        #endif
         guard uuids[id] == nil else { return }
         let u = uuid(id)
         names[u] = name

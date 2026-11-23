@@ -81,6 +81,11 @@ struct RootView: View {
             if let n = ProcessInfo.processInfo.environment["L1NE_AUTODIAL"], let a = store.selected {
                 try? await Task.sleep(nanoseconds: 4_000_000_000)
                 engine.call(n, from: a.id)
+                // tests/mock: as if the network changed this many seconds into the call
+                if let s = ProcessInfo.processInfo.environment["L1NE_TESTSWITCH"], let secs = Double(s) {
+                    try? await Task.sleep(nanoseconds: UInt64(secs * 1_000_000_000))
+                    engine.networkChanged()
+                }
             }
             #endif
         }

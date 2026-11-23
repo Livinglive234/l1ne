@@ -13,8 +13,10 @@ ap.add_argument("--port", type=int, default=5061)
 ap.add_argument("--message"); ap.add_argument("--mwi", type=int, default=3)
 ap.add_argument("--route", choices=["drop", "echo", "405"], default="drop",
                 help="what to do with a MESSAGE: accept and drop it (like a stock Asterisk), route it back to the sender's registration, or refuse it with 405")
+ap.add_argument("--ring-first", action="store_true", help="the first INVITE only gets 180 Ringing and is never answered (to test a network change while ringing); later ones follow --answer")
 ap.add_argument("--answer", action="store_true", help="answer INVITEs with 200 OK (SDES SRTP, PCMU) instead of refusing them")
 args = ap.parse_args()
+state = {}
 LOG = open(args.log, "a", buffering=1)
 def log(*a): print(time.strftime("%H:%M:%S"), *a, file=LOG, flush=True)
 
@@ -96,7 +98,10 @@ async def handle(reader, writer):
                     log("INVITE", start.split()[1], "SDP offered:")
                     for l in body.splitlines():
                         if l.startswith(("m=", "a=crypto", "a=fingerprint", "a=setup", "c=")): log("   ", l)
-                    if args.answer:
+                    if args.ring_first and not state.get("rang"):
+                        state["rang"] = True
+                        await send(reply(180, "Ringing", hs, vias, [f"Contact: <{me}>"], totag=srvtag)); log("-> 180 Ringing (never answered)")
+                    elif args.answer:
                         # accept with SDES crypto tag 3 (AES_CM_128_HMAC_SHA1_80) if offered; no media is actually sent
                         sdp = ("v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\ns=mock\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\n"
                                "m=audio 40000 RTP/SAVP 0\r\na=rtpmap:0 PCMU/8000\r\n"
