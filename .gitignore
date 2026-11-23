@@ -1,0 +1,22 @@
+# generated or local
+*.xcodeproj
+xcuserdata/
+DerivedData/
+build/
+.build/
+.DS_Store
+.local/
+*.log
+
+# third-party sources and build products (fetch with scripts/fetch-deps.sh, build with scripts/build-*.sh)
+vendor/
+
+# Android
+android/.gradle/
+android/**/build/
+android/local.properties
+*.iml
+.idea/
+
+# private notes about a specific installation (not published)
+docs/private/

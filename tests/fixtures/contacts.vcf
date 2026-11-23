@@ -1,0 +1,25 @@
+BEGIN:VCARD
+VERSION:4.0
+FN:Jordan Lee
+N:Lee;Jordan;;;
+IMPP:sip:7201@PBX.example.com
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Folded
+ Name Person
+N:Person;Folded;;;
+item1.IMPP;X-SERVICE-TYPE=SIP:sips:alice@sip.example.com;transport=tls
+TEL:+16125551234
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Phone Only
+TEL;TYPE=CELL:+16125550000
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Doe;Jane;;;
+X-SIP:sip:jane@example.org
+IMPP:xmpp:jane@example.org
+END:VCARD

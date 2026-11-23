@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<config xmlns="http://www.linphone.org/xsds/lpconfig.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.linphone.org/xsds/lpconfig.xsd lpconfig.xsd">
+  <section name="proxy_0">
+    <entry name="reg_proxy" overwrite="true">&lt;sip:pbx.example.com:5061;transport=tls&gt;</entry>
+    <entry name="reg_identity" overwrite="true">"Max Example" &lt;sip:7201@pbx.example.com&gt;</entry>
+    <entry name="reg_expires" overwrite="true">3600</entry>
+    <entry name="reg_sendregister" overwrite="true">1</entry>
+    <entry name="publish" overwrite="true">0</entry>
+  </section>
+  <section name="proxy_1">
+    <entry name="reg_proxy" overwrite="true">&lt;sip:sip.linphone.org:5061;transport=tls&gt;</entry>
+    <entry name="reg_identity" overwrite="true">"DO NOT USE - incoming only" &lt;sip:lnp-0123abcd@sip.linphone.org&gt;</entry>
+  </section>
+  <section name="auth_info_0">
+    <entry name="username" overwrite="true">7201</entry>
+    <entry name="passwd" overwrite="true">test-secret-not-real</entry>
+    <entry name="realm" overwrite="true">asterisk</entry>
+    <entry name="domain" overwrite="true">pbx.example.com</entry>
+  </section>
+  <section name="auth_info_1">
+    <entry name="username" overwrite="true">lnp-0123abcd</entry>
+    <entry name="passwd" overwrite="true">another-fake</entry>
+    <entry name="domain" overwrite="true">sip.linphone.org</entry>
+  </section>
+  <section name="misc">
+    <entry name="contacts-vcard-list" overwrite="true">https://pbx.example.com/p/contacts-0123456789abcdef0123456789abcdef.vcf</entry>
+    <entry name="transient_provisioning" overwrite="true">1</entry>
+  </section>
+</config>

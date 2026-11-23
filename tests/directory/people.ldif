@@ -1,0 +1,46 @@
+dn: dc=example,dc=com
+objectClass: dcObject
+objectClass: organization
+dc: example
+o: Example
+
+dn: ou=people,dc=example,dc=com
+objectClass: organizationalUnit
+ou: people
+
+dn: cn=Jordan Lee,ou=people,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: Jordan Lee
+sn: Lee
+givenName: Max
+displayName: Jordan Lee
+telephoneNumber: +1 612 555 0101
+labeledURI: sip:7201@pbx.example.com
+
+dn: cn=Alice Example,ou=people,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: Alice Example
+sn: Example
+givenName: Alice
+labeledURI: alice@sip.example.org
+labeledURI: sip:alice.work@sip.example.org
+
+dn: cn=Sam Rivera,ou=people,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: Sam Rivera
+sn: Rivera
+displayName: Sam Rivera
+telephoneNumber: 7102
+
+dn: cn=Phone Only,ou=people,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: Phone Only
+sn: Only
+telephoneNumber: +1 612 555 0199
+
+dn: cn=Zoë Müller,ou=people,dc=example,dc=com
+objectClass: inetOrgPerson
+cn: Zoë Müller
+sn: Müller
+displayName: Zoë Müller
+labeledURI: sip:zoe@pbx.example.com
