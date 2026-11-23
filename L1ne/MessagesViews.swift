@@ -35,32 +35,18 @@ struct ConversationsView: View {
             }
             .onDelete { idx in messages.delete(idx.map { messages.conversations[$0].id }) }
         }
+        .scrollDisabled(messages.conversations.isEmpty)      // nothing to scroll when there are no conversations
         .overlay {
             if messages.conversations.isEmpty {
                 ContentUnavailableView("No conversations", systemImage: "bubble.left.and.bubble.right",
-                                       description: Text("Tap the pencil to start one."))
+                                       description: Text("Texts need a server that supports SIP messages."))
             }
         }
     }
 
-    /// Texting is off for the connected account when it has no account at all or its server said it has no text routing.
-    private var unavailableReason: String? {
-        guard let a = store.selected else { return "Add an account to send text messages." }
-        if let note = engine.messagingNote[a.id] { return note }
-        return nil
-    }
-
     var body: some View {
         NavigationStack(path: $path) {
-            Group {
-                if let reason = unavailableReason, messages.conversations.isEmpty {
-                    // nothing to read and nothing to send with this server: a fixed screen, not a scrolling list
-                    ContentUnavailableView("Messaging isn't available", systemImage: "bubble.left.and.bubble.right",
-                                           description: Text(reason))
-                } else {
-                    list
-                }
-            }
+            list
             .mainBackground()
             .navigationTitle("Conversations")
             .navigationDestination(for: ThreadTarget.self) { ThreadView(target: $0) }
@@ -71,7 +57,7 @@ struct ConversationsView: View {
                 ProfileToolbar()
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { composing = true } label: { Image(systemName: "square.and.pencil") }
-                        .disabled(unavailableReason != nil)
+                        .disabled(store.accounts.isEmpty)
                 }
             }
             .sheet(isPresented: $composing) {
