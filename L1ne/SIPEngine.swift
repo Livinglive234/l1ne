@@ -61,6 +61,8 @@ final class SIPEngine: ObservableObject {
     @Published var currentCallID: Int32?
     @Published var encryption: [Int32: CallSecurity] = [:]
     @Published var quality: [Int32: Int] = [:]          // 1 (poor) ... 5 (excellent), from RTCP loss, jitter and delay
+    @Published var qualityNumbers: [Int32: QualityNumbers] = [:]   // the raw figures behind that score, shown when you tap the indicator
+    struct QualityNumbers: Equatable { var lossPercent: Double; var jitterMs: Double; var roundTripMs: Double }
     private var statsTask: Task<Void, Never>?
 
     var currentCall: CallInfo? { calls.first { $0.id == currentCallID } ?? calls.first }
@@ -546,11 +548,13 @@ final class SIPEngine: ObservableObject {
                 let total = Double(r.rx.pkt) + Double(r.rx.loss)
                 let loss = total > 20 ? Double(r.rx.loss) * 100 / total : 0
                 let jitterMs = Double(r.rx.jitter.mean) / 1000, rttMs = Double(r.rtt.last) / 1000
+                // Forgiving on purpose: ordinary internet jitter and a distant server shouldn't cost a call its bars.
                 var score = 5
-                if loss > 1 { score -= 1 }; if loss > 4 { score -= 1 }; if loss > 10 { score -= 1 }
-                if jitterMs > 30 { score -= 1 }; if jitterMs > 80 { score -= 1 }
-                if rttMs > 200 { score -= 1 }; if rttMs > 400 { score -= 1 }
+                if loss > 3 { score -= 1 }; if loss > 8 { score -= 1 }; if loss > 15 { score -= 1 }
+                if jitterMs > 60 { score -= 1 }; if jitterMs > 150 { score -= 1 }
+                if rttMs > 350 { score -= 1 }; if rttMs > 700 { score -= 1 }
                 quality[c.id] = max(1, score)
+                qualityNumbers[c.id] = QualityNumbers(lossPercent: loss, jitterMs: jitterMs, roundTripMs: rttMs)
             }
         }
     }

@@ -225,7 +225,7 @@ struct CallScreen: View {
                 Button { router.callMinimized = true } label: { Image(systemName: "chevron.left").font(.title3.weight(.medium)).frame(width: 36, height: 36) }
                     .buttonStyle(.plain)
                 Spacer()
-                if c.connected { SignalBars(level: engine.quality[c.id] ?? 0) }
+                if c.connected { SignalBars(level: engine.quality[c.id] ?? 0, numbers: engine.qualityNumbers[c.id]) }
             }
             .padding(.horizontal, 18).padding(.top, 8)
 
@@ -347,23 +347,34 @@ struct CallScreen: View {
 /// Call quality as a small pill: five rounded bars in the brand green (amber when fair, red when poor) and the word for it.
 struct SignalBars: View {
     var level: Int
+    var numbers: SIPEngine.QualityNumbers?
 
-    private var tint: Color { level >= 4 ? Theme.brand : (level == 3 ? .orange : Theme.danger) }
+    // green for fair and better, amber when it is really degraded, red when it is bad
+    private var tint: Color { level >= 3 ? Theme.brand : (level == 2 ? .orange : Theme.danger) }
     private var word: String { ["", "Poor", "Poor", "Fair", "Good", "Excellent"][max(0, min(5, level))] }
 
-    var body: some View {
-        HStack(spacing: 0) {
-            HStack(alignment: .bottom, spacing: 2.5) {
-                ForEach(1...5, id: \.self) { i in
-                    Capsule().fill(i <= level ? tint : Theme.muted.opacity(0.28)).frame(width: 3.5, height: CGFloat(4 + i * 3))
-                }
+    private var pill: some View {
+        HStack(alignment: .bottom, spacing: 2.5) {
+            ForEach(1...5, id: \.self) { i in
+                Capsule().fill(i <= level ? tint : Theme.muted.opacity(0.28)).frame(width: 3.5, height: CGFloat(4 + i * 3))
             }
-            .frame(height: 19)
         }
+        .frame(height: 19)
         .padding(.horizontal, 12).padding(.vertical, 7)
         .background(Theme.surface, in: Capsule())
         .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
-        .accessibilityElement(children: .ignore)
+    }
+
+    var body: some View {
+        // tapping shows the figures behind the score
+        Menu {
+            if let n = numbers {
+                Text("Call quality: \(word.lowercased())")
+                Text(String(format: "Packet loss: %.1f %%", n.lossPercent))
+                Text(String(format: "Jitter: %.0f ms", n.jitterMs))
+                Text(n.roundTripMs > 0 ? String(format: "Round trip: %.0f ms", n.roundTripMs) : "Round trip: not reported")
+            }
+        } label: { pill }
         .accessibilityLabel("Call quality \(word.lowercased())")
     }
 }
