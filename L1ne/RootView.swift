@@ -214,6 +214,7 @@ struct CallScreen: View {
     @State private var showKeypad = false
     @State private var showTransfer = false
     @State private var showCalls = false
+    @State private var showMore = false
 
     var body: some View {
         if let c = engine.currentCall { screen(c) } else { Theme.bg.ignoresSafeArea() }
@@ -259,6 +260,7 @@ struct CallScreen: View {
         .fullScreenCover(isPresented: $showKeypad) { DTMFScreen(call: c.id).environmentObject(engine).preferredColorScheme(.dark) }
         .sheet(isPresented: $showTransfer) { TransferSheet(call: c).environmentObject(engine).environmentObject(store).environmentObject(ContactsStore.shared) }
         .sheet(isPresented: $showCalls) { CallsListSheet().environmentObject(engine) }
+        .sheet(isPresented: $showMore) { moreSheet(c).presentationDetents([.height(300)]).presentationDragIndicator(.visible).preferredColorScheme(.dark) }
     }
 
     private func securityLine(_ c: SIPEngine.CallInfo) -> (text: String, icon: String, color: Color)? {
@@ -287,20 +289,47 @@ struct CallScreen: View {
         .padding(.horizontal, 28)
     }
 
+    /// "more": a button that slides a sheet up from the bottom (like the old keypad sheet) instead of the system pop-up menu.
     private func moreMenu(_ c: SIPEngine.CallInfo) -> some View {
-        let live = c.connected
-        return Menu {
-            Button("Transfer…", systemImage: "phone.arrow.right") { showTransfer = true }.disabled(!live)
-            Button(engine.recording.contains(c.id) ? "Stop recording" : "Record call", systemImage: "record.circle") { engine.toggleRecording(c.id) }.disabled(!live)
-            Button("Messages", systemImage: "bubble.left") { openMessages(c) }.disabled(c.address.isEmpty)
-            Button("Calls list", systemImage: "list.bullet") { showCalls = true }
-        } label: {
+        Button { showMore = true } label: {
             VStack(spacing: 8) {
                 Image(systemName: "ellipsis").font(.title2).frame(width: 78, height: 78)
                     .background(Theme.surface, in: Circle()).overlay(Circle().stroke(Theme.border)).foregroundStyle(Theme.text)
                 Text("more").font(.footnote).foregroundStyle(Theme.text)
             }
         }
+        .buttonStyle(.plain)
+    }
+
+    private func moreSheet(_ c: SIPEngine.CallInfo) -> some View {
+        let live = c.connected
+        // a sheet can't open another sheet while it is closing, so the follow-up action waits for it to go away
+        func pick(_ action: @escaping () -> Void) {
+            showMore = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: action)
+        }
+        func row(_ icon: String, _ title: String, enabled: Bool = true, _ action: @escaping () -> Void) -> some View {
+            Button { pick(action) } label: {
+                HStack(spacing: 16) {
+                    Image(systemName: icon).font(.title3).foregroundStyle(Theme.brand).frame(width: 30)
+                    Text(title).font(.body).foregroundStyle(Theme.text)
+                    Spacer()
+                }
+                .padding(.horizontal, 18).padding(.vertical, 15)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.border, lineWidth: 1))
+            }
+            .buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.4)
+        }
+        return VStack(spacing: 10) {
+            row("phone.arrow.right", "Transfer…", enabled: live) { showTransfer = true }
+            row("record.circle", engine.recording.contains(c.id) ? "Stop recording" : "Record call", enabled: live) { engine.toggleRecording(c.id) }
+            row("bubble.left", "Messages", enabled: !c.address.isEmpty) { openMessages(c) }
+            row("list.bullet", "Calls list") { showCalls = true }
+        }
+        .padding(.horizontal, 16).padding(.top, 28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Theme.sheet.ignoresSafeArea())
     }
 
     private func roundButton(_ icon: String, _ label: String, on: Bool = false, enabled: Bool = true, _ action: @escaping () -> Void) -> some View {
