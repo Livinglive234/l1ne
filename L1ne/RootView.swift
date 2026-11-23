@@ -77,6 +77,7 @@ struct RootView: View {
             for a in store.accounts { engine.register(a, secret: store.secret(a.id)) }
             #if DEBUG
             // tests/mock: place a call a few seconds after launch
+            if let n = ProcessInfo.processInfo.environment["L1NE_CALLBACK"] { PhoneAppCallBack.place(n) }     // as if tapped in the Phone app
             if let n = ProcessInfo.processInfo.environment["L1NE_AUTODIAL"], let a = store.selected {
                 try? await Task.sleep(nanoseconds: 4_000_000_000)
                 engine.call(n, from: a.id)

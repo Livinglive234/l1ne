@@ -11,6 +11,9 @@ struct L1neApp: App {
         WindowGroup {
             RootView()
                 .preferredColorScheme(settings.appearance.scheme)
+                // calling back from the Phone app's Recents
+                .onContinueUserActivity("INStartCallIntent") { PhoneAppCallBack.handle($0) }
+                .onContinueUserActivity("INStartAudioCallIntent") { PhoneAppCallBack.handle($0) }
         }
         .onChange(of: phase) { _, p in
             switch p {

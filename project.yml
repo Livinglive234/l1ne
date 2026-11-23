@@ -27,6 +27,7 @@ targets:
     info:
       path: L1ne/Info.plist
       properties:
+        NSUserActivityTypes: [INStartCallIntent, INStartAudioCallIntent]   # call back from the Phone app's Recents
         UIBackgroundModes: [voip, audio, fetch]   # voip: PushKit + CallKit; audio: a call survives locking the screen; fetch: directory sync
         LSApplicationQueriesSchemes: [linphone, zoiper, groundwire]   # only to warn when another SIP app could share a line
         BGTaskSchedulerPermittedIdentifiers: [com.livenet.l1ne.directorysync]
