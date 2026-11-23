@@ -281,17 +281,12 @@ final class SIPEngine: ObservableObject {
         let code = Int(info.status.rawValue)
         let text = str(info.status_text)
         registration[id] = (code >= 200 && code < 300 && info.expires > 0) ? "Registered" : "\(code) \(text)"
-        // once per launch, a registered account tests whether its server routes texts
-        if registration[id] == "Registered", (messagingCheck[id] ?? .unknown) == .unknown {
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: 2_000_000_000)      // let the registration settle (and MWI subscribe)
-                self?.checkMessaging(id)
-            }
-        }
     }
 
-    /// Sends one hidden text to the account's own address. A server that routes texts hands it back to this registration;
-    /// one that takes it and drops it does not. The test text never shows up in any conversation.
+    /// Only when you ask (Check messaging on the account page): sends one hidden text to the account's own address. A server
+    /// that routes texts hands it back to this registration; one that takes it and drops it does not. The test text never shows
+    /// up in any conversation. It is never sent automatically: some servers treat a text to an extension as a call to it, which
+    /// rings that line.
     func checkMessaging(_ id: UUID) {
         guard let acc = pjAccounts[id], let a = AccountStore.shared.account(id), registration[id] == "Registered" else { return }
         if messagingCheck[id] == .checking { return }

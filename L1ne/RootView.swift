@@ -224,8 +224,9 @@ struct CallScreen: View {
     private func screen(_ c: SIPEngine.CallInfo) -> some View {
         VStack(spacing: 0) {
             HStack {
-                Button { router.callMinimized = true } label: { Image(systemName: "chevron.left").font(.title3.weight(.medium)).frame(width: 36, height: 36) }
+                Button { router.callMinimized = true } label: { Image(systemName: "chevron.down").font(.title3.weight(.semibold)).frame(width: 36, height: 36) }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Minimise call")
                 Spacer()
                 if c.connected { SignalBars(level: engine.quality[c.id] ?? 0, numbers: engine.qualityNumbers[c.id]) }
             }
@@ -255,7 +256,7 @@ struct CallScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.bg.ignoresSafeArea())
-        .sheet(isPresented: $showKeypad) { DTMFSheet(call: c.id).environmentObject(engine) }
+        .fullScreenCover(isPresented: $showKeypad) { DTMFScreen(call: c.id).environmentObject(engine).preferredColorScheme(.dark) }
         .sheet(isPresented: $showTransfer) { TransferSheet(call: c).environmentObject(engine).environmentObject(store).environmentObject(ContactsStore.shared) }
         .sheet(isPresented: $showCalls) { CallsListSheet().environmentObject(engine) }
     }
@@ -427,32 +428,60 @@ struct CallsListSheet: View {
     }
 }
 
-struct DTMFSheet: View {
+/// The in-call keypad, full screen like the iPhone's: a back button, the digits you have sent, the keys and the end button.
+struct DTMFScreen: View {
     let call: Int32
     @EnvironmentObject var engine: SIPEngine
     @Environment(\.dismiss) private var dismiss
     @State private var typed = ""
-    private let keys = [["1","2","3"],["4","5","6"],["7","8","9"],["*","0","#"]]
+    private let keys: [[(String, String)]] = [
+        [("1", ""), ("2", "ABC"), ("3", "DEF")],
+        [("4", "GHI"), ("5", "JKL"), ("6", "MNO")],
+        [("7", "PQRS"), ("8", "TUV"), ("9", "WXYZ")],
+        [("*", ""), ("0", "+"), ("#", "")],
+    ]
 
     var body: some View {
-        VStack(spacing: 18) {
-            Text(typed.isEmpty ? " " : typed).font(.system(size: 30, weight: .light, design: .rounded)).frame(height: 40)
-            ForEach(keys, id: \.self) { row in
-                HStack(spacing: 20) {
-                    ForEach(row, id: \.self) { k in
-                        Button { typed += k; engine.sendDTMF(call, k) } label: {
-                            Text(k).font(.title.weight(.light)).frame(width: 70, height: 70)
-                                .background(Theme.surface, in: Circle()).overlay(Circle().stroke(Theme.border)).foregroundStyle(Theme.text)
-                        }.buttonStyle(.plain)
+        VStack(spacing: 0) {
+            HStack {
+                Button { dismiss() } label: { Image(systemName: "chevron.left").font(.title3.weight(.semibold)).frame(width: 36, height: 36) }
+                    .buttonStyle(.plain).accessibilityLabel("Back to the call")
+                Spacer()
+            }
+            .padding(.horizontal, 18).padding(.top, 8)
+
+            Text(typed.isEmpty ? " " : typed)
+                .font(.system(size: 38, weight: .light, design: .rounded)).foregroundStyle(Theme.text)
+                .lineLimit(1).minimumScaleFactor(0.5).frame(height: 56).padding(.horizontal, 24).padding(.top, 24)
+            Spacer(minLength: 12)
+
+            VStack(spacing: 16) {
+                ForEach(keys, id: \.self.first!.0) { row in
+                    HStack(spacing: 22) {
+                        ForEach(row, id: \.0) { k in
+                            Button { typed += k.0; engine.sendDTMF(call, k.0) } label: {
+                                VStack(spacing: -2) {
+                                    Text(k.0).font(.system(size: 34))
+                                    if !k.1.isEmpty { Text(k.1).font(.system(size: 11, weight: .bold)).tracking(2.5).foregroundStyle(Theme.muted) }
+                                }
+                                .foregroundStyle(Theme.text)
+                                .frame(width: 82, height: 82)
+                                .background(Theme.surface, in: Circle()).overlay(Circle().stroke(Theme.border, lineWidth: 1))
+                            }.buttonStyle(.plain)
+                        }
                     }
                 }
             }
-            Button("Done") { dismiss() }.padding(.top, 8)
+            Spacer(minLength: 24)
+
+            Button { engine.hangup(call); dismiss() } label: {
+                Image(systemName: "phone.down.fill").font(.system(size: 30)).foregroundStyle(.white)
+                    .frame(width: 78, height: 78).background(Theme.danger, in: Circle())
+            }
+            .buttonStyle(.plain).padding(.bottom, 34)
         }
-        .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.sheet.ignoresSafeArea())
-        .presentationDetents([.medium])
+        .background(Theme.bg.ignoresSafeArea())
     }
 }
 

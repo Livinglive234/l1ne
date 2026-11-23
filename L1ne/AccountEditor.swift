@@ -166,7 +166,7 @@ struct AccountEditor: View {
                 Button("Check messaging") { engine.messagingNote[account.id] = nil; engine.messagingCheck[account.id] = .unknown; engine.checkMessaging(account.id) }
                     .disabled(engine.registration[account.id] != "Registered" || engine.messagingCheck[account.id] == .checking)
             } header: { Text("Messaging") } footer: {
-                Text("L1ne sends one hidden test text to this line itself and sees whether the server delivers it back. Nothing goes to anyone else, and it isn't shown as a message.")
+                Text("Sends one hidden test text to this line itself and sees whether the server delivers it back. Nothing goes to anyone else and it isn't shown as a message. Some servers treat a text to an extension as a call to it, so this line may ring once.")
             }
             .listRowBackground(Theme.surface)
 
