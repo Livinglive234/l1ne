@@ -20,7 +20,10 @@ check(r.accounts[1].pushOnly && r.accounts[1].account.domain == "sip.linphone.or
 let a = r.accounts[0]
 check(a.account.username == "7201" && a.account.domain == "pbx.example.com", "identity")
 check(a.account.port == 5061 && a.account.transport == .tls, "tls on 5061")
-check(a.account.label == "Max Example", "label from display name")
+check(a.account.label == "pbx.example.com" && a.account.displayName == "Max Example", "label is the SIP domain, display name kept")
+check(r.selectedByDefault.count == 1 && r.selectedByDefault[0].account.domain == "pbx.example.com", "push-only account is off by default when another account comes with it")
+var lone = r; lone.accounts = [r.accounts[1]]
+check(lone.selectedByDefault.count == 1 && lone.selectedByDefault[0].pushOnly, "a lone linphone.org account is selected by default")
 check(a.secret == "test-secret-not-real", "secret from auth_info")
 check(r.contactsURL == "https://pbx.example.com/p/contacts-0123456789abcdef0123456789abcdef.vcf", "contacts URL")
 check(r.accounts[1].secret == "another-fake", "the push-only account keeps its own credentials so it can be added if wanted")
@@ -82,7 +85,9 @@ check(dtls?.accounts.first?.account.media == .srtpDTLS && dtls?.accounts.first?.
 
 // voicemail target
 var vm = Account(); vm.domain = "pbx.example.com"
-check(vm.voicemailTarget == nil, "no voicemail number: no target, button stays hidden")
+check(vm.voicemailTarget == "sip:*97@pbx.example.com", "voicemail defaults to *97")
+vm.voicemailURI = ""
+check(vm.voicemailTarget == nil, "a cleared voicemail number gives no target")
 vm.voicemailURI = "*97"; check(vm.voicemailTarget == "sip:*97@pbx.example.com", "*97 becomes sip:*97@server")
 vm.voicemailURI = " 8500 "; check(vm.voicemailTarget == "sip:8500@pbx.example.com", "other extension, spaces trimmed")
 vm.voicemailURI = "sip:mail@vm.example.org"; check(vm.voicemailTarget == "sip:mail@vm.example.org", "full SIP address used as typed")

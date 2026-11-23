@@ -10,9 +10,13 @@ import javax.xml.parsers.DocumentBuilderFactory
  * the same XML Linphone fetches after scanning a QR code. Fetching is the app's job and happens once, on demand.
  */
 object Provisioning {
-    /** pushOnly: a linphone.org account that only delivers push to the Linphone app; offered, not selected by default. */
+    /** pushOnly: a linphone.org account that only delivers push to the Linphone app; offered; off by default only when the file also brings another account. */
     data class Parsed(val account: Account, val secret: String, val pushOnly: Boolean = false)
-    data class Result(val accounts: List<Parsed>, val contactsUrl: String?, val notes: List<String>)
+    data class Result(val accounts: List<Parsed>, val contactsUrl: String?, val notes: List<String>) {
+        val hasOtherThanPushOnly get() = accounts.any { !it.pushOnly }
+        /** All accounts, except a push-only one is left off when another account comes with it. */
+        val selectedByDefault get() = if (hasOtherThanPushOnly) accounts.filter { !it.pushOnly } else accounts
+    }
     class Failure(message: String) : Exception(message)
 
     /** Accepts `https://…`, `linphone-config:https://…`, `l1ne-config:https://…`. */
@@ -37,7 +41,7 @@ object Provisioning {
             val ident = parseIdentity(e["reg_identity"] ?: "") ?: continue
             if (e["reg_sendregister"] == "0") continue
             val pushOnly = ident.domain.endsWith("linphone.org")
-            var a = Account(username = ident.user, domain = ident.domain, label = if (pushOnly) "Linphone (${ident.user})" else ident.display)
+            var a = Account(username = ident.user, domain = ident.domain, label = ident.domain)
             val proxy = parseProxy(e["reg_proxy"] ?: e["reg_route"] ?: "")
             if (proxy != null) {
                 a = a.copy(

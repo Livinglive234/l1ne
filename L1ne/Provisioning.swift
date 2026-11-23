@@ -8,13 +8,19 @@ enum Provisioning {
         var account: Account
         var secret: String
         /// An account on linphone.org that is only there so the Linphone app can receive push. L1ne can't use that push,
-        /// so it is offered but not selected by default.
+        /// so when it comes with another account it is offered but not selected by default (see `Result.selectedByDefault`).
         var pushOnly = false
     }
     struct Result: Equatable {
         var accounts: [Parsed] = []
         var contactsURL: String?
         var notes: [String] = []
+        /// Accounts switched on by default: all of them, except that a linphone.org push-only account is left off when the
+        /// file also brings another account. On its own it is selected.
+        var selectedByDefault: [Parsed] {
+            accounts.contains { !$0.pushOnly } ? accounts.filter { !$0.pushOnly } : accounts
+        }
+        var hasOtherThanPushOnly: Bool { accounts.contains { !$0.pushOnly } }
     }
     enum Failure: Error, LocalizedError {
         case notHTTPS, badStatus(Int), notConfig, nothingUsable
@@ -73,7 +79,7 @@ enum Provisioning {
             var a = Account()
             a.username = ident.user
             a.domain = ident.domain
-            a.label = pushOnly ? "Linphone (\(ident.user))" : ident.display
+            a.label = ident.domain            // named after the SIP address's domain; rename it in the editor
             a.displayName = ident.display
             if let ex = Int(e["reg_expires"] ?? ""), ex >= 60 { a.expires = ex }
             if let vm = e["voicemail_uri"] ?? e["mwi_uri"], !vm.isEmpty { a.voicemailURI = vm }
