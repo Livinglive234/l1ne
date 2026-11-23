@@ -22,13 +22,13 @@ struct RootView: View {
             ConversationsView()
                 .tabItem { Label("Conversations", systemImage: "bubble.left.and.bubble.right") }
                 .badge(messages.unread).tag(AppRouter.Tab.conversations)
+            KeypadView()
+                .tabItem { Label("Keypad", systemImage: "circle.grid.3x3.fill") }.tag(AppRouter.Tab.keypad)
             if settings.showVoicemailTab {
                 VoicemailView()
                     .tabItem { Label("Voicemail", systemImage: "recordingtape") }
                     .badge(engine.voicemail.values.reduce(0, +)).tag(AppRouter.Tab.voicemail)
             }
-            KeypadView()
-                .tabItem { Label("Keypad", systemImage: "circle.grid.3x3.fill") }.tag(AppRouter.Tab.keypad)
         }
         .tint(Theme.brand)
         .overlay(alignment: .bottom) {
