@@ -63,7 +63,6 @@ struct KeypadView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                accountLine.padding(.top, 4)
                 Spacer(minLength: 0)
                 ZStack(alignment: .bottom) {
                     Color.clear                       // always reserves the space, so the keys never move
@@ -104,18 +103,32 @@ struct KeypadView: View {
             }
             .frame(maxWidth: .infinity)
             .mainBackground()
-            .toolbar { ProfileToolbar() }
+            .toolbar {
+                ProfileToolbar()
+                ToolbarItem(placement: .principal) { lineMenu }      // the line picker sits in the top bar
+            }
             .navigationBarTitleDisplayMode(.inline)
         }
     }
 
-    @ViewBuilder private var accountLine: some View {
+    /// Which line the call goes out on: a menu in the top bar with several accounts, plain text with one.
+    @ViewBuilder private var lineMenu: some View {
         if store.accounts.count > 1 {
-            Picker("Account", selection: Binding(get: { store.selected?.id ?? store.accounts[0].id }, set: { store.select($0) })) {
-                ForEach(store.accounts) { Text($0.title).tag($0.id) }
-            }.pickerStyle(.menu).tint(Theme.muted)
+            Menu {
+                ForEach(store.accounts) { a in
+                    Button { store.select(a.id) } label: {
+                        if store.selected?.id == a.id { Label(a.title, systemImage: "checkmark") } else { Text(a.title) }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(store.selected?.title ?? "Line").lineLimit(1)
+                    Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                }
+                .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
+            }
         } else if let a = store.accounts.first {
-            Text(a.title).font(.footnote).foregroundStyle(Theme.muted)
+            Text(a.title).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.muted)
         }
     }
 
