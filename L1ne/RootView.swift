@@ -365,17 +365,26 @@ struct SignalBars: View {
         .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
     }
 
+    @State private var showNumbers = false
+
     var body: some View {
-        // tapping shows the figures behind the score
-        Menu {
-            if let n = numbers {
-                Text("Call quality: \(word.lowercased())")
-                Text(String(format: "Packet loss: %.1f %%", n.lossPercent))
-                Text(String(format: "Jitter: %.0f ms", n.jitterMs))
-                Text(n.roundTripMs > 0 ? String(format: "Round trip: %.0f ms", n.roundTripMs) : "Round trip: not reported")
+        // tapping shows the figures behind the score, as plain text in a small popover
+        Button { if numbers != nil { showNumbers = true } } label: { pill }
+            .buttonStyle(.plain)
+            .popover(isPresented: $showNumbers, attachmentAnchor: .point(.bottom), arrowEdge: .top) {
+                if let n = numbers {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Call quality: \(word.lowercased())").font(.headline)
+                        Text(String(format: "Packet loss: %.1f %%", n.lossPercent))
+                        Text(String(format: "Jitter: %.0f ms", n.jitterMs))
+                        Text(n.roundTripMs > 0 ? String(format: "Round trip: %.0f ms", n.roundTripMs) : "Round trip: not reported")
+                    }
+                    .font(.subheadline.monospacedDigit()).foregroundStyle(Theme.text)
+                    .padding(18)
+                    .presentationCompactAdaptation(.popover)
+                }
             }
-        } label: { pill }
-        .accessibilityLabel("Call quality \(word.lowercased())")
+            .accessibilityLabel("Call quality \(word.lowercased())")
     }
 }
 
