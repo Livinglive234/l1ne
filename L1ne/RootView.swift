@@ -174,49 +174,90 @@ struct RecentsView: View {
     @EnvironmentObject var contacts: ContactsStore
     @EnvironmentObject var callLog: CallLogStore
 
+    @State private var missedOnly = false
+    private var shown: [CallRecord] { missedOnly ? callLog.records.filter { $0.direction == .missed } : callLog.records }
+
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    ForEach(callLog.records) { r in
+                ForEach(shown) { r in
+                    HStack(spacing: 14) {
                         Button { callBack(r) } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: r.direction == .outgoing ? "phone.arrow.up.right" : (r.direction == .missed ? "phone.arrow.down.left" : "phone.arrow.down.left"))
-                                    .foregroundStyle(r.direction == .missed ? Theme.danger : Theme.brand)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(name(r)).foregroundStyle(r.direction == .missed ? Theme.danger : Theme.text)
-                                    Text(detail(r)).font(.footnote).foregroundStyle(Theme.muted)
+                            HStack(spacing: 14) {
+                                avatar(r)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(name(r)).font(.body.weight(.medium))
+                                        .foregroundStyle(r.direction == .missed ? Theme.danger : Theme.text).lineLimit(1)
+                                    HStack(spacing: 4) {
+                                        Image(systemName: r.direction == .outgoing ? "arrow.up.right" : "arrow.down.left").font(.caption2.weight(.semibold))
+                                        Text(subtitle(r)).lineLimit(1)
+                                    }
+                                    .font(.subheadline).foregroundStyle(Theme.muted)
                                 }
-                                Spacer()
-                                Text(r.date, format: .dateTime.month(.abbreviated).day().hour().minute()).font(.caption).foregroundStyle(Theme.muted)
+                                Spacer(minLength: 8)
+                                Text(when(r.date)).font(.subheadline).foregroundStyle(Theme.muted)
                             }
-                        }
-                        .listRowBackground(Theme.surface)
+                        }.buttonStyle(.plain)
+                        Button { callBack(r) } label: {
+                            Image(systemName: "phone.fill").font(.body).foregroundStyle(Theme.brand)
+                                .frame(width: 44, height: 44).background(Theme.surface, in: Circle())
+                        }.buttonStyle(.plain)
                     }
-                    .onDelete { idx in callLog.delete(idx.map { callLog.records[$0].id }) }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparatorTint(Theme.border)
+                    .swipeActions { Button(role: .destructive) { callLog.delete([r.id]) } label: { Label("Delete", systemImage: "trash") } }
                 }
             }
+            .listStyle(.plain).scrollContentBackground(.hidden)
             .overlay {
-                if callLog.records.isEmpty {
-                    ContentUnavailableView("No recent calls", systemImage: "clock")
+                if shown.isEmpty {
+                    ContentUnavailableView(missedOnly ? "No missed calls" : "No recent calls", systemImage: "clock")
                 }
             }
             .mainBackground()
             .navigationTitle("Recents")
-            .toolbar { ProfileToolbar() }
+            .toolbar {
+                ProfileToolbar()
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("Show", selection: $missedOnly) {
+                            Label("All", systemImage: "phone").tag(false)
+                            Label("Missed", systemImage: "phone.arrow.down.left").tag(true)
+                        }
+                    } label: { Image(systemName: "line.3.horizontal.decrease") }
+                }
+            }
         }
+    }
+
+    private func avatar(_ r: CallRecord) -> some View {
+        let n = name(r)
+        let initials = n.first.map { $0.isLetter } == true ? String(n.split(separator: " ").prefix(2).compactMap { $0.first }).uppercased() : ""
+        return ZStack {
+            Circle().fill(Theme.surface)
+            if initials.isEmpty { Image(systemName: "person.fill").font(.title3).foregroundStyle(Theme.muted) }
+            else { Text(initials).font(.system(size: 17, weight: .semibold)).foregroundStyle(Theme.brand) }
+        }.frame(width: 48, height: 48)
+    }
+
+    private func subtitle(_ r: CallRecord) -> String {
+        let acc = r.accountID.flatMap { store.account($0) }?.title ?? "L1ne"
+        return r.direction == .missed ? "Missed · \(acc)" : acc
+    }
+
+    /// Like the Phone app: the time today, "Yesterday", the weekday this week, otherwise the date.
+    private func when(_ d: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(d) { return d.formatted(date: .omitted, time: .shortened) }
+        if cal.isDateInYesterday(d) { return "Yesterday" }
+        if let days = cal.dateComponents([.day], from: d, to: Date()).day, days < 7 { return d.formatted(.dateTime.weekday(.wide)) }
+        return d.formatted(.dateTime.month(.defaultDigits).day().year(.twoDigits))
     }
 
     private func name(_ r: CallRecord) -> String {
         let p = r.peer.split(separator: "@").map(String.init)
         if p.count == 2, let n = contacts.name(forUser: p[0], domain: p[1]) { return n }
         return p.first ?? r.peer
-    }
-
-    private func detail(_ r: CallRecord) -> String {
-        let kind = r.direction == .outgoing ? "Outgoing" : (r.direction == .missed ? "Missed" : "Incoming")
-        guard r.duration > 0 else { return kind }
-        return "\(kind) · \(String(format: "%d:%02d", r.duration / 60, r.duration % 60))"
     }
 
     private func callBack(_ r: CallRecord) {
