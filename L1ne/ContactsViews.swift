@@ -14,6 +14,19 @@ struct ContactsView: View {
 
     enum Sheet: String, Identifiable { case url, add; var id: String { rawValue } }
 
+    private var sections: [(String, [Contact])] {
+        let g = Dictionary(grouping: shown) { c -> String in
+            let f = c.name.first.map { String($0).uppercased() } ?? "#"
+            return f.rangeOfCharacter(from: .letters) != nil ? f : "#"
+        }
+        return g.keys.sorted { $0 == "#" ? false : ($1 == "#" ? true : $0 < $1) }.map { ($0, g[$0]!) }
+    }
+
+    private func initials(_ name: String) -> String {
+        let p = name.split(separator: " ").prefix(2).compactMap { $0.first }
+        return p.isEmpty ? "#" : String(p).uppercased()
+    }
+
     private var shown: [Contact] {
         search.isEmpty ? contacts.contacts : contacts.contacts.filter {
             $0.name.localizedCaseInsensitiveContains(search) || $0.address.localizedCaseInsensitiveContains(search)
@@ -23,25 +36,37 @@ struct ContactsView: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(shown) { c in
-                    Button {
-                        if let a = (c.accountID.flatMap { store.account($0) } ?? store.selected) {
-                            engine.call("sip:" + c.address, from: a.id)
+                ForEach(sections, id: \.0) { letter, items in
+                    Section {
+                        ForEach(items) { c in
+                            Button {
+                                if let a = (c.accountID.flatMap { store.account($0) } ?? store.selected) {
+                                    engine.call("sip:" + c.address, from: a.id)
+                                }
+                            } label: {
+                                HStack(spacing: 14) {
+                                    Text(initials(c.name))
+                                        .font(.system(size: 16, weight: .semibold)).foregroundStyle(Theme.brand)
+                                        .frame(width: 42, height: 42)
+                                        .background(Theme.brand.opacity(0.14), in: Circle())
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(c.name).font(.body.weight(.medium)).foregroundStyle(Theme.text)
+                                        Text(c.address).font(.footnote).foregroundStyle(Theme.muted)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "phone.fill").font(.footnote).foregroundStyle(Theme.brand)
+                                }
+                            }
+                            .listRowBackground(Color.clear)
+                            .listRowSeparatorTint(Theme.border)
                         }
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(c.name)
-                            Text(c.address).font(.footnote).foregroundStyle(.secondary)
-                        }
+                        .onDelete { idx in contacts.remove(idx.map { items[$0].id }) }
+                    } header: {
+                        Text(letter).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.brand)
                     }
                 }
-                .onDelete { idx in contacts.remove(idx.map { shown[$0].id }) }
-
-                Section {} footer: {
-                    Text("These contacts live only in L1ne. L1ne has no access to your phone's contacts: a contact is copied only when you pick it from the system picker or import a file or link. It never fetches a list by itself.")
-                }
-                .listRowBackground(Theme.surface)
             }
+            .listStyle(.plain).scrollContentBackground(.hidden)
             .searchable(text: $search)
             .overlay { if contacts.contacts.isEmpty { ContentUnavailableView("No contacts", systemImage: "person.2", description: Text("Pick contacts that have a SIP address, import a vCard, or add one by hand.")) } }
             .mainBackground()

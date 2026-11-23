@@ -71,7 +71,10 @@ final class SIPEngine: ObservableObject {
             Task { @MainActor in SIPEngine.shared.incoming(call: call) }
         }
         cfg.cb.on_call_state = { call, _ in
-            Task { @MainActor in SIPEngine.shared.refresh(call: call, incoming: nil) }
+            // The call id is invalid once this callback returns, so read the info now.
+            var ci = pjsua_call_info()
+            guard pjsua_call_get_info(call, &ci) == 0 else { return }
+            Task { @MainActor in SIPEngine.shared.refresh(call: call, incoming: nil, info: ci) }
         }
         cfg.cb.on_call_media_state = { call in
             Task { @MainActor in SIPEngine.shared.mediaChanged(call: call) }
@@ -415,9 +418,9 @@ final class SIPEngine: ObservableObject {
         refresh(call: call, incoming: true)
     }
 
-    private func refresh(call: pjsua_call_id, incoming: Bool?) {
-        var ci = pjsua_call_info()
-        guard pjsua_call_get_info(call, &ci) == 0 else { return }
+    private func refresh(call: pjsua_call_id, incoming: Bool?, info: pjsua_call_info? = nil) {
+        var ci = info ?? pjsua_call_info()
+        if info == nil { guard pjsua_call_get_info(call, &ci) == 0 else { return } }
         if ci.state == PJSIP_INV_STATE_DISCONNECTED {
             let secs = Int(ci.connect_duration.sec)
             let outgoing = ci.role == PJSIP_ROLE_UAC
