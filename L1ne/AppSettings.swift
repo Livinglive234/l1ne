@@ -17,12 +17,15 @@ final class AppSettings: ObservableObject {
     @Published var codecsOff: [String] { didSet { d.set(codecsOff, forKey: "set.codecsOff") } }
 
     /// A Voicemail tab (off by default) and the voicemail button beside the keypad's call button (on by default).
+    /// Calls also appear in the iPhone Phone app's Recents (through CallKit). On by default.
+    @Published var callsInPhoneApp: Bool { didSet { d.set(callsInPhoneApp, forKey: "set.callsInPhone"); CallKitManager.shared.applySettings() } }
     @Published var showVoicemailTab: Bool { didSet { d.set(showVoicemailTab, forKey: "set.vmTab") } }
     @Published var showKeypadVoicemail: Bool { didSet { d.set(showKeypadVoicemail, forKey: "set.vmKeypad") } }
     /// LATER: a notification when a new voicemail arrives. Stored but not acted on yet (see VoicemailNotifier).
     @Published var voicemailNotify: Bool { didSet { d.set(voicemailNotify, forKey: "set.vmNotify") } }
 
     init() {
+        callsInPhoneApp = d.object(forKey: "set.callsInPhone") as? Bool ?? true
         showVoicemailTab = d.bool(forKey: "set.vmTab")
         showKeypadVoicemail = d.object(forKey: "set.vmKeypad") as? Bool ?? true
         voicemailNotify = d.bool(forKey: "set.vmNotify")

@@ -17,6 +17,7 @@ struct SettingsView: View {
             List {
                 Section("Calls") {
                     Toggle("Automatically start recording calls", isOn: $settings.autoRecord)
+                    Toggle("Show calls in the Phone app", isOn: $settings.callsInPhoneApp)
                     NavigationLink("Advanced calls settings") { AdvancedCallsView() }
                     NavigationLink { RecordingsView() } label: {
                         LabeledContent("Recordings", value: recordingCount == 0 ? "None" : "\(recordingCount)")

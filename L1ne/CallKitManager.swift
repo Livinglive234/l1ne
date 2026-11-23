@@ -26,7 +26,7 @@ final class CallKitManager: NSObject, CXProviderDelegate {
         cfg.maximumCallGroups = 4
         cfg.maximumCallsPerCallGroup = 1
         cfg.supportedHandleTypes = [.generic, .phoneNumber]
-        cfg.includesCallsInRecents = false         // L1ne keeps its own call log; nothing is added to the Phone app
+        cfg.includesCallsInRecents = AppSettings.shared.callsInPhoneApp
         provider = CXProvider(configuration: cfg)
         super.init()
         provider.setDelegate(self, queue: .main)
@@ -35,6 +35,13 @@ final class CallKitManager: NSObject, CXProviderDelegate {
     private func uuid(_ id: Int32) -> UUID {
         if let u = uuids[id] { return u }
         let u = UUID(); uuids[id] = u; return u
+    }
+
+    /// Re-applies the setting that decides whether calls also show in the Phone app's Recents.
+    func applySettings() {
+        let cfg = provider.configuration
+        cfg.includesCallsInRecents = AppSettings.shared.callsInPhoneApp
+        provider.configuration = cfg
     }
 
     // MARK: SIPEngine -> system

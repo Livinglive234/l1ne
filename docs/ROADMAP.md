@@ -38,7 +38,7 @@ The gateway and proxy can be built and tested against a fake push endpoint befor
 ## CallKit
 
 Calls go through CallKit (`CallKitManager`): the lock-screen call card, the green call indicator, system answer/decline, hold and mute from
-headsets and the car. Calls are not added to the Phone app's Recents. A call arriving while L1ne is closed still needs the push proxy below
+headsets and the car. Calls also appear in the Phone app's Recents unless you switch that off in Settings → Calls. A call arriving while L1ne is closed still needs the push proxy below
 to wake the app; CallKit by itself cannot do that.
 
 ## LATER: voicemail notifications
