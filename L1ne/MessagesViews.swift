@@ -28,6 +28,9 @@ struct ConversationsView: View {
                                 if let d = c.last?.date { Text(d, format: .dateTime.hour().minute()).font(.caption).foregroundStyle(Theme.muted) }
                             }
                             Text(c.last?.text ?? "").lineLimit(2).font(.subheadline).foregroundStyle(Theme.muted)
+                            if store.accounts.count > 1, let a = store.account(c.accountID) {
+                                Text("via \(a.title)").font(.caption).foregroundStyle(Theme.muted.opacity(0.8))
+                            }
                         }
                     }
                 }
@@ -74,6 +77,10 @@ struct ThreadView: View {
     @EnvironmentObject var contacts: ContactsStore
     @EnvironmentObject var messages: MessageStore
     @State private var draft = ""
+    @State private var info: PersonTarget?
+
+    private var line: Account? { store.account(target.accountID) }
+    private var person: PersonTarget { PersonTarget(name: displayName(target.peer, contacts: contacts), address: target.peer, accountID: target.accountID) }
 
     private var conversation: Conversation? { messages.conversation(target) }
 
@@ -104,8 +111,25 @@ struct ThreadView: View {
             }
         }
         .mainBackground()
-        .navigationTitle(displayName(target.peer, contacts: contacts))
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $info) { ContactDetailView(person: $0) }
+        .toolbar {
+            // name on top, the line you are texting from underneath; tapping opens the contact page
+            ToolbarItem(placement: .principal) {
+                Button { info = person } label: {
+                    VStack(spacing: 1) {
+                        Text(person.name).font(.headline).foregroundStyle(Theme.text).lineLimit(1)
+                        Text("from \(line?.title ?? "—")").font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
+                    }
+                }.buttonStyle(.plain)
+            }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button { info = person } label: { Image(systemName: "info.circle") }
+                Button {
+                    if let a = line ?? store.selected { engine.call(target.peer.contains("@") ? "sip:" + target.peer : target.peer, from: a.id) }
+                } label: { Image(systemName: "phone.fill") }
+            }
+        }
         .safeAreaInset(edge: .bottom) { composer }
         .onAppear { messages.markRead(target) }
     }
@@ -171,6 +195,8 @@ struct NewMessageSheet: View {
                         ForEach(store.accounts) { Text($0.title).tag($0.id) }
                     }
                     .listRowBackground(Theme.surface)
+                } else if let a = account {
+                    LabeledContent("From", value: a.title).listRowBackground(Theme.surface)
                 }
                 Section {
                     TextField("Extension or user@domain", text: $typed)
