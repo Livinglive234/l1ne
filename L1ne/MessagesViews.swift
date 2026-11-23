@@ -11,6 +11,7 @@ struct ConversationsView: View {
     @EnvironmentObject var store: AccountStore
     @EnvironmentObject var contacts: ContactsStore
     @EnvironmentObject var messages: MessageStore
+    @EnvironmentObject var router: AppRouter
     @State private var path: [ThreadTarget] = []
     @State private var composing = false
 
@@ -44,6 +45,9 @@ struct ConversationsView: View {
             .l1neBackground()
             .navigationTitle("Conversations")
             .navigationDestination(for: ThreadTarget.self) { ThreadView(target: $0) }
+            .task(id: router.pendingThread) {
+                if let t = router.pendingThread { path = [t]; router.pendingThread = nil }
+            }
             .toolbar {
                 ProfileToolbar()
                 ToolbarItem(placement: .topBarTrailing) {

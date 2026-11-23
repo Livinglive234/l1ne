@@ -16,7 +16,10 @@ final class SIPEngine: ObservableObject {
         var connected: Bool
         var since: Date?
         var accountID: UUID?
+        var address = ""              // user@domain of the other side
     }
+
+    enum CallSecurity { case srtp, dtls, none, unknown }
 
     struct Codec: Identifiable, Equatable {
         var id: String            // "PCMU/8000/1"
@@ -36,6 +39,13 @@ final class SIPEngine: ObservableObject {
     @Published var muted: Set<Int32> = []
     @Published var held: Set<Int32> = []
     @Published var speaker = false
+    /// The call shown on the call screen (others are on hold or ringing).
+    @Published var currentCallID: Int32?
+    @Published var encryption: [Int32: CallSecurity] = [:]
+    @Published var quality: [Int32: Int] = [:]          // 1 (poor) ... 5 (excellent), from RTCP loss, jitter and delay
+    private var statsTask: Task<Void, Never>?
+
+    var currentCall: CallInfo? { calls.first { $0.id == currentCallID } ?? calls.first }
 
     private var sendTags: [Int: (ThreadTarget, UUID)] = [:]
     private var nextTag = 1
@@ -303,7 +313,10 @@ final class SIPEngine: ObservableObject {
         var setting = pjsua_call_setting()
         pjsua_call_setting_default(&setting)
         setting.txt_cnt = 0                       // audio only: no real-time-text stream in the offer
-        return pjsua_call_make_call(acc, &u, &setting, nil, nil, &callID) == 0
+        for c in calls where c.connected && !held.contains(c.id) { toggleHold(c.id) }     // a new call puts the active one on hold
+        let ok = pjsua_call_make_call(acc, &u, &setting, nil, nil, &callID) == 0
+        if ok { currentCallID = callID }
+        return ok
     }
 
     @discardableResult
@@ -314,7 +327,16 @@ final class SIPEngine: ObservableObject {
 
     func answer(_ id: Int32) {
         configureAudioSession()
+        for c in calls where c.id != id && c.connected && !held.contains(c.id) { toggleHold(c.id) }
+        currentCallID = id
         pjsua_call_answer(id, 200, nil, nil)
+    }
+
+    /// Makes one call the live one and puts the others on hold.
+    func switchTo(_ id: Int32) {
+        for c in calls where c.id != id && c.connected && !held.contains(c.id) { toggleHold(c.id) }
+        if held.contains(id) { toggleHold(id) }
+        currentCallID = id
     }
 
     func hangup(_ id: Int32) {
@@ -409,7 +431,9 @@ final class SIPEngine: ObservableObject {
             if let rec = recorders.removeValue(forKey: call) { pjsua_recorder_destroy(rec) }
             recording.remove(call); muted.remove(call); held.remove(call)
             calls.removeAll { $0.id == call }
-            if calls.isEmpty { speaker = false }
+            encryption[call] = nil; quality[call] = nil
+            if currentCallID == call { currentCallID = calls.first?.id }
+            if calls.isEmpty { speaker = false; statsTask?.cancel(); statsTask = nil }
             return
         }
         let connected = ci.state == PJSIP_INV_STATE_CONFIRMED
@@ -421,8 +445,52 @@ final class SIPEngine: ObservableObject {
             incoming: incoming ?? (old?.incoming ?? false),
             connected: connected,
             since: connected ? (old?.since ?? Date()) : nil,
-            accountID: accountForPJ[ci.acc_id])
+            accountID: accountForPJ[ci.acc_id],
+            address: {
+                let r = str(ci.remote_info)
+                return VCard.sipAddress(r.firstIndex(of: "<").map { String(r[$0...]).trimmingCharacters(in: CharacterSet(charactersIn: "<>")) } ?? r) ?? ""
+            }())
         if let i = calls.firstIndex(where: { $0.id == call }) { calls[i] = entry } else { calls.append(entry) }
+        if currentCallID == nil || !calls.contains(where: { $0.id == currentCallID }) { currentCallID = call }
+        if connected { startStats() }
+    }
+
+    // MARK: call quality and encryption (read from the media stream every two seconds)
+
+    private func startStats() {
+        guard statsTask == nil else { return }
+        statsTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                self?.updateStats()
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
+    }
+
+    private func updateStats() {
+        for c in calls where c.connected {
+            var si = pjsua_stream_info()
+            if pjsua_call_get_stream_info(c.id, 0, &si) == 0, si.type == PJMEDIA_TYPE_AUDIO {
+                let p = si.info.aud.proto.rawValue
+                let srtp = p & PJMEDIA_TP_PROFILE_SRTP.rawValue != 0
+                let dtls = p & PJMEDIA_TP_PROTO_DTLS.rawValue != 0
+                let account = c.accountID.flatMap { AccountStore.shared.account($0) }
+                // "none" is only certain when the account asked for no encryption; otherwise leave it unknown
+                encryption[c.id] = srtp ? (dtls ? .dtls : .srtp) : (account?.media == Account.Media.none ? CallSecurity.none : .unknown)
+            }
+            var st = pjsua_stream_stat()
+            if pjsua_call_get_stream_stat(c.id, 0, &st) == 0 {
+                let r = st.rtcp
+                let total = Double(r.rx.pkt) + Double(r.rx.loss)
+                let loss = total > 20 ? Double(r.rx.loss) * 100 / total : 0
+                let jitterMs = Double(r.rx.jitter.mean) / 1000, rttMs = Double(r.rtt.last) / 1000
+                var score = 5
+                if loss > 1 { score -= 1 }; if loss > 4 { score -= 1 }; if loss > 10 { score -= 1 }
+                if jitterMs > 30 { score -= 1 }; if jitterMs > 80 { score -= 1 }
+                if rttMs > 200 { score -= 1 }; if rttMs > 400 { score -= 1 }
+                quality[c.id] = max(1, score)
+            }
+        }
     }
 
     private func mediaChanged(call: pjsua_call_id) {

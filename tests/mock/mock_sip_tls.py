@@ -11,6 +11,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("cert"); ap.add_argument("key"); ap.add_argument("log")
 ap.add_argument("--port", type=int, default=5061)
 ap.add_argument("--message"); ap.add_argument("--mwi", type=int, default=3)
+ap.add_argument("--answer", action="store_true", help="answer INVITEs with 200 OK (SDES SRTP, PCMU) instead of refusing them")
 args = ap.parse_args()
 LOG = open(args.log, "a", buffering=1)
 def log(*a): print(time.strftime("%H:%M:%S"), *a, file=LOG, flush=True)
@@ -89,7 +90,14 @@ async def handle(reader, writer):
                     log("INVITE", start.split()[1], "SDP offered:")
                     for l in body.splitlines():
                         if l.startswith(("m=", "a=crypto", "a=fingerprint", "a=setup", "c=")): log("   ", l)
-                    await send(reply(488, "Not Acceptable Here", hs, vias, totag=srvtag))
+                    if args.answer:
+                        # accept with SDES crypto tag 3 (AES_CM_128_HMAC_SHA1_80) if offered; no media is actually sent
+                        sdp = ("v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\ns=mock\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\n"
+                               "m=audio 40000 RTP/SAVP 0\r\na=rtpmap:0 PCMU/8000\r\n"
+                               "a=crypto:3 AES_CM_128_HMAC_SHA1_80 inline:WVNfX19zZWNyZXRfa2V5X21vY2tfdGVzdF9rZXk0\r\na=sendrecv\r\n")
+                        await send(reply(200, "OK", hs, vias, [f"Contact: <{me}>", "Content-Type: application/sdp"], body=sdp, totag=srvtag))
+                    else:
+                        await send(reply(488, "Not Acceptable Here", hs, vias, totag=srvtag))
                 elif method == "ACK":
                     pass
                 else:

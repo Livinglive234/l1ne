@@ -10,7 +10,7 @@ MODE="${1:-srtp-sdes}"; MAND="${2:-true}"
 APP=$(ls -dt ~/Library/Developer/Xcode/DerivedData/L1ne-*/Build/Products/Debug-iphonesimulator/L1ne.app | head -1)
 xcrun simctl terminate "$U" com.livenet.l1ne 2>/dev/null || true
 pkill -f mock_sip_tls.py || true; sleep 1; rm -f /tmp/l1ne-mock/sip.log
-(nohup python3 "$HERE/mock_sip_tls.py" /tmp/l1ne-mock/server.pem /tmp/l1ne-mock/server.key /tmp/l1ne-mock/sip.log >/dev/null 2>&1 &); sleep 1
+(nohup python3 "$HERE/mock_sip_tls.py" /tmp/l1ne-mock/server.pem /tmp/l1ne-mock/server.key /tmp/l1ne-mock/sip.log ${MOCK_ARGS:-} >/dev/null 2>&1 &); sleep 1
 python3 - "$U" "$MODE" "$MAND" <<'PY'
 import json,subprocess,sys
 udid,mode,mand=sys.argv[1:4]

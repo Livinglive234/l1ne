@@ -8,23 +8,50 @@ struct RootView: View {
     @StateObject private var settings = AppSettings.shared
     @StateObject private var dirs = DirectoryStore.shared
     @StateObject private var callLog = CallLogStore.shared
+    @StateObject private var router = AppRouter.shared
     @State private var setupLink: SetupLink?
 
     struct SetupLink: Identifiable { let id = UUID(); let text: String }
 
     var body: some View {
-        TabView {
+        TabView(selection: $router.tab) {
             RecentsView()
-                .tabItem { Label("Recents", systemImage: "clock") }
+                .tabItem { Label("Recents", systemImage: "clock") }.tag(AppRouter.Tab.recents)
             ContactsView()
-                .tabItem { Label("Contacts", systemImage: "person.2") }
+                .tabItem { Label("Contacts", systemImage: "person.2") }.tag(AppRouter.Tab.contacts)
             ConversationsView()
                 .tabItem { Label("Conversations", systemImage: "bubble.left.and.bubble.right") }
-                .badge(messages.unread)
+                .badge(messages.unread).tag(AppRouter.Tab.conversations)
             KeypadView()
-                .tabItem { Label("Keypad", systemImage: "circle.grid.3x3.fill") }
+                .tabItem { Label("Keypad", systemImage: "circle.grid.3x3.fill") }.tag(AppRouter.Tab.keypad)
         }
         .tint(Theme.brand)
+        .overlay(alignment: .bottom) {
+            // while the call screen is minimised, a pill above the tab bar keeps the call one tap away
+            if router.callMinimized, let c = engine.currentCall {
+                Button { router.callMinimized = false } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "phone.fill")
+                        Text(c.remote).fontWeight(.semibold).lineLimit(1)
+                        Spacer()
+                        if let since = c.since {
+                            TimelineView(.periodic(from: since, by: 1)) { ctx in
+                                let t = Int(ctx.date.timeIntervalSince(since)); Text(String(format: "%d:%02d", t / 60, t % 60)).monospacedDigit()
+                            }
+                        } else { Text(c.state) }
+                        Text("Tap to return").foregroundStyle(Theme.onBrand.opacity(0.7))
+                    }
+                    .font(.footnote).foregroundStyle(Theme.onBrand)
+                    .padding(.horizontal, 16).padding(.vertical, 11)
+                    .background(Theme.brand, in: Capsule())
+                    .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 20).padding(.bottom, 96)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.snappy, value: router.callMinimized)
         .environmentObject(engine)
         .environmentObject(store)
         .environmentObject(contacts)
@@ -32,9 +59,13 @@ struct RootView: View {
         .environmentObject(settings)
         .environmentObject(dirs)
         .environmentObject(callLog)
+        .environmentObject(router)
         .onOpenURL { setupLink = SetupLink(text: $0.absoluteString) }
         .sheet(item: $setupLink) {
             ProvisionSheet(initialLink: $0.text).environmentObject(engine).environmentObject(store).environmentObject(contacts).environmentObject(dirs)
+        }
+        .onChange(of: engine.calls.count) { old, new in
+            if new > old || new == 0 { router.callMinimized = false }          // a new call, or none left: back to normal
         }
         .task {
             engine.start()
@@ -47,8 +78,8 @@ struct RootView: View {
             }
             #endif
         }
-        .fullScreenCover(isPresented: .constant(!engine.calls.isEmpty)) {
-            CallScreen().environmentObject(engine).environmentObject(store).environmentObject(contacts)
+        .fullScreenCover(isPresented: Binding(get: { !engine.calls.isEmpty && !router.callMinimized }, set: { if !$0 { router.callMinimized = true } })) {
+            CallScreen().environmentObject(engine).environmentObject(store).environmentObject(contacts).environmentObject(router)
         }
     }
 }
@@ -215,74 +246,195 @@ struct RecentsView: View {
 struct CallScreen: View {
     @EnvironmentObject var engine: SIPEngine
     @EnvironmentObject var store: AccountStore
-    @State private var dtmfFor: Int32?
-    @State private var transferFor: SIPEngine.CallInfo?
+    @EnvironmentObject var router: AppRouter
+    @State private var expanded = false
+    @State private var showKeypad = false
+    @State private var showTransfer = false
+    @State private var showCalls = false
 
     var body: some View {
-        VStack(spacing: 28) {
-            Spacer()
-            ForEach(engine.calls) { c in
-                VStack(spacing: 22) {
-                    VStack(spacing: 8) {
-                        Text(c.remote).font(.largeTitle.weight(.light))
-                        if let since = c.since {
-                            TimelineView(.periodic(from: since, by: 1)) { ctx in
-                                let s = Int(ctx.date.timeIntervalSince(since))
-                                Text(String(format: "%d:%02d", s / 60, s % 60)).foregroundStyle(.secondary).monospacedDigit()
-                            }
-                        } else { Text(c.state).foregroundStyle(.secondary) }
-                        if engine.recording.contains(c.id) {
-                            Label("Recording", systemImage: "record.circle").font(.footnote).foregroundStyle(Theme.danger)
-                        }
-                    }
-                    if c.connected {
-                        Grid(horizontalSpacing: 28, verticalSpacing: 18) {
-                            GridRow {
-                                control("mic.slash.fill", "Mute", engine.muted.contains(c.id)) { engine.toggleMute(c.id) }
-                                control("circle.grid.3x3.fill", "Keypad", false) { dtmfFor = c.id }
-                                control("speaker.wave.3.fill", "Speaker", engine.speaker) { engine.toggleSpeaker() }
-                            }
-                            GridRow {
-                                control("pause.fill", "Hold", engine.held.contains(c.id)) { engine.toggleHold(c.id) }
-                                control("record.circle", "Record", engine.recording.contains(c.id)) { engine.toggleRecording(c.id) }
-                                control("phone.arrow.right", "Transfer", false) { transferFor = c }
-                            }
-                        }
-                    }
-                    HStack(spacing: 40) {
-                        if c.incoming && !c.connected {
-                            Button { engine.answer(c.id) } label: {
-                                Image(systemName: "phone.fill").font(.title)
-                                    .frame(width: 76, height: 76).background(Theme.brand, in: Circle()).foregroundStyle(Theme.onBrand)
-                            }
-                        }
-                        Button { engine.hangup(c.id) } label: {
-                            Image(systemName: "phone.down.fill").font(.title)
-                                .frame(width: 76, height: 76).background(Theme.danger, in: Circle()).foregroundStyle(.white)
-                        }
-                    }
-                }
-            }
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.bg.ignoresSafeArea())
-        .sheet(isPresented: Binding(get: { dtmfFor != nil }, set: { if !$0 { dtmfFor = nil } })) {
-            if let id = dtmfFor { DTMFSheet(call: id).environmentObject(engine) }
-        }
-        .sheet(item: $transferFor) { c in TransferSheet(call: c).environmentObject(engine).environmentObject(store).environmentObject(ContactsStore.shared) }
+        if let c = engine.currentCall { screen(c) } else { Theme.bg.ignoresSafeArea() }
     }
 
-    private func control(_ icon: String, _ label: String, _ on: Bool, _ action: @escaping () -> Void) -> some View {
+    private func screen(_ c: SIPEngine.CallInfo) -> some View {
+        ZStack(alignment: .bottom) {
+            Theme.bg.ignoresSafeArea()
+            VStack(spacing: 0) {
+                header(c)
+                Spacer()
+                avatar(c)
+                VStack(spacing: 6) {
+                    Text(c.remote).font(.title2.weight(.light))
+                    if !c.address.isEmpty { Text(c.address).font(.callout).foregroundStyle(Theme.muted) }
+                    if engine.held.contains(c.id) { Label("On hold", systemImage: "pause.circle.fill").font(.footnote).foregroundStyle(Theme.brand) }
+                }.padding(.top, 18)
+                Spacer(minLength: expanded ? 360 : 170)
+            }
+            sheet(c)
+        }
+        .sheet(isPresented: $showKeypad) { DTMFSheet(call: c.id).environmentObject(engine) }
+        .sheet(isPresented: $showTransfer) { TransferSheet(call: c).environmentObject(engine).environmentObject(store).environmentObject(ContactsStore.shared) }
+        .sheet(isPresented: $showCalls) { CallsListSheet().environmentObject(engine) }
+    }
+
+    // MARK: top: back, name | time, encryption, signal
+
+    private func header(_ c: SIPEngine.CallInfo) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Button { router.callMinimized = true } label: { Image(systemName: "chevron.left").font(.title3.weight(.medium)).frame(width: 30, height: 30) }
+                .buttonStyle(.plain)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                    Text(c.remote).fontWeight(.bold).lineLimit(1)
+                    Text("|").foregroundStyle(Theme.muted)
+                    if let since = c.since {
+                        TimelineView(.periodic(from: since, by: 1)) { ctx in
+                            let s = Int(ctx.date.timeIntervalSince(since))
+                            Text(String(format: "%02d:%02d", s / 60, s % 60)).fontWeight(.bold).monospacedDigit()
+                        }
+                    } else { Text(c.state).fontWeight(.bold) }
+                }.font(.headline)
+                if let line = securityLine(c) { Label(line.text, systemImage: line.icon).font(.footnote).foregroundStyle(line.color) }
+                if engine.recording.contains(c.id) { Label("Recording", systemImage: "record.circle").font(.footnote).foregroundStyle(Theme.danger) }
+            }
+            Spacer()
+            if c.connected { SignalBars(level: engine.quality[c.id] ?? 0) }
+        }
+        .padding(.horizontal, 18).padding(.top, 10)
+    }
+
+    private func securityLine(_ c: SIPEngine.CallInfo) -> (text: String, icon: String, color: Color)? {
+        guard c.connected else { return nil }
+        switch engine.encryption[c.id] ?? .unknown {
+        case .srtp: return ("Point-to-point encrypted by SRTP", "lock.fill", Theme.brand)
+        case .dtls: return ("Point-to-point encrypted by DTLS-SRTP", "lock.fill", Theme.brand)
+        case .none: return ("Not encrypted", "lock.open.fill", Theme.danger)
+        case .unknown: return nil
+        }
+    }
+
+    private func avatar(_ c: SIPEngine.CallInfo) -> some View {
+        let initials = String(c.remote.split(separator: " ").prefix(2).compactMap { $0.first }).uppercased()
+        return ZStack {
+            Circle().fill(Theme.brand.opacity(0.16))
+            Circle().stroke(Theme.brand.opacity(0.5), lineWidth: 1)
+            Text(initials.isEmpty ? "?" : initials).font(.system(size: 96, weight: .semibold, design: .rounded)).foregroundStyle(Theme.brand)
+        }.frame(width: 220, height: 220)
+    }
+
+    // MARK: bottom sheet: hang up, mute, speaker; expands to the rest
+
+    private func sheet(_ c: SIPEngine.CallInfo) -> some View {
+        VStack(spacing: 18) {
+            Button { withAnimation(.snappy) { expanded.toggle() } } label: {
+                Image(systemName: expanded ? "chevron.compact.down" : "chevron.compact.up").font(.system(size: 34, weight: .light)).foregroundStyle(Theme.text)
+                    .frame(maxWidth: .infinity, minHeight: 28)
+            }.buttonStyle(.plain)
+
+            HStack(spacing: 14) {
+                if c.incoming && !c.connected {
+                    Button { engine.answer(c.id) } label: { Image(systemName: "phone.fill").font(.title2).frame(width: 96, height: 64).background(Theme.brand, in: Capsule()).foregroundStyle(Theme.onBrand) }
+                }
+                Button { engine.hangup(c.id) } label: {
+                    Image(systemName: "phone.down.fill").font(.title2).frame(width: 96, height: 64).background(Theme.danger, in: Capsule()).foregroundStyle(.white)
+                }
+                Spacer()
+                round("mic.slash.fill", on: engine.muted.contains(c.id), enabled: c.connected) { engine.toggleMute(c.id) }
+                round("speaker.wave.3.fill", on: engine.speaker, enabled: true) { engine.toggleSpeaker() }
+            }
+
+            if expanded {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 14) {
+                    item("phone.arrow.right", "Transfer", c.connected) { showTransfer = true }
+                    item("phone.badge.plus", "New call", c.connected) { router.callMinimized = true; router.tab = .keypad }
+                    item("list.bullet", "Calls list", true) { showCalls = true }
+                    item("circle.grid.3x3.fill", "Dialer", c.connected) { showKeypad = true }
+                    item("bubble.left", "Messages", !c.address.isEmpty) { openMessages(c) }
+                    item(engine.held.contains(c.id) ? "play.fill" : "pause.fill", engine.held.contains(c.id) ? "Resume" : "Pause", c.connected, on: engine.held.contains(c.id)) { engine.toggleHold(c.id) }
+                    item("record.circle", "Record", c.connected, on: engine.recording.contains(c.id)) { engine.toggleRecording(c.id) }
+                }
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+        }
+        .padding(.horizontal, 20).padding(.bottom, 14).padding(.top, 6)
+        .background {
+            UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28).fill(Theme.surface).ignoresSafeArea(edges: .bottom)
+        }
+    }
+
+    private func round(_ icon: String, on: Bool, enabled: Bool, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon).font(.title3).frame(width: 64, height: 64)
+                .background(on ? Theme.brand : Theme.bg.opacity(0.6), in: Circle())
+                .foregroundStyle(on ? Theme.onBrand : Theme.text)
+        }.buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.4)
+    }
+
+    private func item(_ icon: String, _ label: String, _ enabled: Bool, on: Bool = false, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 6) {
-                Image(systemName: icon).font(.title3).frame(width: 64, height: 64)
-                    .background(on ? Theme.brand : Theme.surface, in: Circle())
-                    .overlay(Circle().stroke(Theme.border, lineWidth: on ? 0 : 1))
+                Image(systemName: icon).font(.title3).frame(width: 60, height: 60)
+                    .background(on ? Theme.brand : Theme.bg.opacity(0.6), in: Circle())
                     .foregroundStyle(on ? Theme.onBrand : Theme.text)
-                Text(label).font(.caption).foregroundStyle(Theme.muted)
+                Text(label).font(.footnote).foregroundStyle(Theme.text).lineLimit(1).minimumScaleFactor(0.8)
             }
-        }.buttonStyle(.plain)
+        }.buttonStyle(.plain).disabled(!enabled).opacity(enabled ? 1 : 0.4)
+    }
+
+    private func openMessages(_ c: SIPEngine.CallInfo) {
+        guard let acc = c.accountID ?? store.selected?.id, !c.address.isEmpty else { return }
+        router.pendingThread = ThreadTarget(accountID: acc, peer: c.address)
+        router.tab = .conversations
+        router.callMinimized = true
+    }
+}
+
+/// Five bars like a phone's signal meter; filled by call quality.
+struct SignalBars: View {
+    var level: Int
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 3) {
+            ForEach(1...5, id: \.self) { i in
+                RoundedRectangle(cornerRadius: 1.5).fill(i <= level ? Theme.text : Theme.muted.opacity(0.35)).frame(width: 4, height: CGFloat(5 + i * 5))
+            }
+        }.frame(height: 32).accessibilityLabel("Call quality \(level) of 5")
+    }
+}
+
+/// All calls in progress: switch to one (the others go on hold) or hang one up.
+struct CallsListSheet: View {
+    @EnvironmentObject var engine: SIPEngine
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(engine.calls) { c in
+                    HStack(spacing: 12) {
+                        Button { engine.switchTo(c.id); dismiss() } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(c.remote).foregroundStyle(Theme.text)
+                                Text(status(c)).font(.footnote).foregroundStyle(Theme.muted)
+                            }
+                        }.buttonStyle(.plain)
+                        Spacer()
+                        if c.id == engine.currentCall?.id { Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.brand) }
+                        Button { engine.hangup(c.id) } label: { Image(systemName: "phone.down.fill").foregroundStyle(Theme.danger) }.buttonStyle(.plain)
+                    }
+                    .listRowBackground(Theme.surface)
+                }
+            }
+            .l1neBackground()
+            .navigationTitle("Calls")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func status(_ c: SIPEngine.CallInfo) -> String {
+        if !c.connected { return c.incoming ? "Incoming" : c.state }
+        return engine.held.contains(c.id) ? "On hold" : "Active"
     }
 }
 
