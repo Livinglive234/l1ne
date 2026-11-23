@@ -26,7 +26,7 @@ struct Account: Codable, Identifiable, Equatable {
     var intlPrefix = ""               // country calling code without "+", e.g. 1
     var formatWithPrefix = false      // turn national numbers into +<prefix><number>
     var plusTo00 = false              // send +… as 00…
-    var voicemailURI = ""             // e.g. *97 or sip:*97@pbx
+    var voicemailURI = "*97"          // e.g. *97 or sip:*97@pbx
     var mwiEnabled = true             // subscribe to the message-waiting indicator
     var iceEnabled = false
     var turnEnabled = false
@@ -73,7 +73,7 @@ struct Account: Codable, Identifiable, Equatable {
     }
 
     /// Where the voicemail button dials: a bare number or code (`*97`, `7000`) becomes sip:<it>@<your server>, a full
-    /// sip: address is used as typed. nil while no voicemail number is set (the button stays hidden).
+    /// sip: address is used as typed. defaults to *97; nil only if the field is cleared during editing.
     var voicemailTarget: String? {
         let v = voicemailURI.trimmingCharacters(in: .whitespaces)
         guard !v.isEmpty else { return nil }
@@ -128,7 +128,7 @@ struct Account: Codable, Identifiable, Equatable {
         intlPrefix = try c.decodeIfPresent(String.self, forKey: .intlPrefix) ?? def.intlPrefix
         formatWithPrefix = try c.decodeIfPresent(Bool.self, forKey: .formatWithPrefix) ?? def.formatWithPrefix
         plusTo00 = try c.decodeIfPresent(Bool.self, forKey: .plusTo00) ?? def.plusTo00
-        voicemailURI = try c.decodeIfPresent(String.self, forKey: .voicemailURI) ?? def.voicemailURI
+        voicemailURI = try c.decodeIfPresent(String.self, forKey: .voicemailURI).flatMap { $0.isEmpty ? nil : $0 } ?? def.voicemailURI
         mwiEnabled = try c.decodeIfPresent(Bool.self, forKey: .mwiEnabled) ?? def.mwiEnabled
         iceEnabled = try c.decodeIfPresent(Bool.self, forKey: .iceEnabled) ?? def.iceEnabled
         turnEnabled = try c.decodeIfPresent(Bool.self, forKey: .turnEnabled) ?? def.turnEnabled
