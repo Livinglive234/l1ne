@@ -131,6 +131,7 @@ final class SIPEngine: ObservableObject {
 
         cfgPool = pjsua_pool_create("l1ne-cfg", 2048, 2048)
         guard pjsua_start() == 0 else { return }
+        _ = pjsua_set_no_snd_dev()      // the sound device opens only once CallKit has activated the audio session
         started = true
         applyCodecs()
         NetworkMonitor.shared.onChange = { SIPEngine.shared.networkChanged() }
@@ -319,8 +320,13 @@ final class SIPEngine: ObservableObject {
         pjsua_call_setting_default(&setting)
         setting.txt_cnt = 0                       // audio only: no real-time-text stream in the offer
         for c in calls where c.connected && !held.contains(c.id) { toggleHold(c.id) }     // a new call puts the active one on hold
-        let ok = pjsua_call_make_call(acc, &u, &setting, nil, nil, &callID) == 0
-        if ok { currentCallID = callID }
+        let st = pjsua_call_make_call(acc, &u, &setting, nil, nil, &callID)
+        let ok = st == 0
+        if ok {
+            currentCallID = callID
+            let name = AccountStore.shared.account(account).flatMap { _ in ContactsStore.shared.contacts.first { $0.user == digits }?.name } ?? digits
+            CallKitManager.shared.reportOutgoing(callID, name: name, address: digits)
+        }
         return ok
     }
 
@@ -331,6 +337,7 @@ final class SIPEngine: ObservableObject {
     }
 
     func answer(_ id: Int32) {
+        guard calls.first(where: { $0.id == id })?.connected != true else { return }
         configureAudioSession()
         for c in calls where c.id != id && c.connected && !held.contains(c.id) { toggleHold(c.id) }
         currentCallID = id
@@ -418,6 +425,7 @@ final class SIPEngine: ObservableObject {
         // Tell the caller we are ringing (180), or send early media (183) if that is switched on.
         pjsua_call_answer(call, AppSettings.shared.allowOutgoingEarlyMedia ? 183 : 180, nil, nil)
         refresh(call: call, incoming: true)
+        if let c = calls.first(where: { $0.id == call }) { CallKitManager.shared.reportIncoming(call, name: c.remote, address: c.address) }
     }
 
     private func refresh(call: pjsua_call_id, incoming: Bool?, info: pjsua_call_info? = nil) {
@@ -436,6 +444,7 @@ final class SIPEngine: ObservableObject {
             if let rec = recorders.removeValue(forKey: call) { pjsua_recorder_destroy(rec) }
             recording.remove(call); muted.remove(call); held.remove(call)
             calls.removeAll { $0.id == call }
+            CallKitManager.shared.reportEnded(call)
             encryption[call] = nil; quality[call] = nil
             if currentCallID == call { currentCallID = calls.first?.id }
             if calls.isEmpty { speaker = false; statsTask?.cancel(); statsTask = nil }
@@ -457,7 +466,7 @@ final class SIPEngine: ObservableObject {
             }())
         if let i = calls.firstIndex(where: { $0.id == call }) { calls[i] = entry } else { calls.append(entry) }
         if currentCallID == nil || !calls.contains(where: { $0.id == currentCallID }) { currentCallID = call }
-        if connected { startStats() }
+        if connected { startStats(); CallKitManager.shared.reportConnected(call, outgoing: !(entry.incoming)) }
     }
 
     // MARK: call quality and encryption (read from the media stream every two seconds)
@@ -511,7 +520,15 @@ final class SIPEngine: ObservableObject {
     private func configureAudioSession() {
         let s = AVAudioSession.sharedInstance()
         try? s.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])
-        try? s.setActive(true)
+        // CallKit activates the session (see audioSessionActivated); activating it here would fight with it.
+    }
+
+    /// CallKit has switched the audio session on: (re)open the sound device so audio flows on the lock screen too.
+    func audioSessionDeactivated() { _ = pjsua_set_no_snd_dev() }
+
+    func audioSessionActivated() {
+        pjsua_set_snd_dev(PJMEDIA_AUD_DEFAULT_CAPTURE_DEV, PJMEDIA_AUD_DEFAULT_PLAYBACK_DEV)
+        if speaker { try? AVAudioSession.sharedInstance().overrideOutputAudioPort(.speaker) }
     }
 
     // MARK: text messages (SIP MESSAGE)

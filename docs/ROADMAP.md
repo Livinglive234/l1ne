@@ -35,6 +35,12 @@ needs no change. On an incoming call the gateway pushes the phone, waits for the
 
 The gateway and proxy can be built and tested against a fake push endpoint before the Apple account exists; real pushes need it.
 
+## CallKit
+
+Calls go through CallKit (`CallKitManager`): the lock-screen call card, the green call indicator, system answer/decline, hold and mute from
+headsets and the car. Calls are not added to the Phone app's Recents. A call arriving while L1ne is closed still needs the push proxy below
+to wake the app; CallKit by itself cannot do that.
+
 ## LATER: voicemail notifications
 
 > **Status: LATER. Skeleton only.** Settings → Voicemail has a "Notify me of new voicemail" switch (disabled) and `VoicemailNotifier`
