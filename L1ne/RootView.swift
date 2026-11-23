@@ -85,6 +85,7 @@ struct RootView: View {
         }
         .fullScreenCover(isPresented: Binding(get: { !engine.calls.isEmpty && !router.callMinimized }, set: { if !$0 { router.callMinimized = true } })) {
             CallScreen().environmentObject(engine).environmentObject(store).environmentObject(contacts).environmentObject(router)
+                .preferredColorScheme(.dark)       // like the iPhone's own call screen, always dark
         }
     }
 }

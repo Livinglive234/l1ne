@@ -3,13 +3,14 @@ import SwiftUI
 @main
 struct L1neApp: App {
     @Environment(\.scenePhase) private var phase
+    @StateObject private var settings = AppSettings.shared
 
     init() { DirectorySync.shared.registerBackground() }
 
     var body: some Scene {
         WindowGroup {
             RootView()
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(settings.appearance.scheme)
         }
         .onChange(of: phase) { _, p in
             switch p {

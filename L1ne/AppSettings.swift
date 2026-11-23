@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// App-wide settings (not tied to one account). Stored in UserDefaults.
 @MainActor
@@ -17,6 +18,15 @@ final class AppSettings: ObservableObject {
     @Published var codecsOff: [String] { didSet { d.set(codecsOff, forKey: "set.codecsOff") } }
 
     /// A Voicemail tab (off by default) and the voicemail button beside the keypad's call button (on by default).
+    /// System follows the phone; Light and Dark force one.
+    enum Appearance: String, CaseIterable, Identifiable {
+        case system, light, dark
+        var id: String { rawValue }
+        var label: String { rawValue.capitalized }
+        var scheme: ColorScheme? { self == .system ? nil : (self == .light ? .light : .dark) }
+    }
+    @Published var appearance: Appearance { didSet { d.set(appearance.rawValue, forKey: "set.appearance") } }
+
     /// Calls also appear in the iPhone Phone app's Recents (through CallKit). On by default.
     @Published var callsInPhoneApp: Bool { didSet { d.set(callsInPhoneApp, forKey: "set.callsInPhone"); CallKitManager.shared.applySettings() } }
     @Published var showVoicemailTab: Bool { didSet { d.set(showVoicemailTab, forKey: "set.vmTab") } }
@@ -25,6 +35,7 @@ final class AppSettings: ObservableObject {
     @Published var voicemailNotify: Bool { didSet { d.set(voicemailNotify, forKey: "set.vmNotify") } }
 
     init() {
+        appearance = Appearance(rawValue: d.string(forKey: "set.appearance") ?? "") ?? .system
         callsInPhoneApp = d.object(forKey: "set.callsInPhone") as? Bool ?? true
         showVoicemailTab = d.bool(forKey: "set.vmTab")
         showKeypadVoicemail = d.object(forKey: "set.vmKeypad") as? Bool ?? true

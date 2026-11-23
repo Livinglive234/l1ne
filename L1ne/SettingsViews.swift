@@ -15,6 +15,13 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    Picker("Appearance", selection: $settings.appearance) {
+                        ForEach(AppSettings.Appearance.allCases) { Text($0.label).tag($0) }
+                    }
+                } header: { Text("Look") } footer: { Text("System follows your phone. The call screen is always dark, like the iPhone's.") }
+                .listRowBackground(Theme.surface)
+
                 Section("Calls") {
                     Toggle("Automatically start recording calls", isOn: $settings.autoRecord)
                     Toggle("Show calls in the Phone app", isOn: $settings.callsInPhoneApp)
