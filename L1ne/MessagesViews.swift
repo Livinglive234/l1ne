@@ -78,6 +78,7 @@ struct ThreadView: View {
     @EnvironmentObject var messages: MessageStore
     @State private var draft = ""
     @State private var info: PersonTarget?
+    @State private var otherAppsDismissed = MessagingWarnings.otherAppsDismissed
 
     private var line: Account? { store.account(target.accountID) }
     private var person: PersonTarget { PersonTarget(name: displayName(target.peer, contacts: contacts), address: target.peer, accountID: target.accountID) }
@@ -92,6 +93,18 @@ struct ThreadView: View {
                         Text(note).font(.footnote).multilineTextAlignment(.center).foregroundStyle(Theme.danger)
                             .padding(10).frame(maxWidth: .infinity).background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
                             .padding(.bottom, 8)
+                    }
+                    if let other = MessagingWarnings.ownLine(peer: target.peer, from: target.accountID) {
+                        WarningBanner(text: "\(other.title) is another line in L1ne. Texts between two lines in the same app, on the same server, usually don't arrive. Use a different phone or app for the other line.")
+                            .padding(.bottom, 4)
+                    }
+                    let apps = MessagingWarnings.otherSIPApps
+                    if !apps.isEmpty && !otherAppsDismissed {
+                        WarningBanner(text: "\(apps.joined(separator: " and ")) is installed on this phone. If this line is also signed in there, texts can land in that app instead of L1ne. Sign this line out of it.") {
+                            otherAppsDismissed = true
+                            UserDefaults.standard.set(true, forKey: MessagingWarnings.dismissKey)
+                        }
+                        .padding(.bottom, 4)
                     }
                     ForEach(conversation?.messages ?? []) { m in
                         Bubble(message: m) { engine.sendMessage(m.text, to: target, retrying: m.id) }
@@ -202,6 +215,11 @@ struct NewMessageSheet: View {
                     TextField("Extension or user@domain", text: $typed)
                         .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.emailAddress)
                     Button("Start") { start(typed) }.disabled(typed.trimmingCharacters(in: .whitespaces).isEmpty)
+                } footer: {
+                    if let a = account, let other = MessagingWarnings.ownLine(peer: normalized(typed, account: a), from: a.id) {
+                        Label("\(other.title) is another line in L1ne. Texts between two lines in the same app usually don't arrive.", systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    }
                 }
                 .listRowBackground(Theme.surface)
                 if !contacts.contacts.isEmpty {
@@ -226,6 +244,11 @@ struct NewMessageSheet: View {
     }
 
     /// A bare extension ("7201") gets the account's domain.
+    private func normalized(_ text: String, account a: Account) -> String {
+        let t = text.trimmingCharacters(in: .whitespaces)
+        return t.isEmpty ? "" : (t.contains("@") ? t : "\(t)@\(a.domain)")
+    }
+
     private func start(_ text: String) {
         guard let a = account else { return }
         let t = text.trimmingCharacters(in: .whitespaces)

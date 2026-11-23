@@ -28,6 +28,7 @@ targets:
       path: L1ne/Info.plist
       properties:
         UIBackgroundModes: [voip, audio, fetch]   # voip: PushKit + CallKit; audio: a call survives locking the screen; fetch: directory sync
+        LSApplicationQueriesSchemes: [linphone, zoiper, groundwire]   # only to warn when another SIP app could share a line
         BGTaskSchedulerPermittedIdentifiers: [com.livenet.l1ne.directorysync]
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true       # lets a CardDAV server on your own network use http
