@@ -15,6 +15,15 @@ struct AccountEditor: View {
 
     private var isNew: Bool { store.account(account.id) == nil }
 
+    @ViewBuilder private var messagingStatus: some View {
+        switch engine.messagingCheck[account.id] ?? .unknown {
+        case .working: Label("Delivers texts", systemImage: "checkmark.circle.fill").foregroundStyle(Theme.brand)
+        case .notDelivered: Label("Doesn't deliver", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+        case .checking: Text("Checking…").foregroundStyle(Theme.muted)
+        case .unknown: Text(engine.messagingNote[account.id] != nil ? "Not supported" : "Not checked").foregroundStyle(Theme.muted)
+        }
+    }
+
     private func text(_ title: String, _ binding: Binding<String>, keyboard: UIKeyboardType = .default) -> some View {
         TextField(title, text: binding).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(keyboard)
     }
@@ -149,13 +158,10 @@ struct AccountEditor: View {
             .listRowBackground(Theme.surface)
 
             Section {
-                LabeledContent("Server") {
-                    switch engine.messagingCheck[account.id] ?? .unknown {
-                    case .working: Label("Delivers texts", systemImage: "checkmark.circle.fill").foregroundStyle(Theme.brand)
-                    case .notDelivered: Label("Doesn't deliver", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                    case .checking: ProgressView()
-                    case .unknown: Text(engine.messagingNote[account.id] != nil ? "Not supported" : "Not checked").foregroundStyle(Theme.muted)
-                    }
+                HStack {
+                    Text("Server")
+                    Spacer()
+                    messagingStatus
                 }
                 Button("Check messaging") { engine.messagingNote[account.id] = nil; engine.messagingCheck[account.id] = .unknown; engine.checkMessaging(account.id) }
                     .disabled(engine.registration[account.id] != "Registered" || engine.messagingCheck[account.id] == .checking)
