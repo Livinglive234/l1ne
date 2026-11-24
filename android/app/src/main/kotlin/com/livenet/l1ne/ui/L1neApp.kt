@@ -39,8 +39,14 @@ fun L1neApp() {
     if (tab !in tabs) tab = Tab.Recents
     fun open(d: Dest) { stack.add(d) }
     fun back() { if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex) }
+    var minimized by remember { mutableStateOf(false) }
+    val live = app.engine.currentCall
+    LaunchedEffect(live?.id) { minimized = false }
     val unread = convs.sumOf { it.unread }; val newVoicemail = voicemail.values.sum()
 
+    Column(Modifier.fillMaxSize().background(L1neColors.Bg)) {
+    if (live != null && minimized) CallBar(live) { minimized = false }
+    Box(Modifier.weight(1f).then(if (live != null && minimized) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier)) {
     Scaffold(
         containerColor = L1neColors.Bg,
         topBar = {
@@ -93,7 +99,9 @@ fun L1neApp() {
             }
         }
     }
-    calls.let { list -> app.engine.currentCall?.let { CallScreen(it, app.engine, ::open) } }
+    }
+    }
+    calls.let { list -> app.engine.currentCall?.let { CallScreen(it, app.engine, minimized, { m -> minimized = m }, ::open) } }
 }
 
 /** Round profile picture: the initials of the selected account, or a person glyph until an account exists. */

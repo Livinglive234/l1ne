@@ -71,6 +71,8 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
                 val ci = CallInfo(a, s1, f.getOrNull(0) == "1", b, f.getOrNull(1)?.toIntOrNull() ?: 0, f.getOrNull(2) ?: "", f.getOrNull(3)?.toLongOrNull() ?: 0,
                     f.getOrNull(5)?.toIntOrNull()?.let { accOfPJ[it] })
                 val old = _calls.value.firstOrNull { it.id == a }
+                if (ci.active && a !in connectedAt) connectedAt[a] = System.currentTimeMillis() - ci.connectedSecs * 1000
+                if (ci.ended) connectedAt.remove(a)
                 if (type == "incoming") Native.nAnswer(a, if (settings.allowOutgoingEarlyMedia) 183 else 180)
                 _calls.value = if (ci.ended) _calls.value.filter { it.id != a } else if (old == null) _calls.value + ci else _calls.value.map { if (it.id == a) ci.copy(accountID = old.accountID) else it }
                 if (ci.active && old?.active != true && settings.autoRecord) toggleRecord(a)
@@ -178,6 +180,9 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
     }
     fun switchTo(id: Int) { _calls.value.filter { it.id != id && it.active && it.id !in held.value }.forEach { toggleHold(it.id) }; if (id in held.value) toggleHold(id); currentId.value = id }
     val currentId = MutableStateFlow<Int?>(null)
+    private val connectedAt = HashMap<Int, Long>()
+    /** Seconds the call has been connected, counted from when it was first seen connected. */
+    fun elapsed(id: Int): Long = connectedAt[id]?.let { (System.currentTimeMillis() - it) / 1000 } ?: 0
     val messagingNote = MutableStateFlow<Map<String, String>>(emptyMap())
     val recording = MutableStateFlow(setOf<Int>())
     fun toggleRecord(id: Int) {

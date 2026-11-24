@@ -38,16 +38,15 @@ private val CallDanger = Color(0xFFE04646)
 /** Laid out like the iPhone call screen (always dark): a down arrow and the quality pill, name and time, six round buttons, one big end button. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CallScreen(call: CallInfo, engine: SipEngine, open: (Dest) -> Unit) {
+fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimized: (Boolean) -> Unit, open: (Dest) -> Unit) {
     val app = LocalApp.current
     val muted by engine.muted.collectAsState(); val held by engine.held.collectAsState(); val recording by engine.recording.collectAsState()
     val quality by engine.quality.collectAsState(); val numbers by engine.qualityNumbers.collectAsState(); val enc by engine.encryption.collectAsState()
     val contacts by app.contacts.contacts.collectAsState()
-    var minimized by remember(call.id) { mutableStateOf(false) }
     var speaker by remember { mutableStateOf(engine.speaker) }
     var pad by remember { mutableStateOf(false) }; var more by remember { mutableStateOf(false) }; var transfer by remember { mutableStateOf(false) }; var list by remember { mutableStateOf(false) }
-    var secs by remember(call.id) { mutableStateOf(call.connectedSecs) }
-    LaunchedEffect(call.id, call.active) { secs = call.connectedSecs; while (call.active) { delay(1000); secs++ } }
+    var secs by remember(call.id) { mutableStateOf(engine.elapsed(call.id)) }
+    LaunchedEffect(call.id, call.active) { while (call.active) { secs = engine.elapsed(call.id); delay(500) } }
     val name = app.contacts.name(call.number, call.peerAddress.substringAfter('@', "")) ?: call.number
     val status = when {
         call.active -> "%d:%02d".format(secs / 60, secs % 60)
@@ -58,18 +57,13 @@ fun CallScreen(call: CallInfo, engine: SipEngine, open: (Dest) -> Unit) {
         else -> "Calling…"
     }
     val live = call.active
-    androidx.activity.compose.BackHandler(enabled = !minimized) { minimized = true }
+    androidx.activity.compose.BackHandler(enabled = !minimized) { setMinimized(true) }
 
-    if (minimized) {       // a green bar at the top returns to the call
-        Box(Modifier.fillMaxWidth().statusBarsPadding().background(CallBrand).clickable { minimized = false }.padding(horizontal = 16.dp, vertical = 10.dp), contentAlignment = Alignment.CenterStart) {
-            Text("$name · $status — tap to return", color = Color(0xFF04120A), fontWeight = FontWeight.Medium)
-        }
-        return
-    }
+    if (minimized) return
     Surface(Modifier.fillMaxSize(), color = CallBg) {
         Column(Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton({ minimized = true }) { Icon(Icons.Filled.KeyboardArrowDown, "Minimise call", tint = CallText, modifier = Modifier.size(30.dp)) }
+                IconButton({ setMinimized(true) }) { Icon(Icons.Filled.KeyboardArrowDown, "Minimise call", tint = CallText, modifier = Modifier.size(30.dp)) }
                 Spacer(Modifier.weight(1f))
                 if (live) SignalBars(quality[call.id] ?: 0, numbers[call.id])
             }
@@ -87,7 +81,7 @@ fun CallScreen(call: CallInfo, engine: SipEngine, open: (Dest) -> Unit) {
             if (live || !call.incoming) {
                 val rows = listOf(
                     listOf(Btn(Icons.Filled.MicOff, "mute", call.id in muted, live) { engine.toggleMute(call.id) }, Btn(Icons.Filled.Dialpad, "keypad", false, live) { pad = true }, Btn(Icons.AutoMirrored.Filled.VolumeUp, "speaker", speaker, true) { speaker = !speaker; engine.setSpeaker(speaker) }),
-                    listOf(Btn(Icons.Filled.Add, "add call", false, live) { minimized = true }, Btn(if (call.id in held) Icons.Filled.PlayArrow else Icons.Filled.Pause, if (call.id in held) "resume" else "hold", call.id in held, live) { engine.toggleHold(call.id) }, Btn(Icons.Filled.MoreHoriz, "more", false, true) { more = true }))
+                    listOf(Btn(Icons.Filled.Add, "add call", false, live) { setMinimized(true) }, Btn(if (call.id in held) Icons.Filled.PlayArrow else Icons.Filled.Pause, if (call.id in held) "resume" else "hold", call.id in held, live) { engine.toggleHold(call.id) }, Btn(Icons.Filled.MoreHoriz, "more", false, true) { more = true }))
                 rows.forEach { r -> Row(Modifier.fillMaxWidth().padding(bottom = 26.dp), horizontalArrangement = Arrangement.SpaceEvenly) { r.forEach { RoundBtn(it) } } }
             }
             Spacer(Modifier.weight(1f))
@@ -103,7 +97,7 @@ fun CallScreen(call: CallInfo, engine: SipEngine, open: (Dest) -> Unit) {
             MoreRow(Icons.AutoMirrored.Filled.PhoneForwarded, "Transfer…", live) { more = false; transfer = true }
             MoreRow(Icons.Filled.FiberManualRecord, if (call.id in recording) "Stop recording" else "Record call", live) { more = false; engine.toggleRecord(call.id) }
             MoreRow(Icons.AutoMirrored.Filled.Message, "Messages", call.peerAddress.isNotEmpty()) {
-                more = false; val acc = call.accountID ?: app.store.selected?.id; if (acc != null) { minimized = true; open(Dest.Thread(acc, call.peerAddress.lowercase())) } }
+                more = false; val acc = call.accountID ?: app.store.selected?.id; if (acc != null) { setMinimized(true); open(Dest.Thread(acc, call.peerAddress.lowercase())) } }
             MoreRow(Icons.Filled.FormatListBulleted, "Calls list", true) { more = false; list = true }
         }
     }
@@ -202,4 +196,16 @@ private fun CallsListDialog(engine: SipEngine, onClose: () -> Unit) {
             if (c.id == engine.currentCall?.id) Icon(Icons.Filled.CheckCircle, null, tint = CallBrand)
             IconButton({ engine.hangup(c.id) }) { Icon(Icons.Filled.CallEnd, "Hang up", tint = CallDanger) } } } } },
         confirmButton = { TextButton(onClose) { Text("Done") } })
+}
+
+/** The green bar shown at the top of the app while a call is minimised; tapping it returns to the call. */
+@Composable
+fun CallBar(call: CallInfo, onClick: () -> Unit) {
+    val app = LocalApp.current
+    var secs by remember(call.id) { mutableStateOf(app.engine.elapsed(call.id)) }
+    LaunchedEffect(call.id, call.active) { while (call.active) { secs = app.engine.elapsed(call.id); delay(500) } }
+    val name = app.contacts.name(call.number, call.peerAddress.substringAfter('@', "")) ?: call.number
+    Box(Modifier.fillMaxWidth().background(CallBrand).statusBarsPadding().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp), contentAlignment = Alignment.CenterStart) {
+        Text("$name · ${if (call.active) "%d:%02d".format(secs / 60, secs % 60) else "calling"} — tap to return", color = Color(0xFF04120A), fontWeight = FontWeight.Medium)
+    }
 }

@@ -50,6 +50,8 @@ fun KeypadScreen(open: (Dest) -> Unit) {
 
     fun dial(n: String, from: com.livenet.l1ne.core.Account? = account) { if (n.isNotEmpty()) { app.engine.call(n, from); number = "" } }
 
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val keySize = ((maxHeight.value - 330f) / 5f).coerceIn(50f, 76f).dp          // keys shrink when the call bar takes room
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         if (accounts.size > 1) Box(Modifier.padding(top = 4.dp)) {
             AssistChip({ lineMenu = true }, label = { Text(account?.title ?: "Line") }, trailingIcon = { Icon(Icons.Filled.ExpandMore, null) })
@@ -75,7 +77,7 @@ fun KeypadScreen(open: (Dest) -> Unit) {
         keys.forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.padding(bottom = 14.dp)) {
                 row.forEach { (k, sub) ->
-                    Box(Modifier.size(76.dp).clip(CircleShape).background(L1neColors.Surface).border(1.dp, L1neColors.Border, CircleShape)
+                    Box(Modifier.size(keySize).clip(CircleShape).background(L1neColors.Surface).border(1.dp, L1neColors.Border, CircleShape)
                         .combinedClickable(onClick = { number += k }, onLongClick = { if (k == "0") number += "+" }), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(k, fontSize = 30.sp, fontWeight = FontWeight.Light)
@@ -85,17 +87,18 @@ fun KeypadScreen(open: (Dest) -> Unit) {
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 24.dp)) {
-            Box(Modifier.size(76.dp), contentAlignment = Alignment.Center) {
+        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 16.dp)) {
+            Box(Modifier.size(keySize), contentAlignment = Alignment.Center) {
                 if (vmKeypad && account?.voicemailTarget != null) IconButton({ account.voicemailTarget?.let { t -> app.engine.callUri(t, account) } }) {
                     Icon(Icons.Filled.Voicemail, "Voicemail", tint = L1neColors.Brand) }
             }
-            Box(Modifier.size(76.dp).clip(CircleShape).background(if (number.isEmpty()) L1neColors.BrandDim.copy(alpha = 0.5f) else L1neColors.Brand).clickable(enabled = number.isNotEmpty()) { dial(number) },
+            Box(Modifier.size(keySize).clip(CircleShape).background(if (number.isEmpty()) L1neColors.BrandDim.copy(alpha = 0.5f) else L1neColors.Brand).clickable(enabled = number.isNotEmpty()) { dial(number) },
                 contentAlignment = Alignment.Center) { Icon(Icons.Filled.Call, "Call", tint = L1neColors.OnBrand) }
-            Box(Modifier.size(76.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(keySize), contentAlignment = Alignment.Center) {
                 if (number.isNotEmpty()) Box(Modifier.size(56.dp).clip(CircleShape).combinedClickable(onClick = { number = number.dropLast(1) }, onLongClick = { number = "" }), contentAlignment = Alignment.Center) {
                     Icon(Icons.AutoMirrored.Filled.Backspace, "Delete") }
             }
         }
+    }
     }
 }
