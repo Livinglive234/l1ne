@@ -25,7 +25,7 @@ Mode 1 says plainly in the app that calls will not arrive while L1ne is closed o
 ## Wake sequence (modes 2 to 4)
 
 1. A call arrives for the user's extension.
-2. The PBX (mode 2), the user's proxy (mode 3) calls the relay with the push ID.
+2. The PBX (mode 2) or the user's own proxy (mode 3) calls the relay with the push ID.
 3. The relay sends an APNs VoIP push. It carries a call ID only; names and numbers are looked up by the app
    when the INVITE arrives, so neither the relay nor Apple sees them.
 4. The app must report an incoming call to CallKit straight away (Apple requirement), then re-registers.
