@@ -52,6 +52,11 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
     var callLog: com.livenet.l1ne.data.CallLogStore? = null
     var messages: com.livenet.l1ne.data.MessageStore? = null
     private val userEnded = HashSet<Int>()
+    // A call still ringing when the network changes is redialled once: the request it was waiting on went out over the old
+    // connection, which is gone after the switch, so the PBX's answer could never reach us.
+    private class Redial(val number: String?, val uri: String?, val accountId: String, val attempt: Int)
+    private val outgoingTargets = HashMap<Int, Redial>()
+    private val unansweredAtChange = HashSet<Int>()
     private val sendTags = HashMap<Int, String>()          // tag -> message id
     private var nextTag = 1
     val currentCall: CallInfo? get() = _calls.value.firstOrNull { it.id == currentId.value } ?: _calls.value.firstOrNull { it.active } ?: _calls.value.firstOrNull()
@@ -94,7 +99,13 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
                         ci.connectedSecs > 0 -> com.livenet.l1ne.data.Direction.INCOMING
                         byYou -> com.livenet.l1ne.data.Direction.INCOMING
                         else -> com.livenet.l1ne.data.Direction.MISSED }
-                    callLog?.add(com.livenet.l1ne.data.CallRecord(peer = mine.peerAddress, accountID = ci.accountID ?: mine.accountID, direction = dir, duration = ci.connectedSecs.toInt()))
+                    val target = outgoingTargets.remove(a)
+                    val retry = !mine.incoming && ci.connectedSecs == 0L && !byYou && a in unansweredAtChange && target != null && target.attempt == 0
+                    unansweredAtChange.remove(a)
+                    if (retry) main.postDelayed({
+                        val acc = store.accounts.value.firstOrNull { it.id == target!!.accountId } ?: return@postDelayed
+                        if (target!!.uri != null) callUri(target.uri, acc, 1) else call(target.number!!, acc, 1) }, 1500)
+                    if (!retry) callLog?.add(com.livenet.l1ne.data.CallRecord(peer = mine.peerAddress, accountID = ci.accountID ?: mine.accountID, direction = dir, duration = ci.connectedSecs.toInt()))
                     recording.value -= a
                     onCallEnded?.invoke(ci)
                 }
@@ -136,22 +147,24 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
 
     fun registerAll() = store.accounts.value.forEach { register(it) }
 
-    fun call(number: String, from: Account? = null): Boolean {
+    fun call(number: String, from: Account? = null, attempt: Int = 0): Boolean {
         start()
         val a = from ?: store.accounts.value.firstOrNull { _registration.value[it.id] == "Registered" } ?: store.accounts.value.firstOrNull() ?: return false
         val pj = pjAcc[a.id] ?: return false
         val id = Native.nCall(pj, "sip:${a.dial(number)}@${a.domain}")
         if (id < 0) return false
         _calls.value = _calls.value + CallInfo(id, "sip:$number@${a.domain}", false, 1, 0, "Calling", 0, a.id)
+        outgoingTargets[id] = Redial(number, null, a.id, attempt)
         telecomKnown.add(id); telecom?.reportOutgoing(id, number, "$number@${a.domain}"); KeepAliveService.refresh(app)
         updateAudio(); return true
     }
 
     /** Dials a full sip: address (the voicemail target) */
-    fun callUri(uri: String, from: Account): Boolean {
+    fun callUri(uri: String, from: Account, attempt: Int = 0): Boolean {
         start(); val pj = pjAcc[from.id] ?: return false
         val id = Native.nCall(pj, uri); if (id < 0) return false
         _calls.value = _calls.value + CallInfo(id, uri, false, 1, 0, "Calling", 0, from.id)
+        outgoingTargets[id] = Redial(null, uri, from.id, attempt)
         telecomKnown.add(id); telecom?.reportOutgoing(id, uri.removePrefix("sip:").substringBefore('@'), uri.removePrefix("sip:")); KeepAliveService.refresh(app)
         updateAudio(); return true
     }
@@ -271,7 +284,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
         val cm = app.getSystemService(ConnectivityManager::class.java)
         var first = true
         cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) { if (first) { first = false; return }; main.post { Native.nIpChange() } }
+            override fun onAvailable(network: Network) { if (first) { first = false; return }; main.post { unansweredAtChange.addAll(_calls.value.filter { !it.incoming && !it.active && !it.ended }.map { it.id }); Native.nIpChange() } }
         })
     }
 }
