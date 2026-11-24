@@ -20,3 +20,4 @@ android/local.properties
 
 # private notes about a specific installation (not published)
 docs/private/
+android/app/.cxx/
