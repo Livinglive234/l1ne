@@ -159,9 +159,8 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
                         TextButton({ scanFirst = false; showLink = true }) { Icon(Icons.Filled.Link, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Open a setup link", color = L1neColors.Brand) }
                         TextButton({ manual = true }) { Icon(Icons.Filled.Tune, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("More options", color = L1neColors.Brand) }
                     }
-                    TextButton({ help = true }, Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 4.dp)) {
-                        Text("Where do I find these?", Modifier.weight(1f), color = L1neColors.Text, fontWeight = FontWeight.Medium)
-                        Icon(Icons.Filled.ExpandMore, null, tint = L1neColors.Muted)
+                    TextButton({ help = true }, Modifier.fillMaxWidth()) {
+                        Text("Where do I find these?", color = L1neColors.Text, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
                     }
                 }
             }

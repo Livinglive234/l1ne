@@ -169,12 +169,9 @@ struct WelcomeView: View {
 
     private var help: some View {
         Button { showHelp = true } label: {
-            HStack {
-                Text("Where do I find these?").font(.subheadline.weight(.medium)).foregroundStyle(Theme.text)
-                Spacer()
-                Image(systemName: "chevron.right").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
-            }
-            .contentShape(Rectangle())
+            Text("Where do I find these?").font(.subheadline.weight(.medium)).foregroundStyle(Theme.text)
+                .frame(maxWidth: .infinity, minHeight: 36)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
