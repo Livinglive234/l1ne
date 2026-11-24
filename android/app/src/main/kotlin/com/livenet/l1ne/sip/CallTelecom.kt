@@ -83,7 +83,7 @@ class L1neConnection(val callId: Int, private val app: L1neApplication) : Connec
     override fun onShowIncomingCallUi() {
         android.util.Log.i("L1neTelecom", "show incoming ui $callId"); CallNotifications.showIncoming(app, callId, app.engine.displayName(callId)) }
     @Deprecated("Telecom still calls this on older Android versions")
-    override fun onCallAudioStateChanged(state: CallAudioState?) { state?.let { app.telecom.routes.value = AudioRoutes(it.route, it.supportedRouteMask) } }
+    override fun onCallAudioStateChanged(state: CallAudioState?) { state?.let { app.telecom.routes.value = AudioRoutes(it.route, it.supportedRouteMask); app.engine.updateProximity() } }
 }
 
 class L1neConnectionService : ConnectionService() {
