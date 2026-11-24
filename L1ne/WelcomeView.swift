@@ -10,6 +10,7 @@ struct WelcomeView: View {
 
     @State private var server = ""
     @State private var username = ""
+    @State private var displayName = ""
     @State private var password = ""
     @State private var reveal = false
     @State private var transport = Account.Transport.tls
@@ -20,7 +21,7 @@ struct WelcomeView: View {
     @State private var showManual = false
     @State private var showHelp = false
     @FocusState private var focus: Field?
-    private enum Field { case server, user, pass }
+    private enum Field { case server, user, name, pass }
 
     private var canLogin: Bool {
         !server.trimmingCharacters(in: .whitespaces).isEmpty && !username.trimmingCharacters(in: .whitespaces).isEmpty && !password.isEmpty
@@ -30,9 +31,9 @@ struct WelcomeView: View {
         GeometryReader { geo in
             ScrollView {
                 VStack(spacing: 0) {
-                    VStack(spacing: 16) {
+                    VStack(spacing: 12) {
                         header
-                        VStack(alignment: .leading, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 10) {
                             field("Server") {
                                 TextField("pbx.example.com", text: $server)
                                     .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
@@ -41,7 +42,12 @@ struct WelcomeView: View {
                             field("Username or extension") {
                                 TextField("Username", text: $username)
                                     .textInputAutocapitalization(.never).autocorrectionDisabled()
-                                    .focused($focus, equals: .user).submitLabel(.next).onSubmit { focus = .pass }
+                                    .focused($focus, equals: .user).submitLabel(.next).onSubmit { focus = .name }
+                            }
+                            field("Display name (optional)") {
+                                TextField("Shown to people you call", text: $displayName)
+                                    .textInputAutocapitalization(.words)
+                                    .focused($focus, equals: .name).submitLabel(.next).onSubmit { focus = .pass }
                             }
                             field("Password") {
                                 HStack {
@@ -55,8 +61,8 @@ struct WelcomeView: View {
                                     }.buttonStyle(.plain).accessibilityLabel(reveal ? "Hide password" : "Show password")
                                 }
                             }
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Transport").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Transport").font(.footnote.weight(.semibold)).foregroundStyle(Theme.text)
                                 Picker("Transport", selection: $transport) {
                                     ForEach(Account.Transport.allCases, id: \.self) { Text($0.rawValue.uppercased()).tag($0) }
                                 }
@@ -71,7 +77,7 @@ struct WelcomeView: View {
                                 if pending != nil { ProgressView().tint(Theme.onBrand) }
                                 Text(pending != nil ? "Signing in…" : "Login").font(.headline)
                             }
-                            .foregroundStyle(Theme.onBrand).frame(maxWidth: .infinity).frame(height: 50)
+                            .foregroundStyle(Theme.onBrand).frame(maxWidth: .infinity).frame(height: 46)
                             .background(Theme.brand.opacity(canLogin || pending != nil ? 1 : 0.4), in: Capsule())
                         }
                         .disabled(!canLogin || pending != nil)
@@ -88,15 +94,15 @@ struct WelcomeView: View {
                             help
                         }
                     }
-                    .padding(.horizontal, 24).padding(.top, 20)
+                    .padding(.horizontal, 24).padding(.top, 4).padding(.bottom, 24)
                     .frame(maxWidth: 520)
-                    Spacer(minLength: 24)
-                    waves.frame(height: 90)
                 }
-                .frame(maxWidth: .infinity, minHeight: geo.size.height)
+                .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .top)
             }
             .scrollDismissesKeyboard(.interactively)
+            .scrollBounceBehavior(.basedOnSize)
         }
+        .background { waves.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom).ignoresSafeArea() }       // fixed to the bottom edge, behind the content
         .background(Theme.bg.ignoresSafeArea())
         .sheet(isPresented: $showQR) { ProvisionSheet(initialLink: nil, autoScan: true) }
         .sheet(isPresented: $showLink) { ProvisionSheet(initialLink: nil) }
@@ -117,21 +123,21 @@ struct WelcomeView: View {
     // MARK: pieces
 
     private var header: some View {
-        VStack(spacing: 10) {
-            Image("Logo").resizable().scaledToFit().frame(width: 76, height: 76)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        VStack(spacing: 6) {
+            Image("Logo").resizable().scaledToFit().frame(width: 60, height: 60)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .shadow(color: Theme.brand.opacity(0.25), radius: 14, y: 6)
-            Text("Welcome to L1ne").font(.title2.weight(.bold)).foregroundStyle(Theme.text)
-            Text("Sign in with the details your PBX administrator gave you, or scan their QR code.")
+            Text("Welcome to L1ne").font(.title3.weight(.bold)).foregroundStyle(Theme.text)
+            Text("Sign in to your PBX, or scan its QR code.")
                 .font(.subheadline).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
         }
     }
 
     private func field<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.footnote.weight(.semibold)).foregroundStyle(Theme.text)
             content()
-                .padding(.horizontal, 20).frame(height: 48)
+                .padding(.horizontal, 18).frame(height: 42)
                 .background(Theme.surface, in: Capsule())
                 .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
         }
@@ -148,7 +154,7 @@ struct WelcomeView: View {
     private func outlined(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: icon).font(.headline)
-                .foregroundStyle(Theme.brand).frame(maxWidth: .infinity).frame(height: 50)
+                .foregroundStyle(Theme.brand).frame(maxWidth: .infinity).frame(height: 44)
                 .overlay(Capsule().stroke(Theme.brand, lineWidth: 1.5))
         }.buttonStyle(.plain)
     }
@@ -208,6 +214,7 @@ struct WelcomeView: View {
         var a = Account()
         a.domain = server
         a.username = username.trimmingCharacters(in: .whitespaces)
+        a.displayName = displayName.trimmingCharacters(in: .whitespaces)
         a.changeTransport(to: transport)           // moves the port with it (5061 TLS, 5060 TCP/UDP) unless the server text names one
         a.finishNewAccount()                       // parses "host:port", keeps SRTP only on TLS, like the Settings form
         store.save(a, secret: password)
