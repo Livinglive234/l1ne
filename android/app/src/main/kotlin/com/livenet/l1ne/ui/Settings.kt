@@ -46,7 +46,6 @@ fun SettingsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
                 Text("Appearance")
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) { Appearance.entries.forEachIndexed { i, a -> SegmentedButton(appearance == a, { s.appearance = a }, SegmentedButtonDefaults.itemShape(i, Appearance.entries.size)) { Text(a.label) } } }
             } }
-            FooterText("System follows your phone. The call screen is always dark.")
 
             SectionHeader("Calls")
             Card {

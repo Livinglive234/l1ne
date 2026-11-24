@@ -19,7 +19,7 @@ struct SettingsView: View {
                     Picker("Appearance", selection: $settings.appearance) {
                         ForEach(AppSettings.Appearance.allCases) { Text($0.label).tag($0) }
                     }
-                } header: { Text("Look") } footer: { Text("System follows your phone. The call screen is always dark, like the iPhone's.") }
+                } header: { Text("Look") }
                 .listRowBackground(Theme.surface)
 
                 Section("Calls") {
