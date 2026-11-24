@@ -29,6 +29,7 @@ targets:
     info:
       path: L1ne/Info.plist
       properties:
+        ITSAppUsesNonExemptEncryption: false   # only standard TLS / SRTP / DTLS (PJSIP + OpenSSL) and the OS Keychain; no custom crypto. Revisit if that changes.
         NSUserActivityTypes: [INStartCallIntent, INStartAudioCallIntent]   # call back from the Phone app's Recents
         UIBackgroundModes: [voip, audio, fetch]   # voip: PushKit + CallKit; audio: a call survives locking the screen; fetch: directory sync
         LSApplicationQueriesSchemes: [linphone, zoiper, groundwire]   # only to warn when another SIP app could share a line
