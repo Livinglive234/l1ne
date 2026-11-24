@@ -100,3 +100,15 @@ fun NavRow(title: String, value: String? = null, icon: ImageVector? = null, dang
 
 /** Names the account only when there is more than one, so a single-account phone never sees "which line" labels. */
 fun accountTitle(accounts: List<CoreAccount>, id: String?) = if (accounts.size > 1) accounts.firstOrNull { it.id == id }?.title else null
+
+/** Swipe a row to the left to delete it, like the swipe actions on iOS. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit) {
+    val state = rememberSwipeToDismissBoxState(confirmValueChange = { if (it == SwipeToDismissBoxValue.EndToStart) { onDelete(); true } else false })
+    SwipeToDismissBox(state, enableDismissFromStartToEnd = false, backgroundContent = {
+        Box(Modifier.fillMaxSize().background(L1neColors.Danger).padding(end = 24.dp), contentAlignment = Alignment.CenterEnd) {
+            Icon(Icons.Filled.Delete, "Delete", tint = androidx.compose.ui.graphics.Color.White)
+        }
+    }) { Box(Modifier.background(L1neColors.Bg)) { content() } }
+}

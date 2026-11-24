@@ -60,6 +60,7 @@ fun ConversationsScreen(open: (Dest) -> Unit) {
             Text("No conversations", style = MaterialTheme.typography.titleLarge); Text("Texts need a server that supports SIP messages.", color = L1neColors.Muted, modifier = Modifier.padding(top = 8.dp))
         } else LazyColumn(Modifier.fillMaxSize()) {
             items(convs, key = { it.id }) { c ->
+                SwipeToDelete({ app.messages.delete(listOf(c.id)) }) {
                 val name = app.contacts.name(c.user, c.peer.substringAfter('@', "")) ?: c.user
                 Row(Modifier.fillMaxWidth().clickable { open(Dest.Thread(c.accountID, c.peer)) }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Avatar(48.dp, initialsOf(name), L1neColors.Brand.copy(alpha = 0.14f)); Spacer(Modifier.width(14.dp))
@@ -69,9 +70,9 @@ fun ConversationsScreen(open: (Dest) -> Unit) {
                         accountTitle(accounts, c.accountID)?.let { Text("via $it", style = MaterialTheme.typography.labelSmall, color = L1neColors.Muted.copy(alpha = 0.8f)) }
                     }
                     if (c.unread > 0) Badge(containerColor = L1neColors.Brand) { Text("${c.unread}") }
-                    IconButton({ app.messages.delete(listOf(c.id)) }) { Icon(Icons.Filled.DeleteOutline, "Delete", tint = L1neColors.Muted) }
                 }
                 RowDivider()
+                }
             }
         }
         FloatingActionButton({ open(Dest.NewMessage) }, Modifier.align(Alignment.BottomEnd).padding(20.dp), containerColor = L1neColors.Brand, contentColor = L1neColors.OnBrand) { Icon(Icons.Filled.Edit, "New message") }

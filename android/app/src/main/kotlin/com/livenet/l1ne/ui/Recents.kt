@@ -57,6 +57,7 @@ fun RecentsScreen(open: (Dest) -> Unit) {
             }
         } else LazyColumn(Modifier.fillMaxSize()) {
             items(shown, key = { it.id }) { r ->
+                SwipeToDelete({ app.callLog.delete(r.id) }) {
                 val name = nameOf(r); val missed = r.direction == Direction.MISSED
                 Row(Modifier.fillMaxWidth().clickable { open(Dest.Person(PersonTarget(name, r.peer, r.accountID))) }.padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically) {
@@ -69,10 +70,10 @@ fun RecentsScreen(open: (Dest) -> Unit) {
                         }
                         Text(details(r, accounts), style = MaterialTheme.typography.bodySmall, color = if (missed) L1neColors.Danger.copy(alpha = 0.85f) else L1neColors.Muted)
                     }
-                    IconButton({ deleting = r }) { Icon(Icons.Filled.DeleteOutline, "Delete", tint = L1neColors.Muted) }
                     CallCircleButton { callBack(app, r) }
                 }
                 RowDivider()
+                }
             }
         }
     }

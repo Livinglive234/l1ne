@@ -93,16 +93,17 @@ fun ContactsScreen(open: (Dest) -> Unit) {
             grouped.forEach { (letter, items) ->
                 item(key = "h$letter") { Text(letter, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), color = L1neColors.Brand, fontWeight = FontWeight.SemiBold) }
                 items(items, key = { it.id }) { c ->
+                    SwipeToDelete({ app.contacts.remove(c.id) }) {
                     Row(Modifier.fillMaxWidth().clickable { open(Dest.Person(PersonTarget(c.name, c.address, c.accountID))) }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Avatar(48.dp, initialsOf(c.name).ifEmpty { "" }, L1neColors.Brand.copy(alpha = 0.14f)); Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
                             Text(c.name, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(c.address, style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        IconButton({ app.contacts.remove(c.id) }) { Icon(Icons.Filled.DeleteOutline, "Delete", tint = L1neColors.Muted) }
                         CallCircleButton { app.engine.call(c.user, c.accountID?.let { id -> app.store.accounts.value.firstOrNull { it.id == id } } ?: app.store.selected) }
                     }
                     RowDivider()
+                    }
                 }
             }
         }

@@ -51,7 +51,7 @@ fun KeypadScreen(open: (Dest) -> Unit) {
     fun dial(n: String, from: com.livenet.l1ne.core.Account? = account) { if (n.isNotEmpty()) { app.engine.call(n, from); number = "" } }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-    val keySize = ((maxHeight.value - 330f) / 5f).coerceIn(50f, 76f).dp          // keys shrink when the call bar takes room
+    val keySize = ((maxHeight.value - 220f) / 5.2f).coerceIn(50f, 76f).dp          // keys shrink when the call bar takes room
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         if (accounts.size > 1) Box(Modifier.padding(top = 4.dp)) {
             AssistChip({ lineMenu = true }, label = { Text(account?.title ?: "Line") }, trailingIcon = { Icon(Icons.Filled.ExpandMore, null) })
