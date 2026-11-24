@@ -24,10 +24,19 @@ private enum class Tab(val label: String, val icon: ImageVector) {
     Recents("Recents", Icons.Filled.History), Contacts("Contacts", Icons.Filled.People), Chats("Chats", Icons.AutoMirrored.Filled.Chat), Keypad("Keypad", Icons.Filled.Dialpad), Voicemail("Voicemail", Icons.Filled.Voicemail),
 }
 
+/** Until there is an account, the welcome screen is shown (it comes back if the last account is removed); after that, the tabs. */
+@Composable
+fun L1neApp() {
+    val app = LocalApp.current
+    val accounts by app.store.accounts.collectAsState()
+    var signingIn by remember { mutableStateOf(false) }      // the welcome screen stays up while a first login is being checked
+    if (accounts.isEmpty() || signingIn) WelcomeScreen(signingIn) { signingIn = it } else MainTabs()
+}
+
 /** Tabs like iOS: Recents, Contacts, Chats, Keypad, and an optional Voicemail tab. The avatar at the top left opens the profile menu. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun L1neApp() {
+private fun MainTabs() {
     val app = LocalApp.current
     val calls by app.engine.calls.collectAsState()
     val vmTab by app.settings.vmTabF.collectAsState(); val voicemail by app.engine.voicemail.collectAsState(); val convs by app.messages.conversations.collectAsState()

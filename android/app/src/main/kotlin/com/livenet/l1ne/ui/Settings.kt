@@ -216,7 +216,7 @@ fun AccountEditorScreen(id: String?, onBack: () -> Unit) {
     var a by remember { mutableStateOf(existing ?: Account()) }
     var secret by remember { mutableStateOf("") }; var turnSecret by remember { mutableStateOf("") }
     var server by remember { mutableStateOf(if (isNew) "" else a.domain) }
-    var advanced by remember { mutableStateOf(false) }; var confirmRemove by remember { mutableStateOf(false) }
+    var confirmRemove by remember { mutableStateOf(false) }
     val reg by app.engine.registration.collectAsState(); val checks by app.engine.messagingCheck.collectAsState()
     BackHandler(onBack = onBack)
 
@@ -227,8 +227,7 @@ fun AccountEditorScreen(id: String?, onBack: () -> Unit) {
     @Composable fun Transports() = Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Transport.entries.forEach { t -> FilterChip(a.transport == t, { a = a.withTransport(t) }, label = { Text(t.wire.uppercase()) }) } }
 
     fun save() {
-        var acc = a.withServer(if (isNew) server else a.domain)
-        if (isNew) { if (acc.label.isEmpty()) acc = acc.copy(label = acc.displayName); if (acc.transport != Transport.TLS && acc.media == Media.SRTP_SDES) acc = acc.copy(media = Media.NONE, mediaMandatory = false) }
+        val acc = if (isNew) a.finishedNew(server) else a.withServer(a.domain)
         app.store.save(acc, secret.ifEmpty { null }); if (turnSecret.isNotEmpty()) app.store.saveTurnSecret(acc.id, turnSecret)
         app.engine.register(acc); onBack()
     }
@@ -241,8 +240,8 @@ fun AccountEditorScreen(id: String?, onBack: () -> Unit) {
                     Field("Domain (e.g. pbx.example.com)", server, { server = it }, KeyboardType.Uri); Field("Display name", a.displayName, { a = a.copy(displayName = it) }); Transports() }
                 FooterText("Add a port after the domain if your server doesn't use the standard one (5061 for TLS, 5060 for UDP and TCP), like pbx.example.com:5080.")
                 Spacer(Modifier.height(12.dp))
-                Card { NavRow("Advanced settings", if (advanced) "Hide" else "Show") { advanced = !advanced }
-                    if (advanced) { Field("Authentication ID (if different)", a.authUser, { a = a.copy(authUser = it) }); Field("Registrar URI", a.registrarURI, { a = a.copy(registrarURI = it) }, KeyboardType.Uri); Field("Outbound SIP proxy URI", a.outboundProxy, { a = a.copy(outboundProxy = it) }, KeyboardType.Uri) } }
+                SectionHeader("Advanced options")
+                Card { Field("Authentication ID (if different)", a.authUser, { a = a.copy(authUser = it) }); Field("Registrar URI", a.registrarURI, { a = a.copy(registrarURI = it) }, KeyboardType.Uri); Field("Outbound SIP proxy URI", a.outboundProxy, { a = a.copy(outboundProxy = it) }, KeyboardType.Uri) }
                 Spacer(Modifier.height(16.dp))
                 Button(::save, Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(52.dp), enabled = a.username.isNotEmpty() && secret.isNotEmpty() && server.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(containerColor = L1neColors.Brand, contentColor = L1neColors.OnBrand)) { Text("Login", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold) }
@@ -304,9 +303,9 @@ fun AccountEditorScreen(id: String?, onBack: () -> Unit) {
 // MARK: Setup from a link or QR code
 
 @Composable
-fun LinkDialog(initial: String?, onClose: () -> Unit) {
+fun LinkDialog(initial: String?, autoScan: Boolean = false, onClose: () -> Unit) {
     val app = LocalApp.current; val scope = rememberCoroutineScope()
-    var text by remember { mutableStateOf(initial ?: "") }; var busy by remember { mutableStateOf(false) }; var scanning by remember { mutableStateOf(false) }; var error by remember { mutableStateOf<String?>(null) }
+    var text by remember { mutableStateOf(initial ?: "") }; var busy by remember { mutableStateOf(false) }; var scanning by remember { mutableStateOf(autoScan) }; var error by remember { mutableStateOf<String?>(null) }
     var result by remember { mutableStateOf<com.livenet.l1ne.core.Provisioning.Result?>(null) }
     var picked by remember { mutableStateOf(setOf<String>()) }; var importContacts by remember { mutableStateOf(true) }; var secrets by remember { mutableStateOf(mapOf<String, String>()) }
     var interval by remember { mutableStateOf(com.livenet.l1ne.data.SyncInterval.ON_OPEN) }

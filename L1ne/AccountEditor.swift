@@ -11,7 +11,6 @@ struct AccountEditor: View {
     @State private var turnSecret = ""
     @State private var confirmRemove = false
     @State private var copied = false
-    @State private var showAdvanced = false
 
     private var isNew: Bool { store.account(account.id) == nil }
 
@@ -72,12 +71,10 @@ struct AccountEditor: View {
                 Text("Add a port after the domain if your server doesn't use the standard one (5061 for TLS, 5060 for UDP and TCP), like pbx.example.com:5080.")
             }
             .listRowBackground(Theme.surface)
-            Section {
-                DisclosureGroup("Advanced settings", isExpanded: $showAdvanced) {
-                    text("Authentication ID (if different)", $account.authUser)
-                    text("Registrar URI", $account.registrarURI, keyboard: .URL)
-                    text("Outbound SIP proxy URI", $account.outboundProxy, keyboard: .URL)
-                }
+            Section("Advanced options") {
+                text("Authentication ID (if different)", $account.authUser)
+                text("Registrar URI", $account.registrarURI, keyboard: .URL)
+                text("Outbound SIP proxy URI", $account.outboundProxy, keyboard: .URL)
             }
             .listRowBackground(Theme.surface)
             Section {
