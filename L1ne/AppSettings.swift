@@ -38,7 +38,7 @@ final class AppSettings: ObservableObject {
 
     init() {
         appearance = Appearance(rawValue: d.string(forKey: "set.appearance") ?? "") ?? .system
-        ringbackTone = RingbackTone(rawValue: d.string(forKey: "set.ringback") ?? "") ?? .us
+        ringbackTone = RingbackTone(rawValue: d.string(forKey: "set.ringback") ?? "") ?? .uk
         callsInPhoneApp = d.object(forKey: "set.callsInPhone") as? Bool ?? true
         showVoicemailTab = d.bool(forKey: "set.vmTab")
         showKeypadVoicemail = d.object(forKey: "set.vmKeypad") as? Bool ?? true

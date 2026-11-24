@@ -12,6 +12,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a") }     // PJSIP is built for arm64 first, like iOS
     }
     externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }
@@ -37,4 +38,9 @@ dependencies {
     implementation("androidx.camera:camera-view:$camerax")
     implementation("com.unboundid:unboundid-ldapsdk:7.0.1")         // LDAP directory lookup
     implementation("com.google.mlkit:barcode-scanning:17.3.0")     // model bundled in the app: scanning works offline
+    testImplementation("junit:junit:4.13.2")
+    testImplementation(kotlin("test-junit"))
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation(kotlin("test-junit"))
 }

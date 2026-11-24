@@ -31,7 +31,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
     private val audio = app.getSystemService(AudioManager::class.java)
     private var started = false
     private val pjAcc = HashMap<String, Int>()           // account id -> pj acc id
-    private val accOfPJ = HashMap<Int, String>()
+    internal val accOfPJ = HashMap<Int, String>()
 
     private val _registration = MutableStateFlow<Map<String, String>>(emptyMap())
     val registration: StateFlow<Map<String, String>> = _registration
@@ -54,10 +54,10 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
     private val userEnded = HashSet<Int>()
     // A call still ringing when the network changes is redialled once: the request it was waiting on went out over the old
     // connection, which is gone after the switch, so the PBX's answer could never reach us.
-    private class Redial(val number: String?, val uri: String?, val accountId: String, val attempt: Int)
-    private val outgoingTargets = HashMap<Int, Redial>()
+    internal class Redial(val number: String?, val uri: String?, val accountId: String, val attempt: Int)
+    internal val outgoingTargets = HashMap<Int, Redial>()
     private val unansweredAtChange = HashSet<Int>()
-    @Volatile private var lastNetworkEvent = 0L
+    @Volatile internal var lastNetworkEvent = 0L
     private val sendTags = HashMap<Int, String>()          // tag -> message id
     private var nextTag = 1
     val currentCall: CallInfo? get() = _calls.value.firstOrNull { it.id == currentId.value } ?: _calls.value.firstOrNull { it.active } ?: _calls.value.firstOrNull()
@@ -71,7 +71,8 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
         watchNetwork(); main.postDelayed(statsLoop, 2000)
     }
 
-    private fun event(type: String, a: Int, b: Int, s1: String, s2: String) {
+    /** Everything PJSIP tells us arrives here (internal so tests can feed it events without a network). */
+    internal fun event(type: String, a: Int, b: Int, s1: String, s2: String) {
         when (type) {
             "reg" -> accOfPJ[a]?.let { id -> _registration.value = _registration.value + (id to regText(b, s1)) }
             "message" -> incomingText(a, s1, s2)
@@ -89,7 +90,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
                 }
                 if (ci.active && a !in connectedAt) connectedAt[a] = System.currentTimeMillis() - ci.connectedSecs * 1000
                 if (ci.ended) connectedAt.remove(a)
-                if (type == "incoming") Native.nAnswer(a, if (settings.allowOutgoingEarlyMedia) 183 else 180)
+                if (type == "incoming" && started) Native.nAnswer(a, if (settings.allowOutgoingEarlyMedia) 183 else 180)
                 _calls.value = if (ci.ended) _calls.value.filter { it.id != a } else if (old == null) _calls.value + ci else _calls.value.map { if (it.id == a) ci.copy(accountID = old.accountID) else it }
                 if (ci.active && old?.active != true && settings.autoRecord) toggleRecord(a)
                 updateAudio(); updateRingback()
@@ -181,8 +182,8 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
         telecomKnown.add(id); telecom?.reportOutgoing(id, uri.removePrefix("sip:").substringBefore('@'), uri.removePrefix("sip:")); KeepAliveService.refresh(app)
         updateAudio(); return true
     }
-    fun answer(id: Int) = Native.nAnswer(id, 200)
-    fun hangup(id: Int) { userEnded.add(id); Native.nHangup(id) }
+    fun answer(id: Int) { if (started) Native.nAnswer(id, 200) }
+    fun hangup(id: Int) { userEnded.add(id); if (started) Native.nHangup(id) }
     fun hangupAll() { _calls.value.forEach { userEnded.add(it.id) }; Native.nHangupAll() }
     fun dtmf(id: Int, d: String) = Native.nDtmf(id, d)
     fun toggleMute(id: Int) { val on = id !in muted.value; Native.nMute(id, on); muted.value = if (on) muted.value + id else muted.value - id }
@@ -281,12 +282,14 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
 
     /** The tone you hear while the other phone rings: L1ne's own, unless you let the PBX's early media through instead. */
     private fun updateRingback() {
+        if (!started) return
         val ringing = _calls.value.any { !it.incoming && it.state == 3 }
         if (ringing && !settings.acceptEarlyMedia) Ringback.start(settings.ringback) else Ringback.stop()
     }
 
     private var audioOn = false
     private fun updateAudio() {
+        if (!started) return          // no engine running (tests): nothing to open or route
         updateProximity()
         val need = _calls.value.isNotEmpty()
         if (need == audioOn) return

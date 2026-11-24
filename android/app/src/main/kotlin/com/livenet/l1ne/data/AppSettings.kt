@@ -21,7 +21,7 @@ class AppSettings(context: Context) {
     val allowIPv6F = bool("allowIPv6", true); var allowIPv6 get() = allowIPv6F.value; set(v) = allowIPv6F.save("allowIPv6", v)
     val keepAliveF = bool("keepAlive", true); var keepAlive get() = keepAliveF.value; set(v) = keepAliveF.save("keepAlive", v)
     /** What you hear while the other phone rings (the PBX usually sends nothing, so L1ne plays it). */
-    val ringbackF = MutableStateFlow(com.livenet.l1ne.sip.RingbackTone.entries.firstOrNull { it.name == p.getString("ringback", "") } ?: com.livenet.l1ne.sip.RingbackTone.US)
+    val ringbackF = MutableStateFlow(com.livenet.l1ne.sip.RingbackTone.entries.firstOrNull { it.name == p.getString("ringback", "") } ?: com.livenet.l1ne.sip.RingbackTone.UK)
     var ringback get() = ringbackF.value; set(v) { ringbackF.value = v; p.edit().putString("ringback", v.name).apply() }
     val vmTabF = bool("vmTab", false); var showVoicemailTab get() = vmTabF.value; set(v) = vmTabF.save("vmTab", v)
     val vmKeypadF = bool("vmKeypad", true); var showKeypadVoicemail get() = vmKeypadF.value; set(v) = vmKeypadF.save("vmKeypad", v)
