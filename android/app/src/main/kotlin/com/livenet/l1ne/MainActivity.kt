@@ -30,6 +30,8 @@ class MainActivity : ComponentActivity() {
         if (app.settings.keepAlive && app.store.accounts.value.isNotEmpty()) com.livenet.l1ne.sip.KeepAliveService.start(this)
         lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.RESUMED) {           // directory syncs run while L1ne is open
             app.dirSync.syncDue(onOpen = true); while (true) { delay(60_000); app.dirSync.syncDue() } } }
+        // The call screen is the last thing drawn when a call ends; ask for a fresh frame so it can't linger on screen.
+        lifecycleScope.launch { app.engine.calls.collect { if (it.isEmpty()) { window.decorView.invalidate(); window.decorView.postInvalidateOnAnimation(); delay(150); window.decorView.invalidate() } } }
         setContent {
             val look by app.settings.appearanceF.collectAsState()
             L1neTheme(look) { androidx.compose.runtime.CompositionLocalProvider(com.livenet.l1ne.ui.LocalApp provides app) { L1neApp() } }

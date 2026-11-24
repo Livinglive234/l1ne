@@ -41,7 +41,7 @@ final class AppSettings: ObservableObject {
         showKeypadVoicemail = d.object(forKey: "set.vmKeypad") as? Bool ?? true
         voicemailNotify = d.bool(forKey: "set.vmNotify")
         autoRecord = d.bool(forKey: "set.autoRecord")
-        acceptEarlyMedia = d.bool(forKey: "set.acceptEarlyMedia")
+        acceptEarlyMedia = d.object(forKey: "set.acceptEarlyMedia") as? Bool ?? true      // on by default: you hear the PBX's ringback tone
         allowOutgoingEarlyMedia = d.bool(forKey: "set.outEarlyMedia")
         wifiOnly = d.bool(forKey: "set.wifiOnly")
         allowIPv6 = d.object(forKey: "set.allowIPv6") as? Bool ?? true

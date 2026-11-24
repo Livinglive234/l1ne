@@ -42,7 +42,9 @@ fun L1neApp() {
     var minimized by remember { mutableStateOf(false) }
     val pendingDial by app.pendingDial.collectAsState()
     LaunchedEffect(pendingDial) { if (pendingDial != null) { tab = Tab.Keypad; stack.clear(); if (app.engine.currentCall != null) minimized = true } }
-    val live = app.engine.currentCall
+    val currentId by app.engine.currentId.collectAsState()
+    // read both flows here, so this screen recomposes (and the call screen goes away) the moment the last call ends
+    val live = if (calls.isEmpty()) null else calls.firstOrNull { it.id == currentId } ?: calls.firstOrNull { it.active } ?: calls.firstOrNull()
     LaunchedEffect(live?.id) { minimized = false }
     val unread = convs.sumOf { it.unread }; val newVoicemail = voicemail.values.sum()
 
@@ -103,7 +105,7 @@ fun L1neApp() {
     }
     }
     }
-    calls.let { list -> app.engine.currentCall?.let { CallScreen(it, app.engine, minimized, { m -> minimized = m }, ::open) } }
+    live?.let { CallScreen(it, app.engine, minimized, { m -> minimized = m }, ::open) }
 }
 
 /** Round profile picture: the initials of the selected account, or a person glyph until an account exists. */

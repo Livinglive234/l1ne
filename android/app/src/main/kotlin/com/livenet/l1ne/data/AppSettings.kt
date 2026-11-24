@@ -14,7 +14,7 @@ class AppSettings(context: Context) {
         p.edit().apply { when (v) { is Boolean -> putBoolean(key, v); is String -> putString(key, v); else -> {} } }.apply() }
 
     val autoRecordF = bool("autoRecord", false); var autoRecord get() = autoRecordF.value; set(v) = autoRecordF.save("autoRecord", v)
-    val acceptEarlyMediaF = bool("acceptEarlyMedia", false); var acceptEarlyMedia get() = acceptEarlyMediaF.value; set(v) { acceptEarlyMediaF.save("acceptEarlyMedia", v); com.livenet.l1ne.sip.Native.nEarlyMedia(v) }
+    val acceptEarlyMediaF = bool("acceptEarlyMedia", true); var acceptEarlyMedia get() = acceptEarlyMediaF.value; set(v) { acceptEarlyMediaF.save("acceptEarlyMedia", v); com.livenet.l1ne.sip.Native.nEarlyMedia(v) }
     val outEarlyMediaF = bool("outEarlyMedia", false); var allowOutgoingEarlyMedia get() = outEarlyMediaF.value; set(v) = outEarlyMediaF.save("outEarlyMedia", v)
     val wifiOnlyF = bool("wifiOnly", false); var wifiOnly get() = wifiOnlyF.value; set(v) = wifiOnlyF.save("wifiOnly", v)
     val allowIPv6F = bool("allowIPv6", true); var allowIPv6 get() = allowIPv6F.value; set(v) = allowIPv6F.save("allowIPv6", v)
