@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,7 +46,7 @@ fun AccountsSheet(store: AccountStore, engine: SipEngine, onDismiss: () -> Unit)
                 }
             }
             AddRow("Add account") { editing = Account(port = 5061) }
-            AddRow("Set up from a link") { linking = true }
+            AddRow("Scan QR code or paste a link") { linking = true }
         }
     }
     editing?.let { a -> AccountEditor(a, store, engine) { editing = null } }
@@ -109,29 +110,37 @@ private fun AccountEditor(initial: Account, store: AccountStore, engine: SipEngi
 private fun LinkDialog(store: AccountStore, engine: SipEngine, onClose: () -> Unit) {
     var text by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var scanning by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    AlertDialog(onDismissRequest = onClose, containerColor = L1neColors.SheetBg, title = { Text("Set up from a link") },
+
+    fun fetch(raw: String) {
+        val url = Provisioning.configUrl(raw) ?: run { error = "That isn't an https configuration link."; return }
+        busy = true; error = null
+        scope.launch {
+            val r = runCatching { withContext(Dispatchers.IO) { Provisioning.parse(URL(url.toString()).readBytes()) } }
+            r.onSuccess { res ->
+                res.selectedByDefault.forEach { p -> store.save(p.account, p.secret); engine.register(p.account) }
+                onClose()
+            }.onFailure { error = it.message ?: "Could not fetch the file." }
+            busy = false
+        }
+    }
+
+    if (scanning) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { scanning = false }, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+            QRScanner(onCode = { scanning = false; text = it; fetch(it) }, onCancel = { scanning = false })
+        }
+    }
+    AlertDialog(onDismissRequest = onClose, containerColor = L1neColors.SheetBg, title = { Text("Set up from a link or QR code") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Paste the https link (or linphone-config: link) from your PBX setup file.", color = L1neColors.Muted)
+                OutlinedButton({ scanning = true }, Modifier.fillMaxWidth()) { Icon(Icons.Filled.QrCodeScanner, null); Spacer(Modifier.width(8.dp)); Text("Scan QR code") }
+                Text("or paste the https link (or linphone-config: link) from your PBX setup file.", color = L1neColors.Muted)
                 OutlinedTextField(text, { text = it }, singleLine = true, label = { Text("https://…") })
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
-        confirmButton = {
-            TextButton(enabled = !busy && text.isNotBlank(), onClick = {
-                val url = Provisioning.configUrl(text) ?: run { error = "That isn't an https configuration link."; return@TextButton }
-                busy = true; error = null
-                scope.launch {
-                    val r = runCatching { withContext(Dispatchers.IO) { Provisioning.parse(URL(url.toString()).readBytes()) } }
-                    r.onSuccess { res ->
-                        res.selectedByDefault.forEach { p -> store.save(p.account, p.secret); engine.register(p.account) }
-                        onClose()
-                    }.onFailure { error = it.message ?: "Could not fetch the file." }
-                    busy = false
-                }
-            }) { Text(if (busy) "Fetching…" else "Add") }
-        },
+        confirmButton = { TextButton(enabled = !busy && text.isNotBlank(), onClick = { fetch(text) }) { Text(if (busy) "Fetching…" else "Add") } },
         dismissButton = { TextButton(onClose) { Text("Cancel") } })
 }
