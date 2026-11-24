@@ -33,6 +33,7 @@ struct WelcomeView: View {
                 VStack(spacing: 0) {
                     VStack(spacing: 12) {
                         header
+                        Spacer(minLength: 4)
                         VStack(alignment: .leading, spacing: 10) {
                             field("Server") {
                                 TextField("pbx.example.com", text: $server)
@@ -69,6 +70,7 @@ struct WelcomeView: View {
                                 .pickerStyle(.segmented)
                             }
                         }
+                        Spacer(minLength: 4)
                         if let error {
                             Text(error).font(.footnote).foregroundStyle(Theme.danger).multilineTextAlignment(.center)
                         }
@@ -85,6 +87,7 @@ struct WelcomeView: View {
                         if pending != nil {
                             Button("Cancel") { cancelLogin() }.font(.subheadline).foregroundStyle(Theme.muted)
                         } else {
+                            Spacer(minLength: 4)
                             divider
                             outlined("Scan QR code", icon: "qrcode.viewfinder") { showQR = true }
                             HStack(spacing: 28) {
@@ -94,10 +97,10 @@ struct WelcomeView: View {
                             help
                         }
                     }
-                    .padding(.horizontal, 24).padding(.top, 4).padding(.bottom, 24)
+                    .padding(.horizontal, 24).padding(.top, 8).padding(.bottom, 16)
                     .frame(maxWidth: 520)
                 }
-                .frame(maxWidth: .infinity, minHeight: geo.size.height, alignment: .top)
+                .frame(maxWidth: .infinity, minHeight: max(geo.size.height - 64, 0), alignment: .top)     // fills the space above the hills; the spacers share out what is left
             }
             .scrollDismissesKeyboard(.interactively)
             .scrollBounceBehavior(.basedOnSize)
