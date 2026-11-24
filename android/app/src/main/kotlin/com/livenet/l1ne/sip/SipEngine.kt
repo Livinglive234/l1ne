@@ -211,13 +211,14 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
     /** The codecs pjsua has, in the order you chose (new ones at the end). */
     fun availableCodecs(): List<Codec> {
         start()
-        val all = Native.nCodecs().lines().filter { it.isNotBlank() }.map { it.substringBefore('|') }
+        val all = Native.nCodecs().lines().filter { it.isNotBlank() }.map { it.substringBefore('|') }.filter { !it.startsWith("AMR") }   // phone-network AMR from Android MediaCodec; a PBX never uses it
         val order = settings.codecOrder
         val sorted = order.filter { it in all } + all.filter { it !in order }
         return sorted.map { id -> val n = id.substringBefore('/'); val rate = id.split('/').getOrNull(1)?.toIntOrNull() ?: 8000
             Codec(id, n, when { rate >= 16000 -> "Wideband · ${rate / 1000} kHz"; else -> "Narrowband · 8 kHz" }) }
     }
     fun applyCodecs() {
+        Native.nCodecs().lines().map { it.substringBefore('|') }.filter { it.startsWith("AMR") }.forEach { Native.nSetCodec(it, 0) }
         val list = availableCodecs(); var prio = 250
         for (c in list) { if (c.id in settings.codecsOff) Native.nSetCodec(c.id, 0) else { Native.nSetCodec(c.id, maxOf(1, prio)); prio -= 5 } }
     }

@@ -42,9 +42,9 @@ fun SettingsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
     PageScaffold("Settings", onBack) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
             SectionHeader("Look")
-            Card { Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Appearance", Modifier.weight(1f))
-                SingleChoiceSegmentedButtonRow { Appearance.entries.forEachIndexed { i, a -> SegmentedButton(appearance == a, { s.appearance = a }, SegmentedButtonDefaults.itemShape(i, Appearance.entries.size)) { Text(a.label) } } }
+            Card { Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Appearance")
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) { Appearance.entries.forEachIndexed { i, a -> SegmentedButton(appearance == a, { s.appearance = a }, SegmentedButtonDefaults.itemShape(i, Appearance.entries.size)) { Text(a.label) } } }
             } }
             FooterText("System follows your phone. The call screen is always dark.")
 
