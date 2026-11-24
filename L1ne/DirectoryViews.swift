@@ -3,6 +3,7 @@ import SwiftUI
 struct DirectorySourcesView: View {
     @EnvironmentObject var dirs: DirectoryStore
     @EnvironmentObject var contacts: ContactsStore
+    @EnvironmentObject var accounts: AccountStore
     @ObservedObject private var sync = DirectorySync.shared
     @State private var editing: DirectorySource?
     @State private var pending: DirectorySource?        // waiting for "replace link imports?"
@@ -23,7 +24,7 @@ struct DirectorySourcesView: View {
                             Button { editing = s } label: {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(s.title).foregroundStyle(Theme.text)
-                                    Text(s.kind == .ldap ? "LDAP · \(s.host)" : (s.kind == .carddav ? "CardDAV" : "vCard link")).font(.footnote).foregroundStyle(Theme.muted)
+                                    Text("\(s.kind == .ldap ? "LDAP" : (s.kind == .carddav ? "CardDAV" : "vCard link")) · \(pbxName(s))").font(.footnote).foregroundStyle(Theme.muted)
                                 }
                             }.buttonStyle(.plain)
                             Spacer()
@@ -81,6 +82,12 @@ struct DirectorySourcesView: View {
         .alert("Sync", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
             Button("OK") {}
         } message: { Text(message ?? "") }
+    }
+
+    /// The PBX a directory belongs to: its account's name, else the host the link points at.
+    private func pbxName(_ s: DirectorySource) -> String {
+        if let id = s.accountID, let a = accounts.accounts.first(where: { $0.id == id }) { return a.title }
+        return s.kind == .ldap ? s.host : (URL(string: s.url)?.host ?? s.url)
     }
 
     private func status(_ s: DirectorySource) -> String {
