@@ -1,3 +1,8 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="#FFFFFFFF" android:pathData="M6.62,10.79c1.44,2.83 3.76,5.14 6.59,6.59l2.2,-2.2c0.27,-0.27 0.67,-0.36 1.02,-0.24 1.12,0.37 2.33,0.57 3.57,0.57 0.55,0 1,0.45 1,1V20c0,0.55 -0.45,1 -1,1 -9.39,0 -17,-7.61 -17,-17 0,-0.55 0.45,-1 1,-1h3.5c0.55,0 1,0.45 1,1 0,1.25 0.2,2.45 0.57,3.57 0.11,0.35 0.03,0.74 -0.25,1.02l-2.2,2.2z"/>
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notification / status-bar icon: the L1ne logo (the L with the handset leaning against it) as a single-colour silhouette. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="470" android:viewportHeight="470">
+    <group android:translateX="-282" android:translateY="-275">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M385,308 H432 Q455,308 455,331 V618 H650 Q672,618 672,640 V690 Q672,712 650,712 H385 Q362,712 362,690 V331 Q362,308 385,308 Z"/>
+        <path android:fillColor="#FFFFFFFF" android:pathData="M470,352 Q480,335 510,329 C560,326 604,385 622,470 C632,522 628,572 612,600 Q600,615 570,618 L553,618 Q543,617 541,606 L534,555 Q532,542 543,534 L565,517 Q572,510 570,498 C565,462 555,432 538,420 Q527,413 516,416 L495,421 Q484,421 478,411 Z"/>
+    </group>
 </vector>
