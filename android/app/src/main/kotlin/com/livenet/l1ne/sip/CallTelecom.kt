@@ -47,7 +47,7 @@ class CallTelecom(private val app: Context) {
             tm.addNewIncomingCall(handle, Bundle().apply {
                 putInt(EXTRA_CALL, callId); putString(EXTRA_NAME, display)
                 putParcelable(TelecomManager.EXTRA_INCOMING_CALL_ADDRESS, Uri.fromParts("sip", address, null)) })
-        }.onFailure { CallNotifications.showIncoming(app, callId, display) }       // no Telecom? still ring from our own notification
+        }.onFailure { android.util.Log.e("L1neTelecom", "addNewIncomingCall failed", it); CallNotifications.showIncoming(app, callId, display) }       // no Telecom? still ring from our own notification
     }
 
     fun reportOutgoing(callId: Int, display: String, address: String) {
@@ -80,7 +80,8 @@ class L1neConnection(val callId: Int, private val app: L1neApplication) : Connec
     override fun onHold() { if (callId !in engine.held.value) engine.toggleHold(callId) }
     override fun onUnhold() { if (callId in engine.held.value) engine.toggleHold(callId) }
     override fun onPlayDtmfTone(c: Char) { engine.dtmf(callId, c.toString()) }
-    override fun onShowIncomingCallUi() { CallNotifications.showIncoming(app, callId, app.engine.displayName(callId)) }
+    override fun onShowIncomingCallUi() {
+        android.util.Log.i("L1neTelecom", "show incoming ui $callId"); CallNotifications.showIncoming(app, callId, app.engine.displayName(callId)) }
     @Deprecated("Telecom still calls this on older Android versions")
     override fun onCallAudioStateChanged(state: CallAudioState?) { state?.let { app.telecom.routes.value = AudioRoutes(it.route, it.supportedRouteMask) } }
 }

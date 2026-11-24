@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pjsua-lib/pjsua.h>
+#include <android/log.h>
 
 #define THIS_FILE "l1ne_sip"
 static JavaVM *g_vm;
@@ -43,7 +44,7 @@ static void on_incoming(pjsua_acc_id acc, pjsua_call_id call, pjsip_rx_data *rd)
 static void on_call_state(pjsua_call_id call, pjsip_event *e) { (void)e; send_call(call, "call"); }
 static void on_media_state(pjsua_call_id call) {
     pjsua_call_info ci; if (pjsua_call_get_info(call, &ci) != 0) return;
-    if (ci.media_status == PJSUA_CALL_MEDIA_ACTIVE && (ci.state == PJSIP_INV_STATE_CONFIRMED || g_accept_early)) { pjsua_conf_connect(ci.conf_slot, 0); pjsua_conf_connect(0, ci.conf_slot); }
+    if (ci.media_status == PJSUA_CALL_MEDIA_ACTIVE && (ci.state != PJSIP_INV_STATE_EARLY || g_accept_early)  /* answered-but-not-yet-ACKed (CONNECTING) is not early media */) { pjsua_conf_connect(ci.conf_slot, 0); pjsua_conf_connect(0, ci.conf_slot); }
     send_call(call, "call");
 }
 static void on_reg_state(pjsua_acc_id acc) {
@@ -70,6 +71,9 @@ static void on_pager_status(pjsua_call_id c, const pj_str_t *to, const pj_str_t 
     char r[128]; cstr(*reason, r, sizeof r); emit("sent", (int)(intptr_t)user, (int)st, r, "");
 }
 
+static void log_cb(int level, const char *data, int len) {
+    /* pjlib log writer: android log */ __android_log_print(level <= 2 ? ANDROID_LOG_ERROR : ANDROID_LOG_INFO, "pjsip", "%.*s", len, data); }
+
 JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nInit(JNIEnv *env, jclass cls, jstring caFile, jboolean ipv6) {
     (*env)->GetJavaVM(env, &g_vm);
     g_cls = (*env)->NewGlobalRef(env, cls);
@@ -78,9 +82,10 @@ JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nInit(JNIEnv *env, jclas
     pjsua_config cfg; pjsua_config_default(&cfg); cfg.max_calls = 4;
     cfg.cb.on_incoming_call = on_incoming; cfg.cb.on_call_state = on_call_state; cfg.cb.on_call_media_state = on_media_state;
     cfg.cb.on_reg_state = on_reg_state; cfg.cb.on_mwi_info = on_mwi; cfg.cb.on_pager2 = on_pager; cfg.cb.on_pager_status2 = on_pager_status;
-    pjsua_logging_config lc; pjsua_logging_config_default(&lc); lc.console_level = 3;
+    pjsua_logging_config lc; pjsua_logging_config_default(&lc); lc.console_level = 0; lc.level = 5; lc.cb = log_cb;
     pjsua_media_config mc; pjsua_media_config_default(&mc); mc.snd_auto_close_time = 5;
     if ((st = pjsua_init(&cfg, &lc, &mc)) != PJ_SUCCESS) return st;
+    pj_log_set_level(5); pj_log_set_log_func((void (*)(int, const char *, int))log_cb);
     pjsua_transport_config t; pjsua_transport_config_default(&t);
     t.tls_setting.verify_server = PJ_TRUE;
     static char ca[512];
