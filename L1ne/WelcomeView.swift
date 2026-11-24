@@ -169,16 +169,12 @@ struct WelcomeView: View {
 
     private var help: some View {
         Button { showHelp = true } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "questionmark.circle.fill").font(.title3).foregroundStyle(Theme.brand)
-                Text("Where do I find these?").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
+            HStack {
+                Text("Where do I find these?").font(.subheadline.weight(.medium)).foregroundStyle(Theme.text)
                 Spacer()
-                Image(systemName: "chevron.up").font(.footnote.weight(.bold)).foregroundStyle(Theme.muted)
+                Image(systemName: "chevron.right").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
             }
-            .padding(.horizontal, 16).frame(height: 46)
-            .background(Theme.surface, in: Capsule())
-            .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
-            .contentShape(Capsule())
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

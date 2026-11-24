@@ -160,9 +160,8 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
                         TextButton({ manual = true }) { Icon(Icons.Filled.Tune, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("More options", color = L1neColors.Brand) }
                     }
                     TextButton({ help = true }, Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 4.dp)) {
-                        Icon(Icons.Filled.HelpOutline, null, Modifier.size(20.dp), tint = L1neColors.Muted); Spacer(Modifier.width(8.dp))
                         Text("Where do I find these?", Modifier.weight(1f), color = L1neColors.Text, fontWeight = FontWeight.Medium)
-                        Icon(Icons.Filled.KeyboardArrowUp, null, tint = L1neColors.Muted)
+                        Icon(Icons.Filled.ExpandMore, null, tint = L1neColors.Muted)
                     }
                 }
             }
