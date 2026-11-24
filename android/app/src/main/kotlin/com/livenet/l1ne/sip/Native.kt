@@ -10,7 +10,8 @@ object Native {
 
     @JvmStatic external fun nInit(caFile: String?, ipv6: Boolean): Int
     @JvmStatic external fun nAddAccount(id: String, reg: String, route: String, user: String, pass: String, srtp: Int, mandatory: Boolean,
-                                        secureSig: Boolean, expires: Int, mwi: Boolean, ipv6: Boolean): Int
+                                        secureSig: Boolean, expires: Int, mwi: Boolean, ipv6: Boolean,
+                                        stun: String, ice: Boolean, turn: Boolean, turnUser: String, turnPass: String): Int
     @JvmStatic external fun nDelAccount(acc: Int)
     @JvmStatic external fun nCall(acc: Int, uri: String): Int
     @JvmStatic external fun nAnswer(call: Int, code: Int)
@@ -23,4 +24,10 @@ object Native {
     @JvmStatic external fun nSound(on: Boolean)
     @JvmStatic external fun nSendText(acc: Int, to: String, text: String, tag: Int): Int
     @JvmStatic external fun nVersion(): String
+    @JvmStatic external fun nEarlyMedia(on: Boolean)
+    @JvmStatic external fun nCodecs(): String
+    @JvmStatic external fun nSetCodec(id: String, priority: Int)
+    @JvmStatic external fun nRecord(call: Int, path: String, on: Boolean): Boolean
+    @JvmStatic external fun nXfer(call: Int, dest: String): Boolean
+    @JvmStatic external fun nStats(call: Int): String
 }

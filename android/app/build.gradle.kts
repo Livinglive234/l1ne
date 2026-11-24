@@ -35,5 +35,6 @@ dependencies {
     implementation("androidx.camera:camera-camera2:$camerax")
     implementation("androidx.camera:camera-lifecycle:$camerax")
     implementation("androidx.camera:camera-view:$camerax")
+    implementation("com.unboundid:unboundid-ldapsdk:7.0.1")         // LDAP directory lookup
     implementation("com.google.mlkit:barcode-scanning:17.3.0")     // model bundled in the app: scanning works offline
 }

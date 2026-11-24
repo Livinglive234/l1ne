@@ -28,6 +28,7 @@ import java.util.concurrent.Executors
 @Composable
 fun QRScanner(onCode: (String) -> Unit, onCancel: () -> Unit) {
     val ctx = LocalContext.current
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var granted by remember { mutableStateOf(ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted = it }
     LaunchedEffect(Unit) { if (!granted) ask.launch(Manifest.permission.CAMERA) }
@@ -53,7 +54,7 @@ fun QRScanner(onCode: (String) -> Unit, onCancel: () -> Unit) {
                                 .addOnCompleteListener { proxy.close() }
                         }
                         provider.unbindAll()
-                        provider.bindToLifecycle(c as LifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                        provider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
                     }, ContextCompat.getMainExecutor(c))
                     view
                 })

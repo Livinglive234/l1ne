@@ -12,6 +12,7 @@ static jclass g_cls;
 static jmethodID g_event;
 static pj_pool_t *g_pool;
 static pjsua_transport_id g_tls = -1;
+static int g_accept_early = 0;
 
 static JNIEnv *env_attach(int *attached) {
     JNIEnv *e = NULL; *attached = 0;
@@ -35,14 +36,14 @@ static void send_call(pjsua_call_id id, const char *type) {
     char remote[256], lbl[128], s2[512];
     cstr(ci.remote_info, remote, sizeof remote); cstr(ci.last_status_text, lbl, sizeof lbl);
     /* s2: role|lastStatus|reason|connectedSeconds|media|mediaActive */
-    snprintf(s2, sizeof s2, "%d|%d|%s|%ld|%d", (int)ci.role, (int)ci.last_status, lbl, (long)ci.connect_duration.sec, (int)ci.media_status);
+    snprintf(s2, sizeof s2, "%d|%d|%s|%ld|%d|%d", (int)ci.role, (int)ci.last_status, lbl, (long)ci.connect_duration.sec, (int)ci.media_status, (int)ci.acc_id);
     emit(type, id, (int)ci.state, remote, s2);
 }
 static void on_incoming(pjsua_acc_id acc, pjsua_call_id call, pjsip_rx_data *rd) { (void)rd; (void)acc; send_call(call, "incoming"); }
 static void on_call_state(pjsua_call_id call, pjsip_event *e) { (void)e; send_call(call, "call"); }
 static void on_media_state(pjsua_call_id call) {
     pjsua_call_info ci; if (pjsua_call_get_info(call, &ci) != 0) return;
-    if (ci.media_status == PJSUA_CALL_MEDIA_ACTIVE) { pjsua_conf_connect(ci.conf_slot, 0); pjsua_conf_connect(0, ci.conf_slot); }
+    if (ci.media_status == PJSUA_CALL_MEDIA_ACTIVE && (ci.state == PJSIP_INV_STATE_CONFIRMED || g_accept_early)) { pjsua_conf_connect(ci.conf_slot, 0); pjsua_conf_connect(0, ci.conf_slot); }
     send_call(call, "call");
 }
 static void on_reg_state(pjsua_acc_id acc) {
@@ -96,7 +97,7 @@ JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nInit(JNIEnv *env, jclas
 
 /* srtp: 0 none, 1 SDES, 2 DTLS; mandatory 0/1 */
 JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nAddAccount(JNIEnv *env, jclass c, jstring jid, jstring jreg, jstring jroute, jstring juser, jstring jpass,
-        jint srtp, jboolean mandatory, jboolean secureSig, jint expires, jboolean mwi, jboolean ipv6) {
+        jint srtp, jboolean mandatory, jboolean secureSig, jint expires, jboolean mwi, jboolean ipv6, jstring jstun, jboolean ice, jboolean turn, jstring jtuser, jstring jtpass) {
     (void)c; reg_thread();
     const char *id = (*env)->GetStringUTFChars(env, jid, NULL), *reg = (*env)->GetStringUTFChars(env, jreg, NULL), *route = (*env)->GetStringUTFChars(env, jroute, NULL),
                *user = (*env)->GetStringUTFChars(env, juser, NULL), *pass = (*env)->GetStringUTFChars(env, jpass, NULL);
@@ -110,6 +111,18 @@ JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nAddAccount(JNIEnv *env,
     else { ac.use_srtp = mandatory ? PJMEDIA_SRTP_MANDATORY : PJMEDIA_SRTP_OPTIONAL; ac.srtp_secure_signaling = srtp == 1 ? (secureSig ? 1 : 0) : 0;
            ac.srtp_opt.keying_count = 1; ac.srtp_opt.keying[0] = srtp == 1 ? PJMEDIA_SRTP_KEYING_SDES : PJMEDIA_SRTP_KEYING_DTLS_SRTP; }
     ac.ipv6_sip_use = ac.ipv6_media_use = ipv6 ? PJSUA_IPV6_ENABLED_PREFER_IPV4 : PJSUA_IPV6_DISABLED;
+    const char *stun = (*env)->GetStringUTFChars(env, jstun, NULL), *tu = (*env)->GetStringUTFChars(env, jtuser, NULL), *tp = (*env)->GetStringUTFChars(env, jtpass, NULL);
+    pjsua_media_config mc; pjsua_media_config_default(&mc);
+    if (stun[0] && (ice || turn)) { pj_str_t srv = pjdup(stun); pjsua_update_stun_servers(1, &srv, PJ_FALSE); }
+    if (ice) { ac.ice_cfg_use = PJSUA_ICE_CONFIG_USE_CUSTOM; pjsua_ice_config_from_media_config(g_pool, &ac.ice_cfg, &mc); ac.ice_cfg.enable_ice = PJ_TRUE; }
+    if (turn && stun[0]) {
+        ac.turn_cfg_use = PJSUA_TURN_CONFIG_USE_CUSTOM; pjsua_turn_config_from_media_config(g_pool, &ac.turn_cfg, &mc);
+        ac.turn_cfg.enable_turn = PJ_TRUE; ac.turn_cfg.turn_server = pjdup(stun);
+        ac.turn_cfg.turn_auth_cred.type = PJ_STUN_AUTH_CRED_STATIC; ac.turn_cfg.turn_auth_cred.data.static_cred.realm = pj_str("*");
+        ac.turn_cfg.turn_auth_cred.data.static_cred.username = pjdup(tu); ac.turn_cfg.turn_auth_cred.data.static_cred.data_type = PJ_STUN_PASSWD_PLAIN;
+        ac.turn_cfg.turn_auth_cred.data.static_cred.data = pjdup(tp);
+    }
+    (*env)->ReleaseStringUTFChars(env, jstun, stun); (*env)->ReleaseStringUTFChars(env, jtuser, tu); (*env)->ReleaseStringUTFChars(env, jtpass, tp);
     pjsua_acc_id out = -1; pj_status_t st = pjsua_acc_add(&ac, PJ_TRUE, &out);
     (*env)->ReleaseStringUTFChars(env, jid, id); (*env)->ReleaseStringUTFChars(env, jreg, reg); (*env)->ReleaseStringUTFChars(env, jroute, route);
     (*env)->ReleaseStringUTFChars(env, juser, user); (*env)->ReleaseStringUTFChars(env, jpass, pass);
@@ -147,3 +160,41 @@ JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nSendText(JNIEnv *env, j
     (*env)->ReleaseStringUTFChars(env, jto, t); (*env)->ReleaseStringUTFChars(env, jtext, x); return st;
 }
 JNIEXPORT jstring JNICALL Java_com_livenet_l1ne_sip_Native_nVersion(JNIEnv *env, jclass c) { (void)c; return (*env)->NewStringUTF(env, pj_get_version()); }
+
+/* codecs: "id|priority\n" lines */
+JNIEXPORT jstring JNICALL Java_com_livenet_l1ne_sip_Native_nCodecs(JNIEnv *env, jclass c) {
+    (void)c; reg_thread(); pjsua_codec_info ci[32]; unsigned n = 32; static char out[2048]; out[0] = 0;
+    if (pjsua_enum_codecs(ci, &n) != PJ_SUCCESS) return (*env)->NewStringUTF(env, "");
+    for (unsigned i = 0; i < n; i++) { char id[64]; cstr(ci[i].codec_id, id, sizeof id); size_t l = strlen(out); snprintf(out + l, sizeof out - l, "%s|%d\n", id, (int)ci[i].priority); }
+    return (*env)->NewStringUTF(env, out);
+}
+JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nSetCodec(JNIEnv *env, jclass c, jstring jid, jint prio) {
+    (void)c; reg_thread(); const char *s = (*env)->GetStringUTFChars(env, jid, NULL); pj_str_t id = pj_str((char *)s); pjsua_codec_set_priority(&id, (pj_uint8_t)prio); (*env)->ReleaseStringUTFChars(env, jid, s);
+}
+static pjsua_recorder_id g_rec[PJSUA_MAX_CALLS + 4];
+JNIEXPORT jboolean JNICALL Java_com_livenet_l1ne_sip_Native_nRecord(JNIEnv *env, jclass c, jint call, jstring jpath, jboolean on) {
+    (void)c; reg_thread(); int k = call % (PJSUA_MAX_CALLS + 4);
+    if (!on) { if (g_rec[k] > 0) { pjsua_recorder_destroy(g_rec[k] - 1); g_rec[k] = 0; } return JNI_TRUE; }
+    pjsua_call_info ci; if (pjsua_call_get_info(call, &ci) != 0 || ci.conf_slot < 0) return JNI_FALSE;
+    const char *p = (*env)->GetStringUTFChars(env, jpath, NULL); pj_str_t f = pj_str((char *)p); pjsua_recorder_id r = -1;
+    pj_status_t st = pjsua_recorder_create(&f, 0, NULL, 0, 0, &r); (*env)->ReleaseStringUTFChars(env, jpath, p);
+    if (st != PJ_SUCCESS) return JNI_FALSE;
+    int port = pjsua_recorder_get_conf_port(r);
+    pjsua_conf_connect(ci.conf_slot, port); pjsua_conf_connect(0, port); g_rec[k] = r + 1;
+    return JNI_TRUE;
+}
+JNIEXPORT jboolean JNICALL Java_com_livenet_l1ne_sip_Native_nXfer(JNIEnv *env, jclass c, jint call, jstring jdest) {
+    (void)c; reg_thread(); const char *d = (*env)->GetStringUTFChars(env, jdest, NULL); pj_str_t dest = pj_str((char *)d);
+    pj_status_t st = pjsua_call_xfer(call, &dest, NULL); (*env)->ReleaseStringUTFChars(env, jdest, d); return st == PJ_SUCCESS;
+}
+/* "lossPackets|rxPackets|rttMs|jitterMs|srtp|dtls" */
+JNIEXPORT jstring JNICALL Java_com_livenet_l1ne_sip_Native_nStats(JNIEnv *env, jclass cls, jint call) {
+    (void)cls; reg_thread(); pjsua_stream_stat st; pjsua_stream_info si; char out[256]; out[0] = 0;
+    int srtp = 0, dtls = 0;
+    if (pjsua_call_get_stream_info(call, 0, &si) == PJ_SUCCESS && si.type == PJMEDIA_TYPE_AUDIO) {
+        srtp = (si.info.aud.proto & PJMEDIA_TP_PROFILE_SRTP) != 0; dtls = (si.info.aud.proto & PJMEDIA_TP_PROTO_DTLS) != 0; }
+    if (pjsua_call_get_stream_stat(call, 0, &st) == PJ_SUCCESS)
+        snprintf(out, sizeof out, "%u|%u|%u|%u|%d|%d", st.rtcp.rx.loss, st.rtcp.rx.pkt, (unsigned)(st.rtcp.rtt.last / 1000), (unsigned)(st.rtcp.rx.jitter.mean / 1000), srtp, dtls);
+    return (*env)->NewStringUTF(env, out);
+}
+JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nEarlyMedia(JNIEnv *e, jclass c, jboolean on) { (void)e; (void)c; g_accept_early = on; }

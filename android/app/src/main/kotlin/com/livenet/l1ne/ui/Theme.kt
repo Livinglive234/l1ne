@@ -64,8 +64,8 @@ private fun scheme(dark: Boolean) =
     )
 
 @Composable
-fun L1neTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
+fun L1neTheme(appearance: com.livenet.l1ne.data.Appearance = com.livenet.l1ne.data.Appearance.SYSTEM, content: @Composable () -> Unit) {
+    val dark = when (appearance) { com.livenet.l1ne.data.Appearance.SYSTEM -> isSystemInDarkTheme(); com.livenet.l1ne.data.Appearance.DARK -> true; else -> false }
     L1neColors.dark = dark
     MaterialTheme(colorScheme = scheme(dark), content = content)
 }
