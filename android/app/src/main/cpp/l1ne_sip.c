@@ -41,10 +41,14 @@ static void send_call(pjsua_call_id id, const char *type) {
     emit(type, id, (int)ci.state, remote, s2);
 }
 static void on_incoming(pjsua_acc_id acc, pjsua_call_id call, pjsip_rx_data *rd) { (void)rd; (void)acc; send_call(call, "incoming"); }
-static void on_call_state(pjsua_call_id call, pjsip_event *e) { (void)e; send_call(call, "call"); }
+static void on_call_state(pjsua_call_id call, pjsip_event *e) {
+    (void)e; pjsua_call_info ci;
+    if (pjsua_call_get_info(call, &ci) == 0 && ci.state == PJSIP_INV_STATE_CONFIRMED && ci.media_status == PJSUA_CALL_MEDIA_ACTIVE && ci.conf_slot >= 0) { pjsua_conf_connect(ci.conf_slot, 0); pjsua_conf_connect(0, ci.conf_slot); }   /* belt and braces */
+    send_call(call, "call");
+}
 static void on_media_state(pjsua_call_id call) {
     pjsua_call_info ci; if (pjsua_call_get_info(call, &ci) != 0) return;
-    if (ci.media_status == PJSUA_CALL_MEDIA_ACTIVE && (ci.state != PJSIP_INV_STATE_EARLY || g_accept_early)  /* answered-but-not-yet-ACKed (CONNECTING) is not early media */) { pjsua_conf_connect(ci.conf_slot, 0); pjsua_conf_connect(0, ci.conf_slot); }
+    if (ci.media_status == PJSUA_CALL_MEDIA_ACTIVE && (ci.role != PJSIP_ROLE_UAC || ci.state != PJSIP_INV_STATE_EARLY || g_accept_early)  /* early media only exists on calls we placed: answering an incoming call starts media while it still reads EARLY */) { pjsua_conf_connect(ci.conf_slot, 0); pjsua_conf_connect(0, ci.conf_slot); }
     send_call(call, "call");
 }
 static void on_reg_state(pjsua_acc_id acc) {

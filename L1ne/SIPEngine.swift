@@ -576,9 +576,9 @@ final class SIPEngine: ObservableObject {
     private func mediaChanged(call: pjsua_call_id) {
         var ci = pjsua_call_info()
         guard pjsua_call_get_info(call, &ci) == 0, ci.media_status == PJSUA_CALL_MEDIA_ACTIVE else { return }
-        // Early media (audio before answer) only plays if you allow it. An incoming call we just answered is still "connecting"
-        // when its media starts (the ACK hasn't arrived), and that is not early media.
-        if ci.state == PJSIP_INV_STATE_EARLY && !AppSettings.shared.acceptEarlyMedia { return }
+        // Early media (audio the other side sends before it answers) only plays if you allow it. That only exists on calls we
+        // placed: when we answer an incoming call, pjsua starts the media while the call still reads "early".
+        if ci.role == PJSIP_ROLE_UAC && ci.state == PJSIP_INV_STATE_EARLY && !AppSettings.shared.acceptEarlyMedia { return }
         pjsua_conf_connect(ci.conf_slot, 0)
         if !muted.contains(call) { pjsua_conf_connect(0, ci.conf_slot) }
         if ci.state == PJSIP_INV_STATE_CONFIRMED && AppSettings.shared.autoRecord { startRecording(call) }
