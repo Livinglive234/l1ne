@@ -8,6 +8,8 @@ final class AppSettings: ObservableObject {
     private let d = UserDefaults.standard
 
     @Published var autoRecord: Bool { didSet { d.set(autoRecord, forKey: "set.autoRecord") } }
+    /// What you hear while the other phone rings (the PBX usually sends nothing, so L1ne plays it).
+    @Published var ringbackTone: RingbackTone { didSet { d.set(ringbackTone.rawValue, forKey: "set.ringback") } }
     @Published var acceptEarlyMedia: Bool { didSet { d.set(acceptEarlyMedia, forKey: "set.acceptEarlyMedia") } }
     @Published var allowOutgoingEarlyMedia: Bool { didSet { d.set(allowOutgoingEarlyMedia, forKey: "set.outEarlyMedia") } }
     @Published var wifiOnly: Bool { didSet { d.set(wifiOnly, forKey: "set.wifiOnly") } }
@@ -36,12 +38,13 @@ final class AppSettings: ObservableObject {
 
     init() {
         appearance = Appearance(rawValue: d.string(forKey: "set.appearance") ?? "") ?? .system
+        ringbackTone = RingbackTone(rawValue: d.string(forKey: "set.ringback") ?? "") ?? .us
         callsInPhoneApp = d.object(forKey: "set.callsInPhone") as? Bool ?? true
         showVoicemailTab = d.bool(forKey: "set.vmTab")
         showKeypadVoicemail = d.object(forKey: "set.vmKeypad") as? Bool ?? true
         voicemailNotify = d.bool(forKey: "set.vmNotify")
         autoRecord = d.bool(forKey: "set.autoRecord")
-        acceptEarlyMedia = d.object(forKey: "set.acceptEarlyMedia") as? Bool ?? true      // on by default: you hear the PBX's ringback tone
+        acceptEarlyMedia = d.bool(forKey: "set.acceptEarlyMedia")      // off by default: L1ne plays its own ringback tone
         allowOutgoingEarlyMedia = d.bool(forKey: "set.outEarlyMedia")
         wifiOnly = d.bool(forKey: "set.wifiOnly")
         allowIPv6 = d.object(forKey: "set.allowIPv6") as? Bool ?? true

@@ -113,6 +113,16 @@ fun AdvancedCallsScreen(onBack: () -> Unit) {
             SectionHeader("Early media")
             Card { SwitchRow("Accept early media", early) { s.acceptEarlyMedia = it }; RowDivider(); SwitchRow("Allow outgoing early media", outEarly) { s.allowOutgoingEarlyMedia = it } }
             FooterText("Early media is audio the other side sends before the call is answered, such as a ringback tone or an announcement.")
+            SectionHeader("Ringback tone")
+            Card {
+                val tone by s.ringbackF.collectAsState()
+                com.livenet.l1ne.sip.RingbackTone.entries.forEachIndexed { i, t ->
+                    Row(Modifier.fillMaxWidth().clickable { s.ringback = t; com.livenet.l1ne.sip.Ringback.preview(t) }.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(t.label, Modifier.weight(1f)); if (tone == t) Icon(Icons.Filled.Check, null, tint = L1neColors.Brand) }
+                    if (i < com.livenet.l1ne.sip.RingbackTone.entries.size - 1) RowDivider()
+                }
+            }
+            FooterText("What you hear while the other phone is ringing. Most PBXes send no sound for that, so L1ne plays its own. Tap one to hear it.")
             SectionHeader("Audio codecs")
             Card {
                 codecs.forEachIndexed { i, c ->

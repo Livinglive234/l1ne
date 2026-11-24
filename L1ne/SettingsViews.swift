@@ -108,6 +108,24 @@ struct AdvancedCallsView: View {
             .listRowBackground(Theme.surface)
 
             Section {
+                ForEach(RingbackTone.allCases) { t in
+                    Button {
+                        settings.ringbackTone = t
+                        RingbackPlayer.shared.preview(t)
+                    } label: {
+                        HStack {
+                            Text(t.label).foregroundStyle(Theme.text)
+                            Spacer()
+                            if settings.ringbackTone == t { Image(systemName: "checkmark").foregroundStyle(Theme.brand) }
+                        }
+                    }
+                }
+            } header: { Text("Ringback tone") } footer: {
+                Text("What you hear while the other phone is ringing. Most PBXes send no sound for that, so L1ne plays its own. Tap one to hear it.")
+            }
+            .listRowBackground(Theme.surface)
+
+            Section {
                 ForEach(codecs) { c in
                     Toggle(isOn: Binding(get: { !settings.codecsOff.contains(c.id) }, set: { on in
                         settings.codecsOff.removeAll { $0 == c.id }

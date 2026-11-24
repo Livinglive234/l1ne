@@ -512,6 +512,7 @@ final class SIPEngine: ObservableObject {
             encryption[call] = nil; quality[call] = nil
             if currentCallID == call { currentCallID = calls.first?.id }
             if calls.isEmpty { speaker = false; statsTask?.cancel(); statsTask = nil }
+            updateRingback()
             return
         }
         let connected = ci.state == PJSIP_INV_STATE_CONFIRMED
@@ -531,6 +532,13 @@ final class SIPEngine: ObservableObject {
         if let i = calls.firstIndex(where: { $0.id == call }) { calls[i] = entry } else { calls.append(entry) }
         if currentCallID == nil || !calls.contains(where: { $0.id == currentCallID }) { currentCallID = call }
         if connected { startStats(); CallKitManager.shared.reportConnected(call, outgoing: !(entry.incoming)) }
+        updateRingback()
+    }
+
+    /// The tone you hear while the other phone rings: L1ne's own, unless you let the PBX's early media through instead.
+    private func updateRingback() {
+        let ringing = calls.contains { !$0.incoming && !$0.connected && $0.state == "Ringing…" }
+        if ringing && !AppSettings.shared.acceptEarlyMedia { RingbackPlayer.shared.start(AppSettings.shared.ringbackTone) } else { RingbackPlayer.shared.stop() }
     }
 
     // MARK: call quality and encryption (read from the media stream every two seconds)

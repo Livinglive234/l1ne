@@ -9,16 +9,20 @@ enum class Appearance(val label: String) { SYSTEM("System"), LIGHT("Light"), DAR
 /** App-wide settings (not tied to one account), kept in SharedPreferences. Same list as iOS's AppSettings. */
 class AppSettings(context: Context) {
     private val p = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+    init { if (!p.getBoolean("earlyMediaV2", false)) p.edit().putBoolean("acceptEarlyMedia", false).putBoolean("earlyMediaV2", true).apply() }   // off by default now: L1ne plays its own ringback
     private fun bool(key: String, def: Boolean) = MutableStateFlow(p.getBoolean(key, def))
     private fun <T> StateFlow<T>.save(key: String, v: T) { (this as MutableStateFlow<T>).value = v
         p.edit().apply { when (v) { is Boolean -> putBoolean(key, v); is String -> putString(key, v); else -> {} } }.apply() }
 
     val autoRecordF = bool("autoRecord", false); var autoRecord get() = autoRecordF.value; set(v) = autoRecordF.save("autoRecord", v)
-    val acceptEarlyMediaF = bool("acceptEarlyMedia", true); var acceptEarlyMedia get() = acceptEarlyMediaF.value; set(v) { acceptEarlyMediaF.save("acceptEarlyMedia", v); com.livenet.l1ne.sip.Native.nEarlyMedia(v) }
+    val acceptEarlyMediaF = bool("acceptEarlyMedia", false); var acceptEarlyMedia get() = acceptEarlyMediaF.value; set(v) { acceptEarlyMediaF.save("acceptEarlyMedia", v); com.livenet.l1ne.sip.Native.nEarlyMedia(v) }
     val outEarlyMediaF = bool("outEarlyMedia", false); var allowOutgoingEarlyMedia get() = outEarlyMediaF.value; set(v) = outEarlyMediaF.save("outEarlyMedia", v)
     val wifiOnlyF = bool("wifiOnly", false); var wifiOnly get() = wifiOnlyF.value; set(v) = wifiOnlyF.save("wifiOnly", v)
     val allowIPv6F = bool("allowIPv6", true); var allowIPv6 get() = allowIPv6F.value; set(v) = allowIPv6F.save("allowIPv6", v)
     val keepAliveF = bool("keepAlive", true); var keepAlive get() = keepAliveF.value; set(v) = keepAliveF.save("keepAlive", v)
+    /** What you hear while the other phone rings (the PBX usually sends nothing, so L1ne plays it). */
+    val ringbackF = MutableStateFlow(com.livenet.l1ne.sip.RingbackTone.entries.firstOrNull { it.name == p.getString("ringback", "") } ?: com.livenet.l1ne.sip.RingbackTone.US)
+    var ringback get() = ringbackF.value; set(v) { ringbackF.value = v; p.edit().putString("ringback", v.name).apply() }
     val vmTabF = bool("vmTab", false); var showVoicemailTab get() = vmTabF.value; set(v) = vmTabF.save("vmTab", v)
     val vmKeypadF = bool("vmKeypad", true); var showKeypadVoicemail get() = vmKeypadF.value; set(v) = vmKeypadF.save("vmKeypad", v)
     val vmNotifyF = bool("vmNotify", false); var voicemailNotify get() = vmNotifyF.value; set(v) = vmNotifyF.save("vmNotify", v)

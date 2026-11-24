@@ -92,7 +92,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
                 if (type == "incoming") Native.nAnswer(a, if (settings.allowOutgoingEarlyMedia) 183 else 180)
                 _calls.value = if (ci.ended) _calls.value.filter { it.id != a } else if (old == null) _calls.value + ci else _calls.value.map { if (it.id == a) ci.copy(accountID = old.accountID) else it }
                 if (ci.active && old?.active != true && settings.autoRecord) toggleRecord(a)
-                updateAudio()
+                updateAudio(); updateRingback()
                 if (ci.ended) {
                     muted.value -= a; held.value -= a
                     val mine = old ?: ci; val byYou = a in userEnded; userEnded.remove(a)
@@ -277,6 +277,12 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
         val onEar = _calls.value.any { !it.ended } && (r == null || r.active == android.telecom.CallAudioState.ROUTE_EARPIECE) && audio.isSpeakerphoneOn.not()
         if (onEar) { if (proximity == null) proximity = pm.newWakeLock(android.os.PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "l1ne:proximity").also { it.setReferenceCounted(false) }; if (proximity?.isHeld != true) proximity?.acquire(4 * 3600 * 1000L) }
         else proximity?.let { if (it.isHeld) it.release() }
+    }
+
+    /** The tone you hear while the other phone rings: L1ne's own, unless you let the PBX's early media through instead. */
+    private fun updateRingback() {
+        val ringing = _calls.value.any { !it.incoming && it.state == 3 }
+        if (ringing && !settings.acceptEarlyMedia) Ringback.start(settings.ringback) else Ringback.stop()
     }
 
     private var audioOn = false
