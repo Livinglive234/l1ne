@@ -19,11 +19,13 @@ targets:
       - framework: vendor/PJSIP.xcframework     # built by scripts/build-pjsip.sh
         embed: false
     # Push Notifications (aps-environment) is left out for now: the free Personal Team can't sign it, and the app doesn't
-    # register for push yet. Restore with the paid team:
+    # register for push yet. To turn it on (paid team, PushKit work in place): uncomment the block below, run
+    # scripts/gen.sh, and check the App ID has the Push Notifications capability in the developer portal.
     #   entitlements:
     #     path: L1ne/L1ne.entitlements
     #     properties:
-    #       aps-environment: development    # production for TestFlight / App Store
+    #       aps-environment: development    # Xcode swaps this to production for archives (TestFlight / App Store) on its own
+    # Also needed then: a push proxy holding the APNs key (see the push-proxy plan), and PushKit registration in CallKitManager.
     info:
       path: L1ne/Info.plist
       properties:
