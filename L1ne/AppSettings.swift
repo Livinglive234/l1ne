@@ -7,6 +7,8 @@ final class AppSettings: ObservableObject {
     static let shared = AppSettings()
     private let d = UserDefaults.standard
 
+    /// The first-run welcome screen was skipped ("Skip for now"), so it stays out of the way until the next fresh install.
+    @Published var welcomeSkipped: Bool { didSet { d.set(welcomeSkipped, forKey: "set.welcomeSkipped") } }
     @Published var autoRecord: Bool { didSet { d.set(autoRecord, forKey: "set.autoRecord") } }
     /// What you hear while the other phone rings (the PBX usually sends nothing, so L1ne plays it).
     @Published var ringbackTone: RingbackTone { didSet { d.set(ringbackTone.rawValue, forKey: "set.ringback") } }
@@ -37,6 +39,7 @@ final class AppSettings: ObservableObject {
     @Published var voicemailNotify: Bool { didSet { d.set(voicemailNotify, forKey: "set.vmNotify") } }
 
     init() {
+        welcomeSkipped = d.bool(forKey: "set.welcomeSkipped")
         appearance = Appearance(rawValue: d.string(forKey: "set.appearance") ?? "") ?? .system
         ringbackTone = RingbackTone(rawValue: d.string(forKey: "set.ringback") ?? "") ?? .uk
         callsInPhoneApp = d.object(forKey: "set.callsInPhone") as? Bool ?? true

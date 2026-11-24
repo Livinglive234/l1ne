@@ -10,6 +10,7 @@ struct ProvisionSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var initialLink: String?
+    var autoScan = false                  // the welcome screen's "Scan QR code" goes straight to the camera
     @State private var link = ""
     @State private var scanning = false
     @State private var busy = false
@@ -49,7 +50,10 @@ struct ProvisionSheet: View {
                     Button("Close") { scanning = false }.padding().buttonStyle(.borderedProminent)
                 }
             }
-            .task { if let l = initialLink, result == nil { link = l; fetch(l) } }
+            .task {
+                if let l = initialLink, result == nil { link = l; fetch(l) }
+                else if autoScan, result == nil { scanning = true }
+            }
         }
     }
 

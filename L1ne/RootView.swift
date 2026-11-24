@@ -12,10 +12,62 @@ struct RootView: View {
     @Environment(\.colorScheme) private var scheme
     private var callGray: Bool { settings.appearance == .light || (settings.appearance == .system && scheme == .light) }
     @State private var setupLink: SetupLink?
+    @State private var signingIn = false        // the welcome screen stays up while a first login is being checked
 
     struct SetupLink: Identifiable { let id = UUID(); let text: String }
 
     var body: some View {
+        Group {
+            if (store.accounts.isEmpty && !settings.welcomeSkipped) || signingIn {
+                WelcomeView(signingIn: $signingIn)
+                    .environmentObject(engine).environmentObject(store).environmentObject(contacts)
+                    .environmentObject(dirs).environmentObject(settings)
+            } else { mainTabs }
+        }
+        .environmentObject(engine)
+        .environmentObject(store)
+        .environmentObject(contacts)
+        .environmentObject(messages)
+        .environmentObject(settings)
+        .environmentObject(dirs)
+        .environmentObject(callLog)
+        .environmentObject(router)
+        .onOpenURL { url in
+            if let s = url.scheme?.lowercased(), s == "sip" || s == "sips" {
+                router.pendingDial = AppRouter.dialTarget(fromSIP: url); router.tab = .keypad; router.callMinimized = true
+            } else { setupLink = SetupLink(text: url.absoluteString) }
+        }
+        .sheet(item: $setupLink) {
+            ProvisionSheet(initialLink: $0.text).environmentObject(engine).environmentObject(store).environmentObject(contacts).environmentObject(dirs)
+        }
+        .onChange(of: engine.calls.count) { old, new in
+            if new > old || new == 0 { router.callMinimized = false }          // a new call, or none left: back to normal
+        }
+        .task {
+            engine.start()
+            for a in store.accounts { engine.register(a, secret: store.secret(a.id)) }
+            #if DEBUG
+            // tests/mock: place a call a few seconds after launch
+            if let n = ProcessInfo.processInfo.environment["L1NE_CALLBACK"] { PhoneAppCallBack.place(n) }     // as if tapped in the Phone app
+            if let n = ProcessInfo.processInfo.environment["L1NE_AUTODIAL"], let a = store.selected {
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                engine.call(n, from: a.id)
+                // tests/mock: as if the network changed this many seconds into the call
+                if let s = ProcessInfo.processInfo.environment["L1NE_TESTSWITCH"], let secs = Double(s) {
+                    try? await Task.sleep(nanoseconds: UInt64(secs * 1_000_000_000))
+                    engine.networkChanged()
+                }
+            }
+            #endif
+        }
+        .fullScreenCover(isPresented: Binding(get: { !engine.calls.isEmpty && !router.callMinimized }, set: { if !$0 { router.callMinimized = true } })) {
+            CallScreen().environmentObject(engine).environmentObject(store).environmentObject(contacts).environmentObject(router)
+                .preferredColorScheme(.dark)       // text and icons stay light; the background turns gray in light mode
+                .environment(\.callGray, callGray)
+        }
+    }
+
+    private var mainTabs: some View {
         TabView(selection: $router.tab) {
             RecentsView()
                 .tabItem { Label("Recents", systemImage: "clock") }.tag(AppRouter.Tab.recents)
@@ -59,47 +111,6 @@ struct RootView: View {
             }
         }
         .animation(.snappy, value: router.callMinimized)
-        .environmentObject(engine)
-        .environmentObject(store)
-        .environmentObject(contacts)
-        .environmentObject(messages)
-        .environmentObject(settings)
-        .environmentObject(dirs)
-        .environmentObject(callLog)
-        .environmentObject(router)
-        .onOpenURL { url in
-            if let s = url.scheme?.lowercased(), s == "sip" || s == "sips" {
-                router.pendingDial = AppRouter.dialTarget(fromSIP: url); router.tab = .keypad; router.callMinimized = true
-            } else { setupLink = SetupLink(text: url.absoluteString) }
-        }
-        .sheet(item: $setupLink) {
-            ProvisionSheet(initialLink: $0.text).environmentObject(engine).environmentObject(store).environmentObject(contacts).environmentObject(dirs)
-        }
-        .onChange(of: engine.calls.count) { old, new in
-            if new > old || new == 0 { router.callMinimized = false }          // a new call, or none left: back to normal
-        }
-        .task {
-            engine.start()
-            for a in store.accounts { engine.register(a, secret: store.secret(a.id)) }
-            #if DEBUG
-            // tests/mock: place a call a few seconds after launch
-            if let n = ProcessInfo.processInfo.environment["L1NE_CALLBACK"] { PhoneAppCallBack.place(n) }     // as if tapped in the Phone app
-            if let n = ProcessInfo.processInfo.environment["L1NE_AUTODIAL"], let a = store.selected {
-                try? await Task.sleep(nanoseconds: 4_000_000_000)
-                engine.call(n, from: a.id)
-                // tests/mock: as if the network changed this many seconds into the call
-                if let s = ProcessInfo.processInfo.environment["L1NE_TESTSWITCH"], let secs = Double(s) {
-                    try? await Task.sleep(nanoseconds: UInt64(secs * 1_000_000_000))
-                    engine.networkChanged()
-                }
-            }
-            #endif
-        }
-        .fullScreenCover(isPresented: Binding(get: { !engine.calls.isEmpty && !router.callMinimized }, set: { if !$0 { router.callMinimized = true } })) {
-            CallScreen().environmentObject(engine).environmentObject(store).environmentObject(contacts).environmentObject(router)
-                .preferredColorScheme(.dark)       // text and icons stay light; the background turns gray in light mode
-                .environment(\.callGray, callGray)
-        }
     }
 }
 
