@@ -57,6 +57,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
     private class Redial(val number: String?, val uri: String?, val accountId: String, val attempt: Int)
     private val outgoingTargets = HashMap<Int, Redial>()
     private val unansweredAtChange = HashSet<Int>()
+    @Volatile private var lastNetworkEvent = 0L
     private val sendTags = HashMap<Int, String>()          // tag -> message id
     private var nextTag = 1
     val currentCall: CallInfo? get() = _calls.value.firstOrNull { it.id == currentId.value } ?: _calls.value.firstOrNull { it.active } ?: _calls.value.firstOrNull()
@@ -100,12 +101,14 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
                         byYou -> com.livenet.l1ne.data.Direction.INCOMING
                         else -> com.livenet.l1ne.data.Direction.MISSED }
                     val target = outgoingTargets.remove(a)
-                    val retry = !mine.incoming && ci.connectedSecs == 0L && !byYou && a in unansweredAtChange && target != null && target.attempt == 0
                     unansweredAtChange.remove(a)
-                    if (retry) main.postDelayed({
-                        val acc = store.accounts.value.firstOrNull { it.id == target!!.accountId } ?: return@postDelayed
-                        if (target!!.uri != null) callUri(target.uri, acc, 1) else call(target.number!!, acc, 1) }, 1500)
-                    if (!retry) callLog?.add(com.livenet.l1ne.data.CallRecord(peer = mine.peerAddress, accountID = ci.accountID ?: mine.accountID, direction = dir, duration = ci.connectedSecs.toInt()))
+                    val record = com.livenet.l1ne.data.CallRecord(peer = mine.peerAddress, accountID = ci.accountID ?: mine.accountID, direction = dir, duration = ci.connectedSecs.toInt())
+                    // A call that dies unanswered with a server/transport error right around a network change is redialled once.
+                    // Android reports the dead connection and the new network in either order, so wait a moment before deciding.
+                    if (!mine.incoming && ci.connectedSecs == 0L && !byYou && target != null && target.attempt == 0 && ci.status >= 500) {
+                        val t0 = System.currentTimeMillis()
+                        main.postDelayed({ if (lastNetworkEvent >= t0 - 15000) redialLater(target, 0) else callLog?.add(record) }, 2500)
+                    } else callLog?.add(record)
                     recording.value -= a
                     onCallEnded?.invoke(ci)
                 }
@@ -146,6 +149,16 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
     fun unregister(id: String) { pjAcc.remove(id)?.let { accOfPJ.remove(it); Native.nDelAccount(it) }; _registration.value = _registration.value - id }
 
     fun registerAll() = store.accounts.value.forEach { register(it) }
+
+    /** Dials again once the network is back and the account has re-registered; tries for a few seconds, then gives up quietly. */
+    private fun redialLater(t: Redial, tries: Int) {
+        main.postDelayed({
+            val acc = store.accounts.value.firstOrNull { it.id == t.accountId } ?: return@postDelayed
+            val ready = _registration.value[acc.id] == "Registered" && pjAcc[acc.id] != null
+            val ok = ready && (if (t.uri != null) callUri(t.uri, acc, 1) else call(t.number!!, acc, 1))
+            if (!ok && tries < 8) redialLater(t, tries + 1)
+        }, if (tries == 0) 1500L else 1000L)
+    }
 
     fun call(number: String, from: Account? = null, attempt: Int = 0): Boolean {
         start()
@@ -284,7 +297,8 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
         val cm = app.getSystemService(ConnectivityManager::class.java)
         var first = true
         cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) { if (first) { first = false; return }; main.post { unansweredAtChange.addAll(_calls.value.filter { !it.incoming && !it.active && !it.ended }.map { it.id }); Native.nIpChange() } }
+            override fun onLost(network: Network) { lastNetworkEvent = System.currentTimeMillis() }
+            override fun onAvailable(network: Network) { if (first) { first = false; return }; lastNetworkEvent = System.currentTimeMillis(); main.post { unansweredAtChange.addAll(_calls.value.filter { !it.incoming && !it.active && !it.ended }.map { it.id }); Native.nIpChange() } }
         })
     }
 }
