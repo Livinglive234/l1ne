@@ -40,7 +40,8 @@ data class Account(
     val title: String get() = label.ifEmpty { domain }
     val sipAddress: String get() = "sip:$username@$domain"
     val initials: String get() {
-        val words = label.split(' ', '-', '_').filter { it.firstOrNull()?.isLetterOrDigit() == true }
+        val source = displayName.ifBlank { label }          // the display name first, then the label
+        val words = source.split(' ', '-', '_').filter { it.firstOrNull()?.isLetterOrDigit() == true }
         if (words.isNotEmpty()) return words.take(2).map { it.first() }.joinToString("").uppercase()
         return domain.filter { it.isLetterOrDigit() }.take(2).uppercase()
     }

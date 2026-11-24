@@ -65,9 +65,10 @@ struct Account: Codable, Identifiable, Equatable {
     var title: String { label.isEmpty ? domain : label }
     var sipAddress: String { "sip:\(username)@\(domain)" }
 
-    /// Up to two letters for the avatar: initials of the label ("Max Example" -> ME), else the first letters of the server name.
+    /// Up to two letters for the avatar: initials of the display name ("Max Example" -> ME), else of the label, else the first letters of the server name.
     var initials: String {
-        let words = label.split(whereSeparator: { $0 == " " || $0 == "-" || $0 == "_" }).filter { $0.first?.isLetter == true || $0.first?.isNumber == true }
+        let source = displayName.trimmingCharacters(in: .whitespaces).isEmpty ? label : displayName
+        let words = source.split(whereSeparator: { $0 == " " || $0 == "-" || $0 == "_" }).filter { $0.first?.isLetter == true || $0.first?.isNumber == true }
         if !words.isEmpty { return String(words.prefix(2).compactMap { $0.first }).uppercased() }
         return String(domain.filter { $0.isLetter || $0.isNumber }.prefix(2)).uppercased()
     }
