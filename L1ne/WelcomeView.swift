@@ -109,6 +109,7 @@ struct WelcomeView: View {
         .sheet(isPresented: $showQR) { ProvisionSheet(initialLink: nil, autoScan: true) }
         .sheet(isPresented: $showLink) { ProvisionSheet(initialLink: nil) }
         .sheet(isPresented: $showManual) { AccountEditor(account: Account()) }
+        .sheet(isPresented: $showHelp) { HelpCard().presentationDetents([.height(400), .large]).presentationDragIndicator(.visible) }
         .onChange(of: engine.registration) { _, new in
             guard let id = pending, let s = new[id] else { return }
             if s == "Registered" { pending = nil; signingIn = false }
@@ -167,18 +168,46 @@ struct WelcomeView: View {
     }
 
     private var help: some View {
-        DisclosureGroup(isExpanded: $showHelp) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("**Server** is your PBX's address, like pbx.example.com. Add a port if it isn't the usual one: pbx.example.com:5080.")
-                Text("**Username** is your extension number or SIP username, and **Password (Secret)** is the SIP password, not your PBX web login.")
-                Text("Your administrator may also have a QR code or a link that fills all of this in.")
-                Text("L1ne has no sign-up of its own: it connects to a phone system someone runs. Your login stays on this phone.")
+        Button { showHelp = true } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "questionmark.circle.fill").font(.title3).foregroundStyle(Theme.brand)
+                Text("Where do I find these?").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
+                Spacer()
+                Image(systemName: "chevron.up").font(.footnote.weight(.bold)).foregroundStyle(Theme.muted)
             }
-            .font(.footnote).foregroundStyle(Theme.muted).padding(.top, 8)
-        } label: {
-            Text("Where do I find these?").font(.subheadline.weight(.medium)).foregroundStyle(Theme.text)
+            .padding(.horizontal, 16).frame(height: 46)
+            .background(Theme.surface, in: Capsule())
+            .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
+            .contentShape(Capsule())
         }
-        .tint(Theme.muted)
+        .buttonStyle(.plain)
+    }
+
+    /// The little card that slides up from the bottom.
+    private struct HelpCard: View {
+        private func row(_ icon: String, _ title: String, _ text: String) -> some View {
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: icon).font(.title3).foregroundStyle(Theme.brand).frame(width: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
+                    Text(text).font(.footnote).foregroundStyle(Theme.muted).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        var body: some View {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Where do I find these?").font(.headline).foregroundStyle(Theme.text)
+                row("server.rack", "Server", "Your PBX's address, like pbx.example.com. Add a port if it isn't the usual one: pbx.example.com:5080.")
+                row("person", "Username or extension", "Your extension number or SIP username.")
+                row("key", "Password (Secret)", "The SIP password for that extension, not your PBX web login.")
+                row("qrcode", "QR code or link", "Your administrator may have one that fills all of this in.")
+                Text("L1ne has no sign-up of its own: it connects to a phone system someone runs. Your login stays on this phone.")
+                    .font(.footnote).foregroundStyle(Theme.muted).fixedSize(horizontal: false, vertical: true).padding(.top, 2)
+            }
+            .padding(.horizontal, 24).padding(.top, 28)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(Theme.sheet.ignoresSafeArea())
+        }
     }
 
     /// Soft layered hills along the bottom edge, in the brand green.

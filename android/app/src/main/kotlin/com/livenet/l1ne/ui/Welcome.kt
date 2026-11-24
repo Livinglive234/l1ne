@@ -5,6 +5,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -158,21 +159,24 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
                         TextButton({ scanFirst = false; showLink = true }) { Icon(Icons.Filled.Link, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Open a setup link", color = L1neColors.Brand) }
                         TextButton({ manual = true }) { Icon(Icons.Filled.Tune, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("More options", color = L1neColors.Brand) }
                     }
-                    Column(Modifier.fillMaxWidth()) {
-                        TextButton({ help = !help }, Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 4.dp)) {
-                            Text("Where do I find these?", Modifier.weight(1f), color = L1neColors.Text, fontWeight = FontWeight.Medium)
-                            Icon(if (help) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, null, tint = L1neColors.Muted)
-                        }
-                        if (help) Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            for (line in listOf(
-                                "Server is your PBX's address, like pbx.example.com. Add a port if it isn't the usual one: pbx.example.com:5080.",
-                                "Username is your extension number or SIP username, and Password (Secret) is the SIP password, not your PBX web login.",
-                                "Display name is what people see when you call them. You can leave it empty.",
-                                "Your administrator may also have a QR code or a link that fills all of this in.",
-                                "L1ne has no sign-up of its own: it connects to a phone system someone runs. Your login stays on this phone."))
-                                Text(line, style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
-                        }
+                    TextButton({ help = true }, Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 4.dp)) {
+                        Icon(Icons.Filled.HelpOutline, null, Modifier.size(20.dp), tint = L1neColors.Muted); Spacer(Modifier.width(8.dp))
+                        Text("Where do I find these?", Modifier.weight(1f), color = L1neColors.Text, fontWeight = FontWeight.Medium)
+                        Icon(Icons.Filled.KeyboardArrowUp, null, tint = L1neColors.Muted)
                     }
+                }
+            }
+        }
+        androidx.activity.compose.BackHandler(help) { help = false }
+        androidx.compose.animation.AnimatedVisibility(help, enter = androidx.compose.animation.fadeIn(), exit = androidx.compose.animation.fadeOut()) {
+            Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f))
+                .clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) { help = false })
+        }
+        androidx.compose.animation.AnimatedVisibility(help, Modifier.align(Alignment.BottomCenter), enter = androidx.compose.animation.slideInVertically { it }, exit = androidx.compose.animation.slideOutVertically { it }) {
+            Surface(Modifier.fillMaxWidth().widthIn(max = 640.dp), shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp), color = L1neColors.SheetBg) {
+                Column(Modifier.navigationBarsPadding().heightIn(max = (screenH * 0.85f).dp).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.padding(top = 10.dp, bottom = 6.dp).size(width = 40.dp, height = 4.dp).clip(CircleShape).background(L1neColors.Border))
+                    HelpCard()
                 }
             }
         }
@@ -208,5 +212,23 @@ private fun Waves(modifier: Modifier = Modifier) {
             drawPath(p, brand.copy(alpha = alpha))
         }
         hills(0.55f, 0.35f, 0.75f, 0.10f); hills(0.45f, 0.30f, 0.55f, 0.16f); hills(0.30f, 0.45f, 0.40f, 0.26f)
+    }
+}
+
+/** The little card that slides up from the bottom (same wording as the iOS one). */
+@Composable
+private fun HelpCard() {
+    @Composable fun Row(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, text: String) =
+        androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Icon(icon, null, Modifier.size(26.dp), tint = L1neColors.Brand)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) { Text(title, fontWeight = FontWeight.SemiBold, color = L1neColors.Text); Text(text, style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted) }
+        }
+    Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 24.dp, top = 8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text("Where do I find these?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = L1neColors.Text)
+        Row(Icons.Filled.Dns, "Server", "Your PBX's address, like pbx.example.com. Add a port if it isn't the usual one: pbx.example.com:5080.")
+        Row(Icons.Filled.Person, "Username or extension", "Your extension number or SIP username.")
+        Row(Icons.Filled.Key, "Password (Secret)", "The SIP password for that extension, not your PBX web login.")
+        Row(Icons.Filled.QrCode2, "QR code or link", "Your administrator may have one that fills all of this in.")
+        Text("L1ne has no sign-up of its own: it connects to a phone system someone runs. Your login stays on this phone.", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
     }
 }
