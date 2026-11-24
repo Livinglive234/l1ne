@@ -16,6 +16,20 @@ remote-configuration files and QR codes that Linphone uses.
 - Linphone-compatible provisioning: scan a QR code or open a `linphone-config:` / `l1ne-config:` link.
 - TLS and DTLS-SRTP through OpenSSL with a bundled CA list; calls, texts and subscriptions are routed through the account's server.
 
+## Incoming calls in the background
+iOS suspends apps, and a suspended app cannot keep its SIP registration alive, so a call can only wake an iPhone through an
+Apple VoIP push. L1ne is built so that **nobody has to hand their SIP login to a third party**. You choose per account:
+
+| Option | PBX setup | Who holds your SIP login |
+|---|---|---|
+| **No push** (default) | none. Calls arrive while L1ne is open; the app says so plainly | your phone only |
+| **Webhook push** | one snippet pasted into your PBX (FreePBX/Asterisk first) | your phone only |
+| **Self-hosted proxy** | run the open-source proxy yourself | your own server |
+
+The push relay stores only a device push token and nothing about your calls, accounts or contacts. There is no hosted service
+that keeps your registration alive for you. Design and data rules: [docs/PUSH.md](docs/PUSH.md). This is a design so far; nothing here
+is built yet except the default (no push).
+
 ## Build (iOS)
 Requires Xcode 26+, [XcodeGen](https://github.com/yonaskolb/XcodeGen), and about 5 GB of disk for the dependency builds.
 

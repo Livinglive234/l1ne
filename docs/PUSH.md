@@ -18,15 +18,14 @@ Chosen when an account is added, changeable in the account editor. Default is **
 | 1. No push | none | nothing | the phone only |
 | 2. Webhook push | one snippet for the PBX admin | push token + hashed webhook secret | the phone only |
 | 3. Self-hosted proxy | run the proxy | nothing but the token (relay) | the user's own proxy |
-| 4. Hosted registration proxy | none | **the SIP login and call signalling** | LiveNet's proxy |
+| ~~4. Hosted registration proxy~~ | none | the SIP login and call signalling | **Decided against, see below** |
 
 Mode 1 says plainly in the app that calls will not arrive while L1ne is closed or suspended.
-Mode 4 is opt-in, shown last, with a consent screen that says "we store your login" in those words.
 
 ## Wake sequence (modes 2 to 4)
 
 1. A call arrives for the user's extension.
-2. The PBX (mode 2), the user's proxy (mode 3) or the hosted proxy (mode 4) calls the relay with the push ID.
+2. The PBX (mode 2), the user's proxy (mode 3) calls the relay with the push ID.
 3. The relay sends an APNs VoIP push. It carries a call ID only; names and numbers are looked up by the app
    when the INVITE arrives, so neither the relay nor Apple sees them.
 4. The app must report an incoming call to CallKit straight away (Apple requirement), then re-registers.
@@ -46,18 +45,13 @@ For mode 2 on Asterisk and FreePBX the dialplan snippet fires the webhook, then 
 - "Remove this device" in the app deletes the record immediately. There is no account, email or login.
 - Open source and self-hostable.
 
-## Mode 4 is different
+## Mode 4: decided against
 
-Mode 4 cannot follow the rules above: to keep a registration alive for a sleeping phone, the proxy must hold the SIP
-credentials and sees call signalling. Consequences to settle before building it:
-
-- LiveNet becomes a data controller for those credentials and answers for a breach.
-- The App Store privacy label can no longer say "Data Not Collected"; credentials and contact info must be declared.
-- It needs a real privacy policy, deletion on request, encryption at rest, and a lawyer's review.
-- A disclaimer in the app or terms limits some civil liability but does not remove legal duties (for example GDPR
-  obligations to users in the EU), so it is not a substitute for the points above.
-
-Build mode 4 last, and only after the above is decided.
+A hosted proxy that keeps registrations alive for sleeping phones must hold each user's SIP credentials and sees call
+signalling (the Zoiper/Groundwire model). LiveNet will not run one: it would make the project a custodian of other
+people's logins, with the breach, deletion and privacy-law obligations that come with that, and the project cannot take
+those on. Anyone who wants zero PBX setup can run the proxy themselves (mode 3), where they hold their own credentials
+and LiveNet holds none. Revisit only if that changes. The App Store privacy label stays "Data Not Collected".
 
 ## Apple requirements that shape the build
 
@@ -73,4 +67,3 @@ Build mode 4 last, and only after the above is decided.
 3. Relay, PushKit and CallKit wake-up, webhook mode, FreePBX/Asterisk snippet.
 4. Self-hosted proxy.
 5. Android FCM.
-6. Hosted registration proxy, only if decided.
