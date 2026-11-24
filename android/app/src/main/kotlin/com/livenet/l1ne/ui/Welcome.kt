@@ -3,10 +3,14 @@ package com.livenet.l1ne.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -18,26 +22,33 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.livenet.l1ne.R
 import com.livenet.l1ne.core.Account
 import com.livenet.l1ne.core.Transport
 import kotlinx.coroutines.delay
 
 /**
- * What you see before any account exists: sign in with the three things a PBX admin hands out, or scan their QR code
- * or open their setup link. It uses the same Account / AccountStore / LinkDialog code as Settings → Accounts, so there
- * is only one way an account gets made. Same layout as the iOS WelcomeView.
+ * What you see before any account exists: sign in with the details a PBX admin hands out, or scan their QR code or
+ * open their setup link. It uses the same Account / AccountStore / LinkDialog code as Settings → Accounts, so there
+ * is only one way an account gets made. Same layout as the iOS WelcomeView: everything fits on one screen on a normal
+ * phone (it scrolls on a small one), and the hills are fixed to the bottom edge of the screen.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,23 +56,29 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
     val app = LocalApp.current
     val reg by app.engine.registration.collectAsState()
     val focus = LocalFocusManager.current
-    var server by remember { mutableStateOf("") }; var username by remember { mutableStateOf("") }; var password by remember { mutableStateOf("") }
+    var server by remember { mutableStateOf("") }; var username by remember { mutableStateOf("") }; var displayName by remember { mutableStateOf("") }; var password by remember { mutableStateOf("") }
     var reveal by remember { mutableStateOf(false) }; var transport by remember { mutableStateOf(Transport.TLS) }
     var pending by remember { mutableStateOf<String?>(null) }; var error by remember { mutableStateOf<String?>(null) }
     var showLink by remember { mutableStateOf(false) }; var scanFirst by remember { mutableStateOf(false) }
     var manual by remember { mutableStateOf(false) }; var help by remember { mutableStateOf(false) }
     val canLogin = server.isNotBlank() && username.isNotBlank() && password.isNotEmpty()
+    val screenH = LocalConfiguration.current.screenHeightDp
+    val compact = screenH < 700            // small phones: smallest header, no subtitle
+    val snug = screenH < 900               // typical phones: slightly tighter, so the form clears the hills
 
     fun removePending() { pending?.let { app.engine.unregister(it); app.store.remove(it) }; pending = null }
     fun fail(message: String) { removePending(); error = message; setSigningIn(false) }
     fun login() {
         focus.clearFocus(); error = null
-        val acc = Account(username = username.trim()).withTransport(transport).finishedNew(server)   // parses "host:port", keeps SRTP only on TLS
+        val acc = Account(username = username.trim(), displayName = displayName.trim()).withTransport(transport).finishedNew(server)   // parses "host:port", keeps SRTP only on TLS
         app.store.save(acc, password)
         pending = acc.id; setSigningIn(true)                 // keeps this screen up while the PBX answers
         app.engine.register(acc)
     }
 
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val root = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(Unit) { delay(200); root.requestFocus(); keyboard?.hide() }       // some phones put the cursor in the first field on launch; park the focus on the screen itself and start with the keyboard closed
     val status = pending?.let { reg[it] }
     LaunchedEffect(pending, status) {
         if (pending == null || status == null) return@LaunchedEffect
@@ -77,40 +94,52 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
     }
 
     @Composable fun Labeled(title: String, content: @Composable () -> Unit) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { Text(title, fontWeight = FontWeight.SemiBold, color = L1neColors.Text); content() }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(title, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = L1neColors.Text); content() }
     }
-    @Composable fun Input(value: String, onChange: (String) -> Unit, placeholder: String, kb: KeyboardType, ime: ImeAction, secret: Boolean = false, trailing: @Composable (() -> Unit)? = null) =
-        OutlinedTextField(value, onChange, Modifier.fillMaxWidth(), singleLine = true, shape = CircleShape, placeholder = { Text(placeholder, color = L1neColors.Muted) },
-            visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None, trailingIcon = trailing,
-            keyboardOptions = KeyboardOptions(keyboardType = kb, imeAction = ime, autoCorrectEnabled = false),
+    @Composable fun Input(value: String, onChange: (String) -> Unit, placeholder: String, kb: KeyboardType, ime: ImeAction, secret: Boolean = false,
+                          caps: KeyboardCapitalization = KeyboardCapitalization.None, trailing: @Composable (() -> Unit)? = null) {
+        var focused by remember { mutableStateOf(false) }
+        BasicTextField(value, onChange, Modifier.fillMaxWidth().height(if (snug) 42.dp else 46.dp).clip(CircleShape).background(L1neColors.Surface)
+            .border(if (focused) 2.dp else 1.dp, if (focused) L1neColors.Brand else L1neColors.Border, CircleShape).onFocusChanged { focused = it.isFocused },
+            singleLine = true, textStyle = TextStyle(color = L1neColors.Text, fontSize = 16.sp), cursorBrush = SolidColor(L1neColors.Brand),
+            visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
+            keyboardOptions = KeyboardOptions(keyboardType = kb, imeAction = ime, capitalization = caps, autoCorrectEnabled = false),
             keyboardActions = KeyboardActions(onNext = { focus.moveFocus(FocusDirection.Down) }, onGo = { if (canLogin) login() }),
-            colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = L1neColors.Surface, unfocusedContainerColor = L1neColors.Surface,
-                focusedBorderColor = L1neColors.Brand, unfocusedBorderColor = L1neColors.Border, cursorColor = L1neColors.Brand))
+            decorationBox = { inner ->
+                Row(Modifier.padding(start = 18.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) { if (value.isEmpty()) Text(placeholder, color = L1neColors.Muted, fontSize = 16.sp); inner() }
+                    trailing?.invoke()
+                }
+            })
+    }
 
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().heightIn(min = maxHeight).systemBarsPadding(), verticalArrangement = Arrangement.SpaceBetween) {
-            Column(Modifier.widthIn(max = 520.dp).align(Alignment.CenterHorizontally).padding(horizontal = 24.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Image(painterResource(R.drawable.welcome_logo), null, Modifier.size(76.dp).clip(RoundedCornerShape(18.dp)))
-                Text("Welcome to L1ne", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = L1neColors.Text)
-                Text("Sign in with the details your PBX administrator gave you, or scan their QR code.", textAlign = TextAlign.Center, color = L1neColors.Muted, style = MaterialTheme.typography.bodyMedium)
+    Box(Modifier.fillMaxSize().focusRequester(root).focusable()) {
+        Waves(Modifier.align(Alignment.BottomCenter))           // attached to the bottom edge of the screen, whatever its size
+        Column(Modifier.fillMaxSize().systemBarsPadding().imePadding().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.widthIn(max = 520.dp).padding(start = 24.dp, end = 24.dp, top = if (compact) 4.dp else if (snug) 6.dp else 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else if (snug) 6.dp else 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Image(painterResource(R.drawable.welcome_logo), null, Modifier.size(if (compact) 44.dp else if (snug) 52.dp else 64.dp).clip(RoundedCornerShape(14.dp)))
+                Text("Welcome to L1ne", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = L1neColors.Text)
+                if (!compact) Text("Sign in to your PBX, or scan its QR code.", textAlign = TextAlign.Center, color = L1neColors.Muted, style = MaterialTheme.typography.bodyMedium)
 
-                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (snug) 13.dp else 16.dp)) {
                     Labeled("Server") { Input(server, { server = it }, "pbx.example.com", KeyboardType.Uri, ImeAction.Next) }
                     Labeled("Username or extension") { Input(username, { username = it }, "Username", KeyboardType.Text, ImeAction.Next) }
-                    Labeled("Password") { Input(password, { password = it }, "Password", KeyboardType.Password, ImeAction.Go, secret = !reveal,
-                        trailing = { IconButton({ reveal = !reveal }) { Icon(if (reveal) Icons.Filled.Visibility else Icons.Filled.VisibilityOff, if (reveal) "Hide password" else "Show password", tint = L1neColors.Muted) } }) }
+                    Labeled("Display name (optional)") { Input(displayName, { displayName = it }, "Shown to people you call", KeyboardType.Text, ImeAction.Next, caps = KeyboardCapitalization.Words) }
+                    Labeled("Password (Secret)") { Input(password, { password = it }, "Password", KeyboardType.Password, ImeAction.Go, secret = !reveal,
+                        trailing = { IconButton({ reveal = !reveal }, Modifier.size(36.dp)) { Icon(if (reveal) Icons.Filled.Visibility else Icons.Filled.VisibilityOff, if (reveal) "Hide password" else "Show password", tint = L1neColors.Muted) } }) }
                     Labeled("Transport") {
-                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().height(36.dp)) {
                             Transport.entries.forEachIndexed { i, t ->
-                                SegmentedButton(transport == t, { transport = t }, SegmentedButtonDefaults.itemShape(i, Transport.entries.size),
+                                SegmentedButton(transport == t, { transport = t }, SegmentedButtonDefaults.itemShape(i, Transport.entries.size), icon = {},
                                     colors = SegmentedButtonDefaults.colors(activeContainerColor = L1neColors.Brand.copy(alpha = 0.22f), activeContentColor = L1neColors.Text, inactiveContainerColor = L1neColors.Surface, inactiveContentColor = L1neColors.Text,
                                         activeBorderColor = L1neColors.Brand, inactiveBorderColor = L1neColors.Border)) { Text(t.wire.uppercase()) }
                             }
                         }
                     }
                 }
+                Spacer(Modifier.height(if (snug) 8.dp else 12.dp))
                 error?.let { Text(it, color = L1neColors.Danger, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall) }
-                Button(::login, Modifier.fillMaxWidth().height(50.dp), enabled = canLogin && pending == null, shape = CircleShape,
+                Button(::login, Modifier.fillMaxWidth().height(46.dp), enabled = canLogin && pending == null, shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(containerColor = L1neColors.Brand, contentColor = L1neColors.OnBrand, disabledContainerColor = L1neColors.Brand.copy(alpha = 0.4f), disabledContentColor = L1neColors.OnBrand)) {
                     if (pending != null) { CircularProgressIndicator(Modifier.size(18.dp), color = L1neColors.OnBrand, strokeWidth = 2.dp); Spacer(Modifier.width(10.dp)) }
                     Text(if (pending != null) "Signing in…" else "Login", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
@@ -119,9 +148,9 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
                     TextButton({ removePending(); error = null; setSigningIn(false) }) { Text("Cancel", color = L1neColors.Muted) }
                 } else {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        HorizontalDivider(Modifier.weight(1f), color = L1neColors.Border); Text("or", color = L1neColors.Muted); HorizontalDivider(Modifier.weight(1f), color = L1neColors.Border)
+                        HorizontalDivider(Modifier.weight(1f), color = L1neColors.Border); Text("or", color = L1neColors.Muted, fontSize = 14.sp); HorizontalDivider(Modifier.weight(1f), color = L1neColors.Border)
                     }
-                    OutlinedButton({ scanFirst = true; showLink = true }, Modifier.fillMaxWidth().height(50.dp), shape = CircleShape, border = BorderStroke(1.5.dp, L1neColors.Brand),
+                    OutlinedButton({ scanFirst = true; showLink = true }, Modifier.fillMaxWidth().height(44.dp), shape = CircleShape, border = BorderStroke(1.5.dp, L1neColors.Brand),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = L1neColors.Brand)) {
                         Icon(Icons.Filled.QrCodeScanner, null); Spacer(Modifier.width(8.dp)); Text("Scan QR code", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
                     }
@@ -137,7 +166,8 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
                         if (help) Column(Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             for (line in listOf(
                                 "Server is your PBX's address, like pbx.example.com. Add a port if it isn't the usual one: pbx.example.com:5080.",
-                                "Username is your extension number or SIP username, and Password is the SIP password, not your PBX web login.",
+                                "Username is your extension number or SIP username, and Password (Secret) is the SIP password, not your PBX web login.",
+                                "Display name is what people see when you call them. You can leave it empty.",
                                 "Your administrator may also have a QR code or a link that fills all of this in.",
                                 "L1ne has no sign-up of its own: it connects to a phone system someone runs. Your login stays on this phone."))
                                 Text(line, style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
@@ -145,7 +175,6 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
                     }
                 }
             }
-            Waves()
         }
     }
     if (showLink) LinkDialog(null, autoScan = scanFirst) { showLink = false }
@@ -163,11 +192,11 @@ private fun explainRegistration(status: String): String {
     }
 }
 
-/** Soft layered hills along the bottom edge, in the brand green. */
+/** Soft layered hills in the brand green, drawn to the very bottom of the screen (behind the navigation bar too). */
 @Composable
-private fun Waves() {
+private fun Waves(modifier: Modifier = Modifier) {
     val brand = L1neColors.Brand
-    Canvas(Modifier.fillMaxWidth().height(90.dp)) {
+    Canvas(modifier.fillMaxWidth().height(96.dp)) {
         fun hills(a: Float, b: Float, c: Float, alpha: Float) {
             val w = size.width; val h = size.height
             val p = Path().apply {

@@ -34,7 +34,7 @@ struct WelcomeView: View {
                     VStack(spacing: 12) {
                         header
                         Spacer(minLength: 4)
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 18) {
                             field("Server") {
                                 TextField("pbx.example.com", text: $server)
                                     .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
@@ -50,7 +50,7 @@ struct WelcomeView: View {
                                     .textInputAutocapitalization(.words)
                                     .focused($focus, equals: .name).submitLabel(.next).onSubmit { focus = .pass }
                             }
-                            field("Password") {
+                            field("Password (Secret)") {
                                 HStack {
                                     Group {
                                         if reveal { TextField("Password", text: $password) } else { SecureField("Password", text: $password) }
@@ -87,7 +87,6 @@ struct WelcomeView: View {
                         if pending != nil {
                             Button("Cancel") { cancelLogin() }.font(.subheadline).foregroundStyle(Theme.muted)
                         } else {
-                            Spacer(minLength: 4)
                             divider
                             outlined("Scan QR code", icon: "qrcode.viewfinder") { showQR = true }
                             HStack(spacing: 28) {
@@ -171,7 +170,7 @@ struct WelcomeView: View {
         DisclosureGroup(isExpanded: $showHelp) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("**Server** is your PBX's address, like pbx.example.com. Add a port if it isn't the usual one: pbx.example.com:5080.")
-                Text("**Username** is your extension number or SIP username, and **Password** is the SIP password, not your PBX web login.")
+                Text("**Username** is your extension number or SIP username, and **Password (Secret)** is the SIP password, not your PBX web login.")
                 Text("Your administrator may also have a QR code or a link that fills all of this in.")
                 Text("L1ne has no sign-up of its own: it connects to a phone system someone runs. Your login stays on this phone.")
             }
