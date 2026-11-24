@@ -18,10 +18,10 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if (store.accounts.isEmpty && !settings.welcomeSkipped) || signingIn {
+            if store.accounts.isEmpty || signingIn {
                 WelcomeView(signingIn: $signingIn)
                     .environmentObject(engine).environmentObject(store).environmentObject(contacts)
-                    .environmentObject(dirs).environmentObject(settings)
+                    .environmentObject(dirs)
             } else { mainTabs }
         }
         .environmentObject(engine)

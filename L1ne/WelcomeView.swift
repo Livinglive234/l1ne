@@ -6,13 +6,13 @@ import SwiftUI
 struct WelcomeView: View {
     @EnvironmentObject var engine: SIPEngine
     @EnvironmentObject var store: AccountStore
-    @EnvironmentObject var settings: AppSettings
     @Binding var signingIn: Bool
 
     @State private var server = ""
     @State private var username = ""
     @State private var password = ""
     @State private var reveal = false
+    @State private var transport = Account.Transport.tls
     @State private var pending: UUID?
     @State private var error: String?
     @State private var showQR = false
@@ -55,6 +55,13 @@ struct WelcomeView: View {
                                     }.buttonStyle(.plain).accessibilityLabel(reveal ? "Hide password" : "Show password")
                                 }
                             }
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Transport").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
+                                Picker("Transport", selection: $transport) {
+                                    ForEach(Account.Transport.allCases, id: \.self) { Text($0.rawValue.uppercased()).tag($0) }
+                                }
+                                .pickerStyle(.segmented)
+                            }
                         }
                         if let error {
                             Text(error).font(.footnote).foregroundStyle(Theme.danger).multilineTextAlignment(.center)
@@ -79,8 +86,6 @@ struct WelcomeView: View {
                                 textButton("More options", icon: "slider.horizontal.3") { showManual = true }
                             }
                             help
-                            Button("Skip for now") { settings.welcomeSkipped = true }
-                                .font(.subheadline).foregroundStyle(Theme.muted)
                         }
                     }
                     .padding(.horizontal, 24).padding(.top, 20)
@@ -203,6 +208,7 @@ struct WelcomeView: View {
         var a = Account()
         a.domain = server
         a.username = username.trimmingCharacters(in: .whitespaces)
+        a.changeTransport(to: transport)           // moves the port with it (5061 TLS, 5060 TCP/UDP) unless the server text names one
         a.finishNewAccount()                       // parses "host:port", keeps SRTP only on TLS, like the Settings form
         store.save(a, secret: password)
         pending = a.id
