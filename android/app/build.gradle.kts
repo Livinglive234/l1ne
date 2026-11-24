@@ -14,6 +14,8 @@ android {
         versionName = "1.0"
         ndk { abiFilters += listOf("arm64-v8a") }     // PJSIP is built for arm64 first, like iOS
     }
+    externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }
+    defaultConfig { externalNativeBuild { cmake { arguments += "-DANDROID_STL=c++_static" } } }
     buildFeatures { compose = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlin { jvmToolchain(21) }

@@ -11,6 +11,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        setContent { L1neTheme { L1neApp() } }
+        val app = application as L1neApplication
+        requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.POST_NOTIFICATIONS), 1)
+        app.engine.start(); app.engine.registerAll()
+        setContent { L1neTheme { L1neApp(app.store, app.engine) } }
     }
 }

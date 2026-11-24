@@ -32,7 +32,8 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 /** Same three tabs as iOS; accounts live behind the avatar at the top left (like iMessage). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun L1neApp() {
+fun L1neApp(store: com.livenet.l1ne.data.AccountStore, engine: com.livenet.l1ne.sip.SipEngine) {
+    val calls by engine.calls.collectAsState()
     var tab by remember { mutableStateOf(Tab.Recents) }
     var menu by remember { mutableStateOf(false) }
     var showAccounts by remember { mutableStateOf(false) }
@@ -67,7 +68,7 @@ fun L1neApp() {
             when (tab) {
                 Tab.Conversations -> Placeholder("No conversations", Icons.AutoMirrored.Filled.Chat,
                     "Texts need a server that supports SIP messages.")
-                Tab.Keypad -> KeypadScreen()
+                Tab.Keypad -> KeypadScreen { engine.call(it) }
                 Tab.Recents -> Placeholder("No recent calls", Icons.Filled.History)
                 Tab.Contacts -> Placeholder("No contacts", Icons.Filled.People,
                     "Contacts live only in L1ne. It never reads your phone's contacts and never fetches a list by itself.")
@@ -75,7 +76,8 @@ fun L1neApp() {
         }
     }
 
-    if (showAccounts) AccountsSheet(onDismiss = { showAccounts = false })
+    if (showAccounts) AccountsSheet(store, engine, onDismiss = { showAccounts = false })
+    calls.firstOrNull()?.let { CallScreen(it, engine) }
     if (showSettings) SettingsSheet(onDismiss = { showSettings = false })
 }
 
@@ -111,25 +113,6 @@ private fun AccountMenu(expanded: Boolean, onDismiss: () -> Unit, onAccounts: ()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AccountsSheet(onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = L1neColors.SheetBg) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
-            Text("Accounts", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(start = 8.dp, bottom = 12.dp))
-            Row(
-                Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(L1neColors.Surface)
-                    .clickable { /* add account: wired up with the account editor */ }.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Icon(Icons.Filled.AddCircle, null, tint = L1neColors.Brand)
-                Text("Add account", color = L1neColors.Brand)
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
 private fun SettingsSheet(onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = L1neColors.SheetBg) {
@@ -145,7 +128,7 @@ private fun SettingsSheet(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun KeypadScreen() {
+private fun KeypadScreen(onCall: (String) -> Unit) {
     var number by remember { mutableStateOf("") }
     val keys = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("*", "0", "#"))
     Column(Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -163,7 +146,7 @@ private fun KeypadScreen() {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.size(76.dp))
-            RoundButton(L1neColors.Brand, { /* dial: wired to the SIP layer later */ }, enabled = number.isNotEmpty()) {
+            RoundButton(L1neColors.Brand, { onCall(number); number = "" }, enabled = number.isNotEmpty()) {
                 Icon(Icons.Filled.Call, "Call", tint = L1neColors.OnBrand)
             }
             Box(Modifier.size(76.dp), contentAlignment = Alignment.Center) {

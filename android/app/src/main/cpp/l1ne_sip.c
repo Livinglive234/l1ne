@@ -1,0 +1,149 @@
+/* Thin JNI bridge over pjsua for L1ne (Android). Events go up through one Kotlin callback:
+   Native.onEvent(type, a, b, s1, s2). Calls go down as plain functions. Mirrors L1ne/SIPEngine.swift. */
+#include <jni.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <pjsua-lib/pjsua.h>
+
+#define THIS_FILE "l1ne_sip"
+static JavaVM *g_vm;
+static jclass g_cls;
+static jmethodID g_event;
+static pj_pool_t *g_pool;
+static pjsua_transport_id g_tls = -1;
+
+static JNIEnv *env_attach(int *attached) {
+    JNIEnv *e = NULL; *attached = 0;
+    if ((*g_vm)->GetEnv(g_vm, (void **)&e, JNI_VERSION_1_6) == JNI_OK) return e;
+    if ((*g_vm)->AttachCurrentThread(g_vm, &e, NULL) == JNI_OK) { *attached = 1; return e; }
+    return NULL;
+}
+static void emit(const char *type, int a, int b, const char *s1, const char *s2) {
+    int at; JNIEnv *e = env_attach(&at); if (!e) return;
+    jstring jt = (*e)->NewStringUTF(e, type), j1 = (*e)->NewStringUTF(e, s1 ? s1 : ""), j2 = (*e)->NewStringUTF(e, s2 ? s2 : "");
+    (*e)->CallStaticVoidMethod(e, g_cls, g_event, jt, a, b, j1, j2);
+    (*e)->DeleteLocalRef(e, jt); (*e)->DeleteLocalRef(e, j1); (*e)->DeleteLocalRef(e, j2);
+    if (at) (*g_vm)->DetachCurrentThread(g_vm);
+}
+static void cstr(pj_str_t s, char *out, size_t n) { size_t l = s.slen < (pj_ssize_t)n - 1 ? (size_t)s.slen : n - 1; memcpy(out, s.ptr, l); out[l] = 0; }
+static pj_str_t pjdup(const char *c) { pj_str_t o; pj_strdup2_with_null(g_pool, &o, c); return o; }
+static void reg_thread(void) { if (!pj_thread_is_registered()) { static pj_thread_desc d[8]; static int i; pj_thread_t *t; pj_thread_register("jni", d[i++ % 8], &t); } }
+
+static void send_call(pjsua_call_id id, const char *type) {
+    pjsua_call_info ci; if (pjsua_call_get_info(id, &ci) != 0) return;
+    char remote[256], lbl[128], s2[512];
+    cstr(ci.remote_info, remote, sizeof remote); cstr(ci.last_status_text, lbl, sizeof lbl);
+    /* s2: role|lastStatus|reason|connectedSeconds|media|mediaActive */
+    snprintf(s2, sizeof s2, "%d|%d|%s|%ld|%d", (int)ci.role, (int)ci.last_status, lbl, (long)ci.connect_duration.sec, (int)ci.media_status);
+    emit(type, id, (int)ci.state, remote, s2);
+}
+static void on_incoming(pjsua_acc_id acc, pjsua_call_id call, pjsip_rx_data *rd) { (void)rd; (void)acc; send_call(call, "incoming"); }
+static void on_call_state(pjsua_call_id call, pjsip_event *e) { (void)e; send_call(call, "call"); }
+static void on_media_state(pjsua_call_id call) {
+    pjsua_call_info ci; if (pjsua_call_get_info(call, &ci) != 0) return;
+    if (ci.media_status == PJSUA_CALL_MEDIA_ACTIVE) { pjsua_conf_connect(ci.conf_slot, 0); pjsua_conf_connect(0, ci.conf_slot); }
+    send_call(call, "call");
+}
+static void on_reg_state(pjsua_acc_id acc) {
+    pjsua_acc_info i; if (pjsua_acc_get_info(acc, &i) != 0) return;
+    char t[128]; cstr(i.status_text, t, sizeof t); emit("reg", acc, (int)i.status, t, "");
+}
+static void on_mwi(pjsua_acc_id acc, pjsua_mwi_info *info) {
+    /* count after "Voice-Message:" in the body, e.g. "Voice-Message: 3/1 (0/0)" */
+    if (!info || !info->rdata || !info->rdata->msg_info.msg || !info->rdata->msg_info.msg->body) return;
+    pjsip_msg_body *b = info->rdata->msg_info.msg->body; char buf[512]; size_t n = b->len < sizeof buf - 1 ? b->len : sizeof buf - 1;
+    memcpy(buf, b->data, n); buf[n] = 0;
+    char *p = strcasestr(buf, "voice-message:"); int cnt = 0;
+    if (p) cnt = atoi(p + 14); else if (strcasestr(buf, "messages-waiting: yes")) cnt = 1;
+    emit("mwi", acc, cnt, "", "");
+}
+static void on_pager(pjsua_call_id c, const pj_str_t *from, const pj_str_t *to, const pj_str_t *contact, const pj_str_t *mime, const pj_str_t *body, pjsip_rx_data *rd, pjsua_acc_id acc) {
+    (void)c; (void)to; (void)contact; (void)rd;
+    char m[64], f[256]; static char text[8192];
+    cstr(*mime, m, sizeof m); if (strncasecmp(m, "text/plain", 10)) return;
+    cstr(*from, f, sizeof f); cstr(*body, text, sizeof text); emit("message", acc, 0, f, text);
+}
+static void on_pager_status(pjsua_call_id c, const pj_str_t *to, const pj_str_t *body, void *user, pjsip_status_code st, const pj_str_t *reason, pjsip_tx_data *tx, pjsip_rx_data *rd, pjsua_acc_id acc) {
+    (void)c; (void)to; (void)body; (void)tx; (void)rd; (void)acc;
+    char r[128]; cstr(*reason, r, sizeof r); emit("sent", (int)(intptr_t)user, (int)st, r, "");
+}
+
+JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nInit(JNIEnv *env, jclass cls, jstring caFile, jboolean ipv6) {
+    (*env)->GetJavaVM(env, &g_vm);
+    g_cls = (*env)->NewGlobalRef(env, cls);
+    g_event = (*env)->GetStaticMethodID(env, cls, "onEvent", "(Ljava/lang/String;IILjava/lang/String;Ljava/lang/String;)V");
+    pj_status_t st = pjsua_create(); if (st != PJ_SUCCESS) return st;
+    pjsua_config cfg; pjsua_config_default(&cfg); cfg.max_calls = 4;
+    cfg.cb.on_incoming_call = on_incoming; cfg.cb.on_call_state = on_call_state; cfg.cb.on_call_media_state = on_media_state;
+    cfg.cb.on_reg_state = on_reg_state; cfg.cb.on_mwi_info = on_mwi; cfg.cb.on_pager2 = on_pager; cfg.cb.on_pager_status2 = on_pager_status;
+    pjsua_logging_config lc; pjsua_logging_config_default(&lc); lc.console_level = 3;
+    pjsua_media_config mc; pjsua_media_config_default(&mc); mc.snd_auto_close_time = 5;
+    if ((st = pjsua_init(&cfg, &lc, &mc)) != PJ_SUCCESS) return st;
+    pjsua_transport_config t; pjsua_transport_config_default(&t);
+    t.tls_setting.verify_server = PJ_TRUE;
+    static char ca[512];
+    if (caFile) { const char *c = (*env)->GetStringUTFChars(env, caFile, NULL); strncpy(ca, c, sizeof ca - 1); (*env)->ReleaseStringUTFChars(env, caFile, c); t.tls_setting.ca_list_file = pj_str(ca); }
+    if ((st = pjsua_transport_create(PJSIP_TRANSPORT_TLS, &t, &g_tls)) != PJ_SUCCESS) return st;
+    pjsua_transport_config o; pjsua_transport_config_default(&o); pjsua_transport_id id;
+    pjsua_transport_create(PJSIP_TRANSPORT_UDP, &o, &id); pjsua_transport_create(PJSIP_TRANSPORT_TCP, &o, &id);
+    if (ipv6) { pjsua_transport_create(PJSIP_TRANSPORT_TLS6, &t, &id); pjsua_transport_create(PJSIP_TRANSPORT_UDP6, &o, &id); pjsua_transport_create(PJSIP_TRANSPORT_TCP6, &o, &id); }
+    g_pool = pjsua_pool_create("l1ne-cfg", 2048, 2048);
+    if ((st = pjsua_start()) != PJ_SUCCESS) return st;
+    pjsua_set_no_snd_dev();
+    return 0;
+}
+
+/* srtp: 0 none, 1 SDES, 2 DTLS; mandatory 0/1 */
+JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nAddAccount(JNIEnv *env, jclass c, jstring jid, jstring jreg, jstring jroute, jstring juser, jstring jpass,
+        jint srtp, jboolean mandatory, jboolean secureSig, jint expires, jboolean mwi, jboolean ipv6) {
+    (void)c; reg_thread();
+    const char *id = (*env)->GetStringUTFChars(env, jid, NULL), *reg = (*env)->GetStringUTFChars(env, jreg, NULL), *route = (*env)->GetStringUTFChars(env, jroute, NULL),
+               *user = (*env)->GetStringUTFChars(env, juser, NULL), *pass = (*env)->GetStringUTFChars(env, jpass, NULL);
+    pjsua_acc_config ac; pjsua_acc_config_default(&ac);
+    ac.id = pjdup(id); ac.reg_uri = pjdup(reg);
+    ac.proxy_cnt = 1; ac.proxy[0] = pjdup(route);
+    ac.reg_timeout = expires < 60 ? 60 : expires; ac.reg_retry_interval = 30; ac.mwi_enabled = mwi; ac.rtp_cfg.port = 0;
+    ac.cred_count = 1; ac.cred_info[0].realm = pj_str("*"); ac.cred_info[0].scheme = pj_str("digest");
+    ac.cred_info[0].username = pjdup(user); ac.cred_info[0].data_type = PJSIP_CRED_DATA_PLAIN_PASSWD; ac.cred_info[0].data = pjdup(pass);
+    if (srtp == 0) ac.use_srtp = PJMEDIA_SRTP_DISABLED;
+    else { ac.use_srtp = mandatory ? PJMEDIA_SRTP_MANDATORY : PJMEDIA_SRTP_OPTIONAL; ac.srtp_secure_signaling = srtp == 1 ? (secureSig ? 1 : 0) : 0;
+           ac.srtp_opt.keying_count = 1; ac.srtp_opt.keying[0] = srtp == 1 ? PJMEDIA_SRTP_KEYING_SDES : PJMEDIA_SRTP_KEYING_DTLS_SRTP; }
+    ac.ipv6_sip_use = ac.ipv6_media_use = ipv6 ? PJSUA_IPV6_ENABLED_PREFER_IPV4 : PJSUA_IPV6_DISABLED;
+    pjsua_acc_id out = -1; pj_status_t st = pjsua_acc_add(&ac, PJ_TRUE, &out);
+    (*env)->ReleaseStringUTFChars(env, jid, id); (*env)->ReleaseStringUTFChars(env, jreg, reg); (*env)->ReleaseStringUTFChars(env, jroute, route);
+    (*env)->ReleaseStringUTFChars(env, juser, user); (*env)->ReleaseStringUTFChars(env, jpass, pass);
+    return st == PJ_SUCCESS ? out : -st;
+}
+JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nDelAccount(JNIEnv *e, jclass c, jint acc) { (void)e; (void)c; reg_thread(); pjsua_acc_del(acc); }
+
+JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nCall(JNIEnv *env, jclass c, jint acc, jstring juri) {
+    (void)c; reg_thread(); const char *u = (*env)->GetStringUTFChars(env, juri, NULL); pj_str_t uri = pj_str((char *)u);
+    pjsua_call_setting cs; pjsua_call_setting_default(&cs); pjsua_call_id id = -1;
+    pj_status_t st = pjsua_call_make_call(acc, &uri, &cs, NULL, NULL, &id);
+    (*env)->ReleaseStringUTFChars(env, juri, u); return st == PJ_SUCCESS ? id : -1;
+}
+JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nAnswer(JNIEnv *e, jclass c, jint call, jint code) { (void)e; (void)c; reg_thread(); pjsua_call_answer(call, code, NULL, NULL); }
+JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nHangup(JNIEnv *e, jclass c, jint call) { (void)e; (void)c; reg_thread(); pjsua_call_hangup(call, 0, NULL, NULL); }
+JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nHangupAll(JNIEnv *e, jclass c) { (void)e; (void)c; reg_thread(); pjsua_call_hangup_all(); }
+JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nDtmf(JNIEnv *env, jclass c, jint call, jstring d) {
+    (void)c; reg_thread(); const char *s = (*env)->GetStringUTFChars(env, d, NULL); pj_str_t p = pj_str((char *)s); pjsua_call_dial_dtmf(call, &p); (*env)->ReleaseStringUTFChars(env, d, s);
+}
+JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nMute(JNIEnv *e, jclass c, jint call, jboolean on) {
+    (void)e; (void)c; reg_thread(); pjsua_call_info ci; if (pjsua_call_get_info(call, &ci) != 0 || ci.conf_slot < 0) return;
+    if (on) pjsua_conf_disconnect(0, ci.conf_slot); else pjsua_conf_connect(0, ci.conf_slot);
+}
+JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nHold(JNIEnv *e, jclass c, jint call, jboolean on) {
+    (void)e; (void)c; reg_thread(); if (on) pjsua_call_set_hold(call, NULL); else pjsua_call_reinvite(call, PJSUA_CALL_UNHOLD, NULL);
+}
+JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nIpChange(JNIEnv *e, jclass c) { (void)e; (void)c; reg_thread(); pjsua_ip_change_param p; pjsua_ip_change_param_default(&p); pjsua_handle_ip_change(&p); }
+JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nSound(JNIEnv *e, jclass c, jboolean on) {
+    (void)e; (void)c; reg_thread(); if (on) pjsua_set_snd_dev(PJMEDIA_AUD_DEFAULT_CAPTURE_DEV, PJMEDIA_AUD_DEFAULT_PLAYBACK_DEV); else pjsua_set_no_snd_dev();
+}
+JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nSendText(JNIEnv *env, jclass c, jint acc, jstring jto, jstring jtext, jint tag) {
+    (void)c; reg_thread(); const char *t = (*env)->GetStringUTFChars(env, jto, NULL), *x = (*env)->GetStringUTFChars(env, jtext, NULL);
+    pj_str_t to = pj_str((char *)t), mime = pj_str("text/plain"), body = pj_str((char *)x);
+    pj_status_t st = pjsua_im_send(acc, &to, &mime, &body, NULL, (void *)(intptr_t)tag);
+    (*env)->ReleaseStringUTFChars(env, jto, t); (*env)->ReleaseStringUTFChars(env, jtext, x); return st;
+}
+JNIEXPORT jstring JNICALL Java_com_livenet_l1ne_sip_Native_nVersion(JNIEnv *env, jclass c) { (void)c; return (*env)->NewStringUTF(env, pj_get_version()); }
