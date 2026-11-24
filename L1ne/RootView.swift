@@ -67,7 +67,11 @@ struct RootView: View {
         .environmentObject(dirs)
         .environmentObject(callLog)
         .environmentObject(router)
-        .onOpenURL { setupLink = SetupLink(text: $0.absoluteString) }
+        .onOpenURL { url in
+            if let s = url.scheme?.lowercased(), s == "sip" || s == "sips" {
+                router.pendingDial = AppRouter.dialTarget(fromSIP: url); router.tab = .keypad; router.callMinimized = true
+            } else { setupLink = SetupLink(text: url.absoluteString) }
+        }
         .sheet(item: $setupLink) {
             ProvisionSheet(initialLink: $0.text).environmentObject(engine).environmentObject(store).environmentObject(contacts).environmentObject(dirs)
         }

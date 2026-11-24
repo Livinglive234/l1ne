@@ -36,6 +36,8 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: $(APP_ID).config
             CFBundleURLSchemes: [l1ne-config, linphone-config]   # setup links, same shape as Linphone's
+          - CFBundleURLName: $(APP_ID).sip
+            CFBundleURLSchemes: [sip, sips]                      # sip: links open the keypad with the address filled in
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(APP_ID)

@@ -40,6 +40,8 @@ fun L1neApp() {
     fun open(d: Dest) { stack.add(d) }
     fun back() { if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex) }
     var minimized by remember { mutableStateOf(false) }
+    val pendingDial by app.pendingDial.collectAsState()
+    LaunchedEffect(pendingDial) { if (pendingDial != null) { tab = Tab.Keypad; stack.clear(); if (app.engine.currentCall != null) minimized = true } }
     val live = app.engine.currentCall
     LaunchedEffect(live?.id) { minimized = false }
     val unread = convs.sumOf { it.unread }; val newVoicemail = voicemail.values.sum()

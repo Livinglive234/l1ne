@@ -43,6 +43,7 @@ struct KeypadView: View {
     @EnvironmentObject var settings: AppSettings
     @EnvironmentObject var store: AccountStore
     @EnvironmentObject var contacts: ContactsStore
+    @EnvironmentObject var router: AppRouter
     @State private var number = ""
     @State private var plusTyped = false
 
@@ -103,6 +104,7 @@ struct KeypadView: View {
             }
             .frame(maxWidth: .infinity)
             .mainBackground()
+            .task(id: router.pendingDial) { if let d = router.pendingDial { number = d; router.pendingDial = nil } }
             .toolbar {
                 ProfileToolbar()
                 ToolbarItem(placement: .principal) { lineMenu }      // the line picker sits in the top bar

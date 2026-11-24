@@ -42,6 +42,14 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- sip: links open the keypad with the address filled in (tel: is left to the phone's own dialler) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sip" />
+                <data android:scheme="sips" />
+            </intent-filter>
             <!-- setup links, same shape as Linphone's -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

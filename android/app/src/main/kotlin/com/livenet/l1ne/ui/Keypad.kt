@@ -43,6 +43,8 @@ fun KeypadScreen(open: (Dest) -> Unit) {
     val contacts by app.contacts.contacts.collectAsState()
     val vmKeypad by app.settings.vmKeypadF.collectAsState()
     var number by remember { mutableStateOf("") }
+    val pending by app.pendingDial.collectAsState()
+    LaunchedEffect(pending) { pending?.let { number = it; app.pendingDial.value = null } }
     var lineMenu by remember { mutableStateOf(false) }
     val account = app.store.selected
     val suggestions = contacts.filter { T9.matches(number, it.name, it.address) }.take(2)

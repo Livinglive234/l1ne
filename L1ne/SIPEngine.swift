@@ -363,7 +363,7 @@ final class SIPEngine: ObservableObject {
         let digits = number.trimmingCharacters(in: .whitespaces)
         guard !digits.isEmpty else { return false }
         configureAudioSession()
-        let uri = digits.lowercased().hasPrefix("sip:") || digits.lowercased().hasPrefix("sips:") ? digits : "sip:\(a.dial(digits))@\(a.domain)"
+        let uri = digits.lowercased().hasPrefix("sip:") || digits.lowercased().hasPrefix("sips:") ? digits : (digits.contains("@") ? "sip:\(digits)" : "sip:\(a.dial(digits))@\(a.domain)")
         var callID: pjsua_call_id = -1
         let cs = CStrings()
         var u = cs.make(uri)

@@ -31,6 +31,15 @@
 				<string>linphone-config</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(APP_ID).sip</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>sip</string>
+				<string>sips</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>

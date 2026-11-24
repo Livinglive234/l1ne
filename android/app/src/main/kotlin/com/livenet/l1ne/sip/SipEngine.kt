@@ -164,9 +164,9 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
         start()
         val a = from ?: store.accounts.value.firstOrNull { _registration.value[it.id] == "Registered" } ?: store.accounts.value.firstOrNull() ?: return false
         val pj = pjAcc[a.id] ?: return false
-        val id = Native.nCall(pj, "sip:${a.dial(number)}@${a.domain}")
+        val id = Native.nCall(pj, if (number.contains("@")) "sip:$number" else "sip:${a.dial(number)}@${a.domain}")
         if (id < 0) return false
-        _calls.value = _calls.value + CallInfo(id, "sip:$number@${a.domain}", false, 1, 0, "Calling", 0, a.id)
+        _calls.value = _calls.value + CallInfo(id, if (number.contains("@")) "sip:$number" else "sip:$number@${a.domain}", false, 1, 0, "Calling", 0, a.id)
         outgoingTargets[id] = Redial(number, null, a.id, attempt)
         telecomKnown.add(id); telecom?.reportOutgoing(id, number, "$number@${a.domain}"); KeepAliveService.refresh(app)
         updateAudio(); return true
