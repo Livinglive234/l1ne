@@ -137,7 +137,9 @@ struct KeypadView: View {
         if !suggestions.isEmpty {
             VStack(spacing: 0) {
                 ForEach(suggestions) { c in
-                    Button { number = dialString(for: c) } label: {
+                    Button {
+                        if let a = c.accountID.flatMap({ store.account($0) }) ?? account, engine.call(dialString(for: c), from: a.id) { number = "" }
+                    } label: {
                         HStack(spacing: 12) {
                             Text(String(c.name.split(separator: " ").prefix(2).compactMap { $0.first }).uppercased())
                                 .font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.brand)
@@ -147,7 +149,7 @@ struct KeypadView: View {
                                 Text(c.address).font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
                             }
                             Spacer()
-                            Text("use").font(.caption.weight(.semibold)).foregroundStyle(Theme.brand)
+                            Image(systemName: "phone.fill").font(.body).foregroundStyle(Theme.brand)
                         }
                         .padding(.horizontal, 14).padding(.vertical, 8).contentShape(Rectangle())
                     }.buttonStyle(.plain)
