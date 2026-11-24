@@ -137,22 +137,27 @@ struct KeypadView: View {
         if !suggestions.isEmpty {
             VStack(spacing: 0) {
                 ForEach(suggestions) { c in
-                    Button {
-                        if let a = c.accountID.flatMap({ store.account($0) }) ?? account, engine.call(dialString(for: c), from: a.id) { number = "" }
-                    } label: {
-                        HStack(spacing: 12) {
-                            Text(String(c.name.split(separator: " ").prefix(2).compactMap { $0.first }).uppercased())
-                                .font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.brand)
-                                .frame(width: 36, height: 36).background(Theme.brand.opacity(0.14), in: Circle())
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(c.name).font(.body.weight(.medium)).foregroundStyle(Theme.text).lineLimit(1)
-                                Text(c.address).font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
+                    HStack(spacing: 0) {
+                        Button { number = dialString(for: c) } label: {        // the name fills in the number
+                            HStack(spacing: 12) {
+                                Text(String(c.name.split(separator: " ").prefix(2).compactMap { $0.first }).uppercased())
+                                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(Theme.brand)
+                                    .frame(width: 36, height: 36).background(Theme.brand.opacity(0.14), in: Circle())
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(c.name).font(.body.weight(.medium)).foregroundStyle(Theme.text).lineLimit(1)
+                                    Text(c.address).font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
+                                }
+                                Spacer(minLength: 0)
                             }
-                            Spacer()
+                            .padding(.leading, 14).padding(.vertical, 8).contentShape(Rectangle())
+                        }.buttonStyle(.plain)
+                        Button {                                                  // the phone glyph calls right away
+                            if let a = c.accountID.flatMap({ store.account($0) }) ?? account, engine.call(dialString(for: c), from: a.id) { number = "" }
+                        } label: {
                             Image(systemName: "phone.fill").font(.body).foregroundStyle(Theme.brand)
-                        }
-                        .padding(.horizontal, 14).padding(.vertical, 8).contentShape(Rectangle())
-                    }.buttonStyle(.plain)
+                                .frame(width: 52, height: 44).contentShape(Rectangle())
+                        }.buttonStyle(.plain)
+                    }
                     if c.id != suggestions.last?.id { Divider().overlay(Theme.border).padding(.leading, 62) }
                 }
             }

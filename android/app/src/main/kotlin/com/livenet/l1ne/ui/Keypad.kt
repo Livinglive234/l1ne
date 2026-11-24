@@ -65,10 +65,13 @@ fun KeypadScreen(open: (Dest) -> Unit) {
         Box(Modifier.height(112.dp).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {      // always reserved, so the keys never move
             Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(if (suggestions.isEmpty()) androidx.compose.ui.graphics.Color.Transparent else L1neColors.Surface)) {
                 suggestions.forEachIndexed { i, c ->
-                    Row(Modifier.fillMaxWidth().clickable { dial(c.user, accounts.firstOrNull { it.id == c.accountID } ?: account) }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Avatar(36.dp, initialsOf(c.name)); Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) { Text(c.name); Text(c.user, style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted) }
-                        Icon(Icons.Filled.Call, null, tint = L1neColors.Brand)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.weight(1f).clickable { number = if (accounts.any { a -> c.address.endsWith("@" + a.domain, true) }) c.user else c.address }     // the name fills in the number
+                            .padding(start = 16.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Avatar(36.dp, initialsOf(c.name)); Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) { Text(c.name); Text(c.user, style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted) }
+                        }
+                        IconButton({ dial(c.user, accounts.firstOrNull { it.id == c.accountID } ?: account) }) { Icon(Icons.Filled.Call, "Call", tint = L1neColors.Brand) }     // the phone glyph calls right away
                     }
                     if (i == 0 && suggestions.size > 1) RowDivider()
                 }
