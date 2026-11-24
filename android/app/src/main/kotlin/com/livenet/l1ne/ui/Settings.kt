@@ -34,6 +34,9 @@ fun SettingsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
     val appearance by s.appearanceF.collectAsState(); val autoRec by s.autoRecordF.collectAsState(); val wifi by s.wifiOnlyF.collectAsState(); val v6 by s.allowIPv6F.collectAsState()
     val vmTab by s.vmTabF.collectAsState(); val vmKey by s.vmKeypadF.collectAsState(); val vmNotify by s.vmNotifyF.collectAsState(); val prov by s.provisioningF.collectAsState()
     val contacts by app.contacts.contacts.collectAsState()
+    val keepAlive by s.keepAliveF.collectAsState()
+    val ctxPm = LocalContext.current
+    val batteryOk = ctxPm.getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(ctxPm.packageName)
     var confirmRemove by remember { mutableStateOf(false) }; var applying by remember { mutableStateOf(false) }; var showRecordings by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
     val recordings = remember(showRecordings) { File(ctx.filesDir, "recordings").listFiles { f -> f.extension == "wav" }?.size ?: 0 }
@@ -53,6 +56,14 @@ fun SettingsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
                 NavRow("Advanced calls settings") { open(Dest.AdvancedCalls) }; RowDivider()
                 NavRow("Recordings", if (recordings == 0) "None" else "$recordings") { showRecordings = true }
             }
+
+            SectionHeader("Incoming calls")
+            Card {
+                SwitchRow("Stay connected in the background", keepAlive, subtitle = "Shows a small notification so calls can ring when L1ne is closed") { s.keepAlive = it; if (it) com.livenet.l1ne.sip.KeepAliveService.start(ctx) else com.livenet.l1ne.sip.KeepAliveService.stop(ctx) }; RowDivider()
+                NavRow("Allow background activity", if (batteryOk) "On" else "Off", icon = Icons.Filled.BatteryChargingFull) {
+                    ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, android.net.Uri.parse("package:${ctx.packageName}"))) }
+            }
+            FooterText("Android pauses background apps to save battery. Turn on background activity so a call can wake L1ne when the phone has been idle.")
 
             SectionHeader("Network")
             Card { SwitchRow("Use only Wi-Fi networks", wifi) { s.wifiOnly = it; app.engine.registerAll() }; RowDivider(); SwitchRow("Allow IPv6", v6) { s.allowIPv6 = it } }

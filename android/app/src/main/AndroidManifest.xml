@@ -8,6 +8,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <!-- Deliberately absent: READ_CONTACTS. L1ne keeps its own address book. -->
 
@@ -25,7 +30,14 @@
         <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.files" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
-        <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
+        <service android:name=".sip.KeepAliveService" android:exported="false" android:foregroundServiceType="specialUse|phoneCall">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="SIP registration so calls can ring while the app is closed" />
+        </service>
+        <service android:name=".sip.L1neConnectionService" android:exported="true" android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE">
+            <intent-filter><action android:name="android.telecom.ConnectionService" /></intent-filter>
+        </service>
+        <receiver android:name=".sip.CallActionReceiver" android:exported="false" />
+        <activity android:name=".MainActivity" android:showWhenLocked="true" android:turnScreenOn="true" android:launchMode="singleTask" android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

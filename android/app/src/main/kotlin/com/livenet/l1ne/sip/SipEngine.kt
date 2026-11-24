@@ -44,6 +44,11 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
     var onNewVoicemail: ((String, Int) -> Unit)? = null
     fun callVoicemail(accountID: String) { val a = store.accounts.value.firstOrNull { it.id == accountID } ?: return; a.voicemailTarget?.let { callUri(it, a) } }
     var onCallEnded: ((CallInfo) -> Unit)? = null
+    var telecom: CallTelecom? = null
+    private val telecomKnown = HashSet<Int>()
+    fun displayName(id: Int): String { val c = _calls.value.firstOrNull { it.id == id } ?: return "Call"; return contactName(c) }
+    var contactResolver: ((String, String) -> String?)? = null
+    private fun contactName(c: CallInfo) = contactResolver?.invoke(c.number, c.peerAddress.substringAfter('@', "")) ?: c.number
     var callLog: com.livenet.l1ne.data.CallLogStore? = null
     var messages: com.livenet.l1ne.data.MessageStore? = null
     private val userEnded = HashSet<Int>()
@@ -71,6 +76,11 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
                 val ci = CallInfo(a, s1, f.getOrNull(0) == "1", b, f.getOrNull(1)?.toIntOrNull() ?: 0, f.getOrNull(2) ?: "", f.getOrNull(3)?.toLongOrNull() ?: 0,
                     f.getOrNull(5)?.toIntOrNull()?.let { accOfPJ[it] })
                 val old = _calls.value.firstOrNull { it.id == a }
+                if (telecom != null) {
+                    if (a !in telecomKnown && !ci.ended && ci.incoming) { telecomKnown.add(a); telecom!!.reportIncoming(a, contactName(ci), ci.peerAddress) }
+                    if (ci.active && old?.active != true) telecom!!.active(a)
+                    if (ci.ended && a in telecomKnown) { telecomKnown.remove(a); telecom!!.ended(a, a !in userEnded) }
+                }
                 if (ci.active && a !in connectedAt) connectedAt[a] = System.currentTimeMillis() - ci.connectedSecs * 1000
                 if (ci.ended) connectedAt.remove(a)
                 if (type == "incoming") Native.nAnswer(a, if (settings.allowOutgoingEarlyMedia) 183 else 180)
@@ -133,6 +143,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
         val id = Native.nCall(pj, "sip:${a.dial(number)}@${a.domain}")
         if (id < 0) return false
         _calls.value = _calls.value + CallInfo(id, "sip:$number@${a.domain}", false, 1, 0, "Calling", 0, a.id)
+        telecomKnown.add(id); telecom?.reportOutgoing(id, number, "$number@${a.domain}"); KeepAliveService.refresh(app)
         updateAudio(); return true
     }
 
@@ -140,14 +151,16 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
     fun callUri(uri: String, from: Account): Boolean {
         start(); val pj = pjAcc[from.id] ?: return false
         val id = Native.nCall(pj, uri); if (id < 0) return false
-        _calls.value = _calls.value + CallInfo(id, uri, false, 1, 0, "Calling", 0, from.id); updateAudio(); return true
+        _calls.value = _calls.value + CallInfo(id, uri, false, 1, 0, "Calling", 0, from.id)
+        telecomKnown.add(id); telecom?.reportOutgoing(id, uri.removePrefix("sip:").substringBefore('@'), uri.removePrefix("sip:")); KeepAliveService.refresh(app)
+        updateAudio(); return true
     }
     fun answer(id: Int) = Native.nAnswer(id, 200)
     fun hangup(id: Int) { userEnded.add(id); Native.nHangup(id) }
     fun hangupAll() { _calls.value.forEach { userEnded.add(it.id) }; Native.nHangupAll() }
     fun dtmf(id: Int, d: String) = Native.nDtmf(id, d)
     fun toggleMute(id: Int) { val on = id !in muted.value; Native.nMute(id, on); muted.value = if (on) muted.value + id else muted.value - id }
-    fun toggleHold(id: Int) { val on = id !in held.value; Native.nHold(id, on); held.value = if (on) held.value + id else held.value - id }
+    fun toggleHold(id: Int) { val on = id !in held.value; Native.nHold(id, on); held.value = if (on) held.value + id else held.value - id; telecom?.held(id, on) }
 
     enum class MessagingCheck { UNKNOWN, CHECKING, WORKING, NOT_DELIVERED }
     val messagingCheck = MutableStateFlow<Map<String, MessagingCheck>>(emptyMap())
@@ -233,10 +246,13 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
         val need = _calls.value.isNotEmpty()
         if (need == audioOn) return
         audioOn = need
-        if (need) { audio.mode = AudioManager.MODE_IN_COMMUNICATION; Native.nSound(true) } else { Native.nSound(false); audio.mode = AudioManager.MODE_NORMAL; audio.isSpeakerphoneOn = false }
+        if (need) { if (telecom?.connections?.isEmpty() != false) audio.mode = AudioManager.MODE_IN_COMMUNICATION; Native.nSound(true) } else { Native.nSound(false); if (telecom?.connections?.isEmpty() != false) { audio.mode = AudioManager.MODE_NORMAL; audio.isSpeakerphoneOn = false }; KeepAliveService.refresh(app) }
     }
-    fun setSpeaker(on: Boolean) { audio.isSpeakerphoneOn = on }
-    val speaker get() = audio.isSpeakerphoneOn
+    /** Audio output: through Telecom when it owns the call (so Bluetooth and headsets work), else the plain speaker switch. */
+    fun setRoute(route: Int) { if (telecom?.connections?.isNotEmpty() == true) telecom!!.setRoute(route) else audio.isSpeakerphoneOn = route == android.telecom.CallAudioState.ROUTE_SPEAKER }
+    fun setSpeaker(on: Boolean) = setRoute(if (on) android.telecom.CallAudioState.ROUTE_SPEAKER else android.telecom.CallAudioState.ROUTE_EARPIECE)
+    val routes get() = telecom!!.routes
+    val speaker get() = telecom?.routes?.value?.speaker ?: audio.isSpeakerphoneOn
 
     private fun watchNetwork() {
         val cm = app.getSystemService(ConnectivityManager::class.java)

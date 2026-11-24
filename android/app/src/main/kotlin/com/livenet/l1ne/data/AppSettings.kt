@@ -18,6 +18,7 @@ class AppSettings(context: Context) {
     val outEarlyMediaF = bool("outEarlyMedia", false); var allowOutgoingEarlyMedia get() = outEarlyMediaF.value; set(v) = outEarlyMediaF.save("outEarlyMedia", v)
     val wifiOnlyF = bool("wifiOnly", false); var wifiOnly get() = wifiOnlyF.value; set(v) = wifiOnlyF.save("wifiOnly", v)
     val allowIPv6F = bool("allowIPv6", true); var allowIPv6 get() = allowIPv6F.value; set(v) = allowIPv6F.save("allowIPv6", v)
+    val keepAliveF = bool("keepAlive", true); var keepAlive get() = keepAliveF.value; set(v) = keepAliveF.save("keepAlive", v)
     val vmTabF = bool("vmTab", false); var showVoicemailTab get() = vmTabF.value; set(v) = vmTabF.save("vmTab", v)
     val vmKeypadF = bool("vmKeypad", true); var showKeypadVoicemail get() = vmKeypadF.value; set(v) = vmKeypadF.save("vmKeypad", v)
     val vmNotifyF = bool("vmNotify", false); var voicemailNotify get() = vmNotifyF.value; set(v) = vmNotifyF.save("vmNotify", v)

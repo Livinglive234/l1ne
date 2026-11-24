@@ -43,7 +43,9 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
     val muted by engine.muted.collectAsState(); val held by engine.held.collectAsState(); val recording by engine.recording.collectAsState()
     val quality by engine.quality.collectAsState(); val numbers by engine.qualityNumbers.collectAsState(); val enc by engine.encryption.collectAsState()
     val contacts by app.contacts.contacts.collectAsState()
-    var speaker by remember { mutableStateOf(engine.speaker) }
+    val routes by engine.routes.collectAsState()
+    var routeMenu by remember { mutableStateOf(false) }
+    val speaker = routes.speaker
     var pad by remember { mutableStateOf(false) }; var more by remember { mutableStateOf(false) }; var transfer by remember { mutableStateOf(false) }; var list by remember { mutableStateOf(false) }
     var secs by remember(call.id) { mutableStateOf(engine.elapsed(call.id)) }
     LaunchedEffect(call.id, call.active) { while (call.active) { secs = engine.elapsed(call.id); delay(500) } }
@@ -80,7 +82,9 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
             Spacer(Modifier.weight(1f))
             if (live || !call.incoming) {
                 val rows = listOf(
-                    listOf(Btn(Icons.Filled.MicOff, "mute", call.id in muted, live) { engine.toggleMute(call.id) }, Btn(Icons.Filled.Dialpad, "keypad", false, live) { pad = true }, Btn(Icons.AutoMirrored.Filled.VolumeUp, "speaker", speaker, true) { speaker = !speaker; engine.setSpeaker(speaker) }),
+                    listOf(Btn(Icons.Filled.MicOff, "mute", call.id in muted, live) { engine.toggleMute(call.id) }, Btn(Icons.Filled.Dialpad, "keypad", false, live) { pad = true }, Btn(if (routes.active == android.telecom.CallAudioState.ROUTE_BLUETOOTH) Icons.Filled.Bluetooth else if (routes.active == android.telecom.CallAudioState.ROUTE_WIRED_HEADSET) Icons.Filled.Headset else Icons.AutoMirrored.Filled.VolumeUp,
+                        when (routes.active) { android.telecom.CallAudioState.ROUTE_BLUETOOTH -> "bluetooth"; android.telecom.CallAudioState.ROUTE_WIRED_HEADSET -> "headset"; else -> "speaker" }, speaker, true) {
+                        if (routes.bluetooth || routes.headset) routeMenu = true else engine.setSpeaker(!speaker) }),
                     listOf(Btn(Icons.Filled.Add, "add call", false, live) { setMinimized(true) }, Btn(if (call.id in held) Icons.Filled.PlayArrow else Icons.Filled.Pause, if (call.id in held) "resume" else "hold", call.id in held, live) { engine.toggleHold(call.id) }, Btn(Icons.Filled.MoreHoriz, "more", false, true) { more = true }))
                 rows.forEach { r -> Row(Modifier.fillMaxWidth().padding(bottom = 26.dp), horizontalArrangement = Arrangement.SpaceEvenly) { r.forEach { RoundBtn(it) } } }
             }
@@ -91,6 +95,15 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
         }
     }
 
+    if (routeMenu) ModalBottomSheet({ routeMenu = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color(0xFF0B0F0C)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            val ra = android.telecom.CallAudioState.ROUTE_EARPIECE; val rs = android.telecom.CallAudioState.ROUTE_SPEAKER; val rb = android.telecom.CallAudioState.ROUTE_BLUETOOTH; val rh = android.telecom.CallAudioState.ROUTE_WIRED_HEADSET
+            if (routes.supported and ra != 0) MoreRow(Icons.Filled.PhoneInTalk, if (routes.active == ra) "Phone  ✓" else "Phone", true) { routeMenu = false; engine.setRoute(ra) }
+            MoreRow(Icons.AutoMirrored.Filled.VolumeUp, if (routes.active == rs) "Speaker  ✓" else "Speaker", true) { routeMenu = false; engine.setRoute(rs) }
+            if (routes.bluetooth) MoreRow(Icons.Filled.Bluetooth, if (routes.active == rb) "Bluetooth  ✓" else "Bluetooth", true) { routeMenu = false; engine.setRoute(rb) }
+            if (routes.headset) MoreRow(Icons.Filled.Headset, if (routes.active == rh) "Headset  ✓" else "Headset", true) { routeMenu = false; engine.setRoute(rh) }
+        }
+    }
     if (pad) DtmfScreen(call, engine) { pad = false }
     if (more) ModalBottomSheet({ more = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color(0xFF0B0F0C)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
