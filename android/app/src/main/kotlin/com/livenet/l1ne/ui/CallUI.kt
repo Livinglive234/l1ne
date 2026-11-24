@@ -27,12 +27,14 @@ import com.livenet.l1ne.sip.CallInfo
 import com.livenet.l1ne.sip.SipEngine
 import kotlinx.coroutines.delay
 
-private val CallBg = Color(0xFF000000)
-private val CallSurface = Color(0xFF121814)
-private val CallBorder = Color(0xFF223024)
+// Dark: black. Light: a gray, with translucent-white buttons on it.
+private val CallBg get() = if (L1neColors.dark) Color(0xFF000000) else Color(0xFF5C6166)
+private val CallSurface get() = if (L1neColors.dark) Color(0xFF121814) else Color(0x33FFFFFF)
+private val CallBorder get() = if (L1neColors.dark) Color(0xFF223024) else Color(0x47FFFFFF)
+private val CallSheet get() = if (L1neColors.dark) Color(0xFF0B0F0C) else Color(0xFF474C51)
 private val CallBrand = Color(0xFF22C03C)
 private val CallText = Color(0xFFE8EFE9)
-private val CallMuted = Color(0xFF94A398)
+private val CallMuted get() = if (L1neColors.dark) Color(0xFF94A398) else Color(0xFFDDE2DF)
 private val CallDanger = Color(0xFFE04646)
 
 /** Laid out like the iPhone call screen (always dark): a down arrow and the quality pill, name and time, six round buttons, one big end button. */
@@ -95,7 +97,7 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
         }
     }
 
-    if (routeMenu) ModalBottomSheet({ routeMenu = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color(0xFF0B0F0C)) {
+    if (routeMenu) ModalBottomSheet({ routeMenu = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = CallSheet) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             val ra = android.telecom.CallAudioState.ROUTE_EARPIECE; val rs = android.telecom.CallAudioState.ROUTE_SPEAKER; val rb = android.telecom.CallAudioState.ROUTE_BLUETOOTH; val rh = android.telecom.CallAudioState.ROUTE_WIRED_HEADSET
             if (routes.supported and ra != 0) MoreRow(Icons.Filled.PhoneInTalk, if (routes.active == ra) "Phone  ✓" else "Phone", true) { routeMenu = false; engine.setRoute(ra) }
@@ -105,7 +107,7 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
         }
     }
     if (pad) DtmfScreen(call, engine) { pad = false }
-    if (more) ModalBottomSheet({ more = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color(0xFF0B0F0C)) {
+    if (more) ModalBottomSheet({ more = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = CallSheet) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             MoreRow(Icons.AutoMirrored.Filled.PhoneForwarded, "Transfer…", live) { more = false; transfer = true }
             MoreRow(Icons.Filled.FiberManualRecord, if (call.id in recording) "Stop recording" else "Record call", live) { more = false; engine.toggleRecord(call.id) }
@@ -191,7 +193,7 @@ private fun DtmfScreen(call: CallInfo, engine: SipEngine, onBack: () -> Unit) {
 private fun TransferDialog(call: CallInfo, engine: SipEngine, onClose: () -> Unit) {
     val app = LocalApp.current; val contacts by app.contacts.contacts.collectAsState(); var typed by remember { mutableStateOf("") }
     fun go(to: String) { if (to.isNotBlank()) { engine.transfer(call.id, to.trim(), app.store.accounts.value.firstOrNull { it.id == call.accountID }); onClose() } }
-    AlertDialog(onClose, containerColor = Color(0xFF0B0F0C), title = { Text("Transfer to…", color = CallText) }, text = {
+    AlertDialog(onClose, containerColor = CallSheet, title = { Text("Transfer to…", color = CallText) }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(typed, { typed = it }, singleLine = true, label = { Text("Extension or address") })
             contacts.filter { typed.isEmpty() || it.name.contains(typed, true) || it.address.contains(typed, true) }.take(5).forEach { c ->
@@ -203,7 +205,7 @@ private fun TransferDialog(call: CallInfo, engine: SipEngine, onClose: () -> Uni
 @Composable
 private fun CallsListDialog(engine: SipEngine, onClose: () -> Unit) {
     val calls by engine.calls.collectAsState(); val held by engine.held.collectAsState()
-    AlertDialog(onClose, containerColor = Color(0xFF0B0F0C), title = { Text("Calls", color = CallText) }, text = {
+    AlertDialog(onClose, containerColor = CallSheet, title = { Text("Calls", color = CallText) }, text = {
         Column { calls.forEach { c -> Row(Modifier.fillMaxWidth().clickable { engine.switchTo(c.id); onClose() }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) { Text(c.number, color = CallText); Text(if (!c.active) (if (c.incoming) "Incoming" else "Calling") else if (c.id in held) "On hold" else "Active", fontSize = 12.sp, color = CallMuted) }
             if (c.id == engine.currentCall?.id) Icon(Icons.Filled.CheckCircle, null, tint = CallBrand)

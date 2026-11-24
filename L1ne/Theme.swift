@@ -45,3 +45,12 @@ extension View {
             .background(Theme.bg.ignoresSafeArea())
     }
 }
+
+/// In light mode the call screen is a gray rather than black (its buttons turn translucent white on top of it).
+private struct CallGrayKey: EnvironmentKey { static let defaultValue = false }
+extension EnvironmentValues { var callGray: Bool { get { self[CallGrayKey.self] } set { self[CallGrayKey.self] = newValue } } }
+enum CallColors {
+    static func bg(_ gray: Bool) -> Color { gray ? Color(red: 0.36, green: 0.38, blue: 0.40) : Theme.bg }
+    static func surface(_ gray: Bool) -> Color { gray ? Color.white.opacity(0.20) : Theme.surface }
+    static func border(_ gray: Bool) -> Color { gray ? Color.white.opacity(0.28) : Theme.border }
+}

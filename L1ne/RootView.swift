@@ -9,6 +9,8 @@ struct RootView: View {
     @StateObject private var dirs = DirectoryStore.shared
     @StateObject private var callLog = CallLogStore.shared
     @StateObject private var router = AppRouter.shared
+    @Environment(\.colorScheme) private var scheme
+    private var callGray: Bool { settings.appearance == .light || (settings.appearance == .system && scheme == .light) }
     @State private var setupLink: SetupLink?
 
     struct SetupLink: Identifiable { let id = UUID(); let text: String }
@@ -91,7 +93,8 @@ struct RootView: View {
         }
         .fullScreenCover(isPresented: Binding(get: { !engine.calls.isEmpty && !router.callMinimized }, set: { if !$0 { router.callMinimized = true } })) {
             CallScreen().environmentObject(engine).environmentObject(store).environmentObject(contacts).environmentObject(router)
-                .preferredColorScheme(.dark)       // like the iPhone's own call screen, always dark
+                .preferredColorScheme(.dark)       // text and icons stay light; the background turns gray in light mode
+                .environment(\.callGray, callGray)
         }
     }
 }
@@ -213,6 +216,7 @@ struct RecentsView: View {
 // MARK: In a call
 
 struct CallScreen: View {
+    @Environment(\.callGray) private var gray
     @EnvironmentObject var engine: SIPEngine
     @EnvironmentObject var store: AccountStore
     @EnvironmentObject var router: AppRouter
@@ -222,7 +226,7 @@ struct CallScreen: View {
     @State private var showMore = false
 
     var body: some View {
-        if let c = engine.currentCall { screen(c) } else { Theme.bg.ignoresSafeArea() }
+        if let c = engine.currentCall { screen(c) } else { CallColors.bg(gray).ignoresSafeArea() }
     }
 
     // Laid out like the iOS call screen: name and time at the top, six round buttons, one big end button.
@@ -261,7 +265,7 @@ struct CallScreen: View {
                 .padding(.bottom, 34)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.bg.ignoresSafeArea())
+        .background(CallColors.bg(gray).ignoresSafeArea())
         .fullScreenCover(isPresented: $showKeypad) { DTMFScreen(call: c.id).environmentObject(engine).preferredColorScheme(.dark) }
         .sheet(isPresented: $showTransfer) { TransferSheet(call: c).environmentObject(engine).environmentObject(store).environmentObject(ContactsStore.shared) }
         .sheet(isPresented: $showCalls) { CallsListSheet().environmentObject(engine) }
@@ -299,7 +303,7 @@ struct CallScreen: View {
         Button { showMore = true } label: {
             VStack(spacing: 8) {
                 Image(systemName: "ellipsis").font(.title2).frame(width: 78, height: 78)
-                    .background(Theme.surface, in: Circle()).overlay(Circle().stroke(Theme.border)).foregroundStyle(Theme.text)
+                    .background(CallColors.surface(gray), in: Circle()).overlay(Circle().stroke(CallColors.border(gray))).foregroundStyle(Theme.text)
                 Text("more").font(.footnote).foregroundStyle(Theme.text)
             }
         }
@@ -341,8 +345,8 @@ struct CallScreen: View {
         Button(action: action) {
             VStack(spacing: 8) {
                 Image(systemName: icon).font(.title2).frame(width: 78, height: 78)
-                    .background(on ? Theme.brand : Theme.surface, in: Circle())
-                    .overlay(Circle().stroke(Theme.border, lineWidth: on ? 0 : 1))
+                    .background(on ? Theme.brand : CallColors.surface(gray), in: Circle())
+                    .overlay(Circle().stroke(CallColors.border(gray), lineWidth: on ? 0 : 1))
                     .foregroundStyle(on ? Theme.onBrand : Theme.text)
                 Text(label).font(.footnote).foregroundStyle(Theme.text)
             }
@@ -383,6 +387,7 @@ struct CallScreen: View {
 /// Five bars like a phone's signal meter; filled by call quality.
 /// Call quality as a small pill: five rounded bars in the brand green (amber when fair, red when poor) and the word for it.
 struct SignalBars: View {
+    @Environment(\.callGray) private var gray
     var level: Int
     var numbers: SIPEngine.QualityNumbers?
 
@@ -398,8 +403,8 @@ struct SignalBars: View {
         }
         .frame(height: 19)
         .padding(.horizontal, 12).padding(.vertical, 7)
-        .background(Theme.surface, in: Capsule())
-        .overlay(Capsule().stroke(Theme.border, lineWidth: 1))
+        .background(CallColors.surface(gray), in: Capsule())
+        .overlay(Capsule().stroke(CallColors.border(gray), lineWidth: 1))
     }
 
     @State private var showNumbers = false
@@ -464,6 +469,7 @@ struct CallsListSheet: View {
 
 /// The in-call keypad, full screen like the iPhone's: a back button, the digits you have sent, the keys and the end button.
 struct DTMFScreen: View {
+    @Environment(\.callGray) private var gray
     let call: Int32
     @EnvironmentObject var engine: SIPEngine
     @Environment(\.dismiss) private var dismiss
@@ -500,7 +506,7 @@ struct DTMFScreen: View {
                                 }
                                 .foregroundStyle(Theme.text)
                                 .frame(width: 82, height: 82)
-                                .background(Theme.surface, in: Circle()).overlay(Circle().stroke(Theme.border, lineWidth: 1))
+                                .background(CallColors.surface(gray), in: Circle()).overlay(Circle().stroke(CallColors.border(gray), lineWidth: 1))
                             }.buttonStyle(.plain)
                         }
                     }
@@ -515,7 +521,7 @@ struct DTMFScreen: View {
             .buttonStyle(.plain).padding(.bottom, 34)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.bg.ignoresSafeArea())
+        .background(CallColors.bg(gray).ignoresSafeArea())
     }
 }
 
