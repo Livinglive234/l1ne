@@ -35,7 +35,7 @@ struct WelcomeView: View {
                     VStack(spacing: 12) {
                         header
                         Spacer(minLength: 4)
-                        VStack(alignment: .leading, spacing: 18) {
+                        VStack(alignment: .leading, spacing: 12) {
                             field("Server") {
                                 TextField("pbx.example.com", text: $server)
                                     .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
@@ -63,7 +63,7 @@ struct WelcomeView: View {
                                     }.buttonStyle(.plain).accessibilityLabel(reveal ? "Hide password" : "Show password")
                                 }
                             }
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: 8) {
                                 Text("Transport").font(.footnote.weight(.semibold)).foregroundStyle(Theme.text)
                                 Picker("Transport", selection: $transport) {
                                     ForEach(Account.Transport.allCases, id: \.self) { Text($0.rawValue.uppercased()).tag($0) }
@@ -141,7 +141,7 @@ struct WelcomeView: View {
     }
 
     private func field<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(title).font(.footnote.weight(.semibold)).foregroundStyle(Theme.text)
             content()
                 .padding(.horizontal, 18).frame(height: 42)
