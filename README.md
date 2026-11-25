@@ -7,6 +7,12 @@ remote-configuration files and QR codes that Linphone uses.
 > **Status:** early. The iOS app builds and is under test against a real PBX. The Android app is a skeleton with a tested shared core.
 > See [docs/ROADMAP.md](docs/ROADMAP.md) for what exists, what is next and what is deliberately later.
 
+## Supported phones
+- **iPhone / iPad:** iOS 15 and later (iPhone 6s and newer). SwiftUI itself needs iOS 13, and the Xcode used to build this no longer targets anything below iOS 15.
+  Newer-only SwiftUI features (iOS 16 and 17) have stand-ins in `L1ne/Compat.swift`, so older phones get a slightly simpler version of the same screens.
+- **Android:** Android 8.0 (API 26) and later, 64-bit (`arm64-v8a`) and 32-bit (`armeabi-v7a`) ARM. Many budget phones run a 32-bit system even on a 64-bit chip, so the 32-bit build matters.
+  Native libraries: `scripts/build-android-native.sh arm64-v8a` and `scripts/build-android-native.sh armeabi-v7a`.
+
 ## What it does
 - Several accounts at once, each with its own server, transport (TLS / TCP / UDP), SRTP or DTLS-SRTP, NAT settings, dial rules and voicemail number.
 - Calls with hold, mute, speaker, DTMF, blind transfer, recording and call history; message-waiting indicator.

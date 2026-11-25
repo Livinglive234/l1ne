@@ -13,7 +13,7 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        ndk { abiFilters += listOf("arm64-v8a") }     // PJSIP is built for arm64 first, like iOS
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }     // 64-bit for current phones, 32-bit ARM for the many older and budget phones that still run a 32-bit system
     }
     externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }
     defaultConfig { externalNativeBuild { cmake { arguments += "-DANDROID_STL=c++_static" } } }
