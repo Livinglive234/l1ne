@@ -7,6 +7,8 @@ struct AccountEditor: View {
     @EnvironmentObject var store: AccountStore
     @Environment(\.dismiss) private var dismiss
     @State var account: Account
+    /// For a new account: hand it to the welcome screen's login check instead of saving it directly (an account the PBX won't register is never kept).
+    var onSubmit: ((Account, String) -> Void)? = nil
     @State private var secret = ""
     @State private var turnSecret = ""
     @State private var confirmRemove = false
@@ -210,6 +212,7 @@ struct AccountEditor: View {
 
     private func save() {
         if isNew { account.finishNewAccount() }
+        if isNew, let onSubmit { onSubmit(account, secret); dismiss(); return }
         store.save(account, secret: secret.isEmpty ? nil : secret, turnSecret: turnSecret.isEmpty ? nil : turnSecret)
         engine.register(account, secret: store.secret(account.id))
         dismiss()
