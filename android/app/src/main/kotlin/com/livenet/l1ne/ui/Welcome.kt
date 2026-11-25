@@ -64,7 +64,7 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
     var manual by remember { mutableStateOf(false) }; var help by remember { mutableStateOf(false) }
     val canLogin = server.isNotBlank() && username.isNotBlank() && password.isNotEmpty()
     val screenH = LocalConfiguration.current.screenHeightDp
-    val compact = screenH < 700            // small phones: smallest header, no subtitle
+    val compact = screenH < 780            // short or older 16:9 phones: smallest header, no subtitle, tighter fields
     val snug = screenH < 900               // typical phones: slightly tighter, so the form clears the hills
 
     fun removePending() { pending?.let { app.engine.unregister(it); app.store.remove(it) }; pending = null }
@@ -100,7 +100,7 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
     @Composable fun Input(value: String, onChange: (String) -> Unit, placeholder: String, kb: KeyboardType, ime: ImeAction, secret: Boolean = false,
                           caps: KeyboardCapitalization = KeyboardCapitalization.None, trailing: @Composable (() -> Unit)? = null) {
         var focused by remember { mutableStateOf(false) }
-        BasicTextField(value, onChange, Modifier.fillMaxWidth().height(if (snug) 42.dp else 46.dp).clip(CircleShape).background(L1neColors.Surface)
+        BasicTextField(value, onChange, Modifier.fillMaxWidth().height(if (compact) 38.dp else if (snug) 42.dp else 46.dp).clip(CircleShape).background(L1neColors.Surface)
             .border(if (focused) 2.dp else 1.dp, if (focused) L1neColors.Brand else L1neColors.Border, CircleShape).onFocusChanged { focused = it.isFocused },
             singleLine = true, textStyle = TextStyle(color = L1neColors.Text, fontSize = 16.sp), cursorBrush = SolidColor(L1neColors.Brand),
             visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
@@ -120,19 +120,19 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
         val imeOpen = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
         // only scrolls when it has to: content taller than the screen (a small phone) or the keyboard is up
         Column(Modifier.fillMaxSize().systemBarsPadding().imePadding().verticalScroll(scroll, enabled = scroll.maxValue > 0 || imeOpen), horizontalAlignment = Alignment.CenterHorizontally) {
-            Column(Modifier.widthIn(max = 520.dp).padding(start = 24.dp, end = 24.dp, top = if (compact) 4.dp else if (snug) 4.dp else 16.dp, bottom = if (snug) 4.dp else 24.dp), verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else if (snug) 6.dp else 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Image(painterResource(R.drawable.welcome_logo), null, Modifier.size(if (compact) 44.dp else if (snug) 46.dp else 64.dp).clip(RoundedCornerShape(14.dp)))
+            Column(Modifier.widthIn(max = 520.dp).padding(start = 24.dp, end = 24.dp, top = if (compact) 2.dp else if (snug) 4.dp else 16.dp, bottom = if (compact) 0.dp else if (snug) 4.dp else 24.dp), verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else if (snug) 6.dp else 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Image(painterResource(R.drawable.welcome_logo), null, Modifier.size(if (compact) 40.dp else if (snug) 46.dp else 64.dp).clip(RoundedCornerShape(14.dp)))
                 Text("Welcome to L1ne", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = L1neColors.Text)
                 if (!compact) Text("Sign in to your PBX, or scan its QR code.", textAlign = TextAlign.Center, color = L1neColors.Muted, style = MaterialTheme.typography.bodyMedium)
 
-                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (snug) 12.dp else 16.dp)) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else if (snug) 12.dp else 16.dp)) {
                     Labeled("Server") { Input(server, { server = it }, "pbx.example.com", KeyboardType.Uri, ImeAction.Next) }
                     Labeled("Username or extension") { Input(username, { username = it }, "Username", KeyboardType.Text, ImeAction.Next) }
                     Labeled("Display name (optional)") { Input(displayName, { displayName = it }, "Shown to people you call", KeyboardType.Text, ImeAction.Next, caps = KeyboardCapitalization.Words) }
                     Labeled("Password (Secret)") { Input(password, { password = it }, "Password", KeyboardType.Password, ImeAction.Go, secret = !reveal,
                         trailing = { IconButton({ reveal = !reveal }, Modifier.size(36.dp)) { Icon(if (reveal) Icons.Filled.Visibility else Icons.Filled.VisibilityOff, if (reveal) "Hide password" else "Show password", tint = L1neColors.Muted) } }) }
                     Labeled("Transport") {
-                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().height(36.dp)) {
+                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().height(if (compact) 32.dp else 36.dp)) {
                             Transport.entries.forEachIndexed { i, t ->
                                 SegmentedButton(transport == t, { transport = t }, SegmentedButtonDefaults.itemShape(i, Transport.entries.size), icon = {},
                                     colors = SegmentedButtonDefaults.colors(activeContainerColor = L1neColors.Brand.copy(alpha = 0.22f), activeContentColor = L1neColors.Text, inactiveContainerColor = L1neColors.Surface, inactiveContentColor = L1neColors.Text,
@@ -141,9 +141,9 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
                         }
                     }
                 }
-                Spacer(Modifier.height(if (snug) 4.dp else 12.dp))
+                Spacer(Modifier.height(if (compact) 2.dp else if (snug) 4.dp else 12.dp))
                 error?.let { Text(it, color = L1neColors.Danger, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall) }
-                Button(::login, Modifier.fillMaxWidth().height(46.dp), enabled = canLogin && pending == null, shape = CircleShape,
+                Button(::login, Modifier.fillMaxWidth().height(if (compact) 42.dp else 46.dp), enabled = canLogin && pending == null, shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(containerColor = L1neColors.Brand, contentColor = L1neColors.OnBrand, disabledContainerColor = L1neColors.Brand.copy(alpha = 0.4f), disabledContentColor = L1neColors.OnBrand)) {
                     if (pending != null) { CircularProgressIndicator(Modifier.size(18.dp), color = L1neColors.OnBrand, strokeWidth = 2.dp); Spacer(Modifier.width(10.dp)) }
                     Text(if (pending != null) "Signing in…" else "Login", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
@@ -154,15 +154,15 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         HorizontalDivider(Modifier.weight(1f), color = L1neColors.Border); Text("or", color = L1neColors.Muted, fontSize = 14.sp); HorizontalDivider(Modifier.weight(1f), color = L1neColors.Border)
                     }
-                    OutlinedButton({ scanFirst = true; showLink = true }, Modifier.fillMaxWidth().height(44.dp), shape = CircleShape, border = BorderStroke(1.5.dp, L1neColors.Brand),
+                    OutlinedButton({ scanFirst = true; showLink = true }, Modifier.fillMaxWidth().height(if (compact) 40.dp else 44.dp), shape = CircleShape, border = BorderStroke(1.5.dp, L1neColors.Brand),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = L1neColors.Brand)) {
                         Icon(Icons.Filled.QrCodeScanner, null); Spacer(Modifier.width(8.dp)); Text("Scan QR code", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton({ scanFirst = false; showLink = true }) { Icon(Icons.Filled.Link, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Open a setup link", color = L1neColors.Brand) }
-                        TextButton({ manual = true }) { Icon(Icons.Filled.Tune, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("More options", color = L1neColors.Brand) }
+                        TextButton({ scanFirst = false; showLink = true }, Modifier.heightIn(min = if (compact) 30.dp else 40.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = if (compact) 0.dp else 8.dp)) { Icon(Icons.Filled.Link, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Open a setup link", color = L1neColors.Brand) }
+                        TextButton({ manual = true }, Modifier.heightIn(min = if (compact) 30.dp else 40.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = if (compact) 0.dp else 8.dp)) { Icon(Icons.Filled.Tune, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("More options", color = L1neColors.Brand) }
                     }
-                    TextButton({ help = true }, Modifier.fillMaxWidth()) {
+                    TextButton({ help = true }, Modifier.fillMaxWidth().heightIn(min = if (compact) 30.dp else 40.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = if (compact) 0.dp else 8.dp)) {
                         Text("Where do I find these?", color = L1neColors.Text, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
                     }
                 }
