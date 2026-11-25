@@ -321,7 +321,8 @@ fun LinkDialog(initial: String?, autoScan: Boolean = false, onClose: () -> Unit)
     }
     if (scanning) androidx.compose.ui.window.Dialog({ scanning = false }, androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) { QRScanner(onCode = { scanning = false; text = it; fetch(it) }, onCancel = { scanning = false }) }
     val r = result
-    if (r == null) AlertDialog(onClose, containerColor = L1neColors.SheetBg, title = { Text("Set up from a link or QR code") }, text = {
+    if (scanning) { /* the scanner is full screen: the link dialog would be drawn on top of it, so leave it out until scanning ends */ }
+    else if (r == null) AlertDialog(onClose, containerColor = L1neColors.SheetBg, title = { Text("Set up from a link or QR code") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton({ scanning = true }, Modifier.fillMaxWidth()) { Icon(Icons.Filled.QrCodeScanner, null); Spacer(Modifier.width(8.dp)); Text("Scan QR code") }
             Text("or paste the https link (or linphone-config: link) from your PBX setup file.", color = L1neColors.Muted)
