@@ -75,8 +75,8 @@ struct ContactsView: View {
             .overlay { if contacts.contacts.isEmpty { EmptyState("No contacts", systemImage: "person.2", description: Text("Pick contacts that have a SIP address, import a vCard, or add one by hand.")) } }
             .mainBackground()
             .navigationTitle("Contacts")
+            .profileToolbar()
             .toolbar {
-                ProfileToolbar()
                 ToolbarItem(placement: .topBarTrailing) { Menu {
                     Button("Import from Contacts…", systemImage: "person.crop.circle.badge.plus") { picking = true }
                     Button("Import vCard file…", systemImage: "doc") { importing = true }

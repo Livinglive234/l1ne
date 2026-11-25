@@ -9,7 +9,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/vendor/pjproject"
 OUT="$ROOT/vendor/build"
 MIN_IOS=15.0
-JOBS=$(sysctl -n hw.ncpu)
+. "$ROOT/scripts/lib.sh"; need_mac "Building PJSIP for iOS"   # also sets JOBS
 
 [ -d "$SRC" ] || { echo "missing $SRC (run scripts/fetch-deps.sh)"; exit 1; }
 

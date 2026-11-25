@@ -39,10 +39,8 @@ struct AccountEditor: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                    if !isNew {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Save") { save() }.disabled(account.domain.isEmpty || account.username.isEmpty)
-                        }
+                    ToolbarItem(placement: .confirmationAction) {
+                        if !isNew { Button("Save") { save() }.disabled(account.domain.isEmpty || account.username.isEmpty) }
                     }
                 }
                 .confirmationDialog("Remove \(account.title)?", isPresented: $confirmRemove, titleVisibility: .visible) {

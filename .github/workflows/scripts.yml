@@ -1,0 +1,81 @@
+name: Build scripts
+
+# Checks that the native build scripts really run on macOS, Linux and Windows. On Windows the scripts run inside WSL (Ubuntu): OpenSSL's Android build
+# cannot use the NDK compilers from Git Bash or MSYS2, so WSL is the supported way to build the native libraries on Windows.
+# iOS builds need macOS and Xcode, so they are covered by the iOS workflow only.
+
+on:
+  push:
+    branches: [main]
+    paths: ['scripts/**', '.github/workflows/scripts.yml']
+  pull_request:
+    paths: ['scripts/**', '.github/workflows/scripts.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-native:
+    name: Android native libraries on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-26]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - name: Read the pinned NDK version
+        run: echo "NDK_VERSION=$(sed -n 's/^NDK_VERSION=//p' scripts/lib.sh)" >> "$GITHUB_ENV"
+      - name: Install the NDK
+        run: |
+          SM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"; [ -f "$SM.bat" ] && SM="$SM.bat"
+          yes | "$SM" --licenses > /dev/null || true
+          "$SM" "ndk;$NDK_VERSION"
+      - name: Download the sources
+        run: scripts/fetch-deps.sh
+      - name: Build (arm64-v8a)
+        run: scripts/build-android-native.sh arm64-v8a
+      - name: Check the result
+        run: |
+          ls vendor/android/arm64-v8a/openssl/lib vendor/android/arm64-v8a/pjsip/lib | head -30
+          test -f vendor/android/arm64-v8a/openssl/lib/libssl.a
+          ls vendor/android/arm64-v8a/pjsip/lib/libpjsua-*.a
+
+  android-native-windows:
+    name: Android native libraries on Windows (WSL)
+    runs-on: windows-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7
+      # Third-party action, pinned to an exact commit (v7.2.0). This job has read-only access and no secrets.
+      - uses: Vampire/setup-wsl@4c48163d9f981914dd8caa0fc335fe19cca5bff4 # v7.2.0
+        with:
+          distribution: Ubuntu-24.04
+          additional-packages: build-essential perl git curl unzip default-jre-headless
+      - name: Copy the repository into WSL (the Windows drive is slow for compiling)
+        shell: wsl-bash {0}
+        run: cp -a "$PWD" "$HOME/l1ne"
+      - name: Android SDK and NDK (inside WSL)
+        shell: wsl-bash {0}
+        run: |
+          cd "$HOME/l1ne"
+          NDK_VERSION=$(sed -n 's/^NDK_VERSION=//p' scripts/lib.sh)
+          mkdir -p "$HOME/android/cmdline-tools" && cd "$HOME/android"
+          curl -sSLo cmd.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q cmd.zip -d tmp && mv tmp/cmdline-tools cmdline-tools/latest
+          yes | cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
+          cmdline-tools/latest/bin/sdkmanager "ndk;$NDK_VERSION"
+      - name: Build (arm64-v8a)
+        shell: wsl-bash {0}
+        run: |
+          cd "$HOME/l1ne"
+          export ANDROID_HOME="$HOME/android"
+          scripts/fetch-deps.sh
+          scripts/build-android-native.sh arm64-v8a
+          test -f vendor/android/arm64-v8a/openssl/lib/libssl.a
+          ls vendor/android/arm64-v8a/pjsip/lib/libpjsua-*.a

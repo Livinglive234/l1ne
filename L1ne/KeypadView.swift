@@ -105,8 +105,8 @@ struct KeypadView: View {
             .frame(maxWidth: .infinity)
             .mainBackground()
             .task(id: router.pendingDial) { if let d = router.pendingDial { number = d; router.pendingDial = nil } }
+            .profileToolbar()
             .toolbar {
-                ProfileToolbar()
                 ToolbarItem(placement: .principal) { lineMenu }      // the line picker sits in the top bar
             }
             .navigationBarTitleDisplayMode(.inline)

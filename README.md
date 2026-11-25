@@ -6,6 +6,10 @@ no cloud service, no analytics and no ads. Your login stays on your phone.
 
 Built on [PJSIP](https://github.com/pjsip/pjproject), with SwiftUI on iOS and Jetpack Compose on Android. The two apps look and behave the same.
 
+[![Android](https://github.com/Livinglive234/l1ne/actions/workflows/android.yml/badge.svg)](https://github.com/Livinglive234/l1ne/actions/workflows/android.yml)
+[![iOS](https://github.com/Livinglive234/l1ne/actions/workflows/ios.yml/badge.svg)](https://github.com/Livinglive234/l1ne/actions/workflows/ios.yml)
+[![Build scripts](https://github.com/Livinglive234/l1ne/actions/workflows/scripts.yml/badge.svg)](https://github.com/Livinglive234/l1ne/actions/workflows/scripts.yml)
+
 - **Your phone system, your data.** L1ne only talks to the server you sign in to.
 - **Its own address book.** It never reads the contacts on your phone. Contacts come from files and servers you set up yourself.
 - **Works on older and cheaper phones.** iOS 15 or newer, Android 8 or newer, including 32-bit Android phones.
@@ -58,6 +62,17 @@ wrong password, unknown extension or an unreachable server. You can add more acc
 Tested so far: iPhone (current iOS) and a Samsung Galaxy (current Android), the Android 8 emulator, and small-phone, tablet and large-text sizes.
 **Not yet tried on real hardware:** iOS 15 and 16, and any 32-bit Android phone. They build and should work; reports are welcome.
 
+## Downloads
+
+Every push is built by GitHub Actions. Open a finished run under the **Actions** tab and download the files from its *Artifacts* section; tagged versions
+(`v0.1.0` and so on) attach them to a **Release**.
+
+- **Android `.apk`:** needs Android 8 or later; one file for 64-bit and 32-bit phones. It is signed with a throwaway debug key, so you can install it
+  (allow installs from your browser or file manager) but cannot update an earlier install of it in place. It is not for Google Play.
+- **iPhone `.ipa`:** **unsigned**, so it will not install as it is. Sign it with your own Apple ID using a sideloading tool, or build from source (below).
+
+These are GPL-covered builds; see [LICENSING.md](LICENSING.md) for what that means if you pass them on. The source for any build is this repository at that commit.
+
 ## Privacy
 
 - No account, no analytics, no advertising, no crash reporting, no third-party servers. L1ne talks only to the servers you add.
@@ -84,7 +99,7 @@ sequence are in [docs/PUSH.md](docs/PUSH.md).
 
 ## Building from source
 
-You need a Mac with Xcode 26 or newer for iOS, and a JDK plus the Android SDK and NDK for Android. The native libraries (PJSIP and OpenSSL) are
+You need a Mac with Xcode 26 or newer for iOS (nothing else can build it), and a JDK plus the Android SDK and NDK for Android. The native libraries (PJSIP and OpenSSL) are
 downloaded and built from source; nothing third-party is stored in this repository.
 
 ### iOS
@@ -103,14 +118,17 @@ The bundle ID in `project.yml` is `com.livenet.l1ne`; change `APP_ID` if you bui
 (a commented skeleton is in `project.yml`), so a free Apple developer account is enough to run it on your own device.
 
 ### Android
+Works on macOS, Linux and Windows. On **Windows**, build the native libraries inside **WSL** (Ubuntu), because OpenSSL cannot use the Android compilers from
+Git Bash or MSYS2; the Gradle app build itself runs natively on Windows. The `Build scripts` workflow checks all three.
 ```bash
 scripts/fetch-deps.sh                          # if you have not already
 scripts/build-android-native.sh arm64-v8a      # OpenSSL + PJSIP for 64-bit phones into vendor/android/arm64-v8a
 scripts/build-android-native.sh armeabi-v7a    # the same for 32-bit phones
 cd android
-gradle :core:test                              # the shared Kotlin core needs only a JDK
-gradle :app:assembleDebug                      # needs the Android SDK and NDK: set sdk.dir in android/local.properties
+./gradlew :core:test                           # the shared Kotlin core needs only a JDK (21)
+./gradlew :app:assembleDebug                   # needs the Android SDK and NDK 29.0.14206865: set ANDROID_HOME or sdk.dir in android/local.properties
 ```
+The NDK version is pinned in `scripts/lib.sh` and `android/app/build.gradle.kts` (keep the two in step). Use `gradlew.bat` in a Windows command prompt.
 
 ## Tests
 - `android/core`, `android/app`: JVM unit tests (`gradle :core:test :app:testDebugUnitTest`) and instrumented tests for the stores and the engine's event handling
@@ -130,7 +148,8 @@ Be careful with `connectedDebugAndroidTest` on a phone you use: Android removes 
 | `L1ne/` | the iPhone app (SwiftUI) |
 | `android/core/` | shared Kotlin logic with no Android dependencies: accounts, provisioning, dial rules, parsers |
 | `android/app/` | the Android app (Compose), the PJSIP bridge in C (`src/main/cpp`) and the Telecom integration |
-| `scripts/` | dependency download and native build scripts, and the one PJSIP patch |
+| `scripts/` | dependency download and native build scripts (`lib.sh` holds the macOS/Linux/Windows differences), and the one PJSIP patch |
+| `.github/` | the build workflows (Android, iOS, build scripts) and the release notes text |
 | `tests/` | parser tests, directory-server tests, a mock SIP server and fixtures |
 | `docs/` | [design](docs/DESIGN.md), [roadmap](docs/ROADMAP.md), [feature parity](docs/PARITY.md), [push design](docs/PUSH.md), [PBX text messaging](docs/PBX-MESSAGING.md) |
 
