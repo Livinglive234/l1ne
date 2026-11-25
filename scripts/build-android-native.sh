@@ -1,11 +1,16 @@
 #!/bin/bash
-# Builds OpenSSL and pjproject (static) for Android into vendor/android/<abi>/. Runs on macOS, Linux and Windows (Git Bash or MSYS2; WSL counts as Linux).
+# Builds OpenSSL and pjproject (static) for Android into vendor/android/<abi>/. Runs on macOS and Linux; on Windows run it inside WSL (Ubuntu).
 # The SDK comes from $ANDROID_HOME or android/local.properties; the NDK version is pinned in scripts/lib.sh.
 # usage: scripts/build-android-native.sh [arm64-v8a|armeabi-v7a]   (default arm64-v8a; run it once per ABI the app ships)
 # Same feature set as the iOS build: audio only, OpenSSL for TLS and DTLS-SRTP, bundled libsrtp for SDES.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 . "$ROOT/scripts/lib.sh"
+if [ "$L1NE_OS" = windows ]; then
+  echo "The native Android libraries cannot be built from Git Bash or MSYS2 (OpenSSL cannot use the NDK compilers there)."
+  echo "On Windows, run this script inside WSL (Ubuntu): wsl --install -d Ubuntu-24.04, then follow the Linux steps in the README."
+  exit 1
+fi
 SDK=$(android_sdk "$ROOT")
 export ANDROID_NDK_ROOT="${ANDROID_NDK_ROOT:-$SDK/ndk/$NDK_VERSION}"
 [ -d "$ANDROID_NDK_ROOT" ] || { echo "NDK $NDK_VERSION not found at $ANDROID_NDK_ROOT (install it with: sdkmanager \"ndk;$NDK_VERSION\")"; exit 1; }
@@ -14,7 +19,7 @@ case "$ABI" in arm64-v8a) SSLTARGET=android-arm64;; armeabi-v7a) SSLTARGET=andro
 OUT="$ROOT/vendor/android/$ABI"
 API=26
 TC="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$NDK_HOST"
-[ "$L1NE_OS" = windows ] && export PATH="$ANDROID_NDK_ROOT/prebuilt/windows-x86_64/bin:$PATH"   # the NDK ships its own make on Windows
+
 mkdir -p "$OUT"
 
 # OpenSSL

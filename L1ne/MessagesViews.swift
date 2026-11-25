@@ -55,8 +55,8 @@ struct ConversationsView: View {
             .task(id: router.pendingThread) {
                 if let t = router.pendingThread { selected = t; router.pendingThread = nil }
             }
+            .profileToolbar()
             .toolbar {
-                ProfileToolbar()
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { composing = true } label: { Image(systemName: "square.and.pencil") }
                         .disabled(store.accounts.isEmpty)

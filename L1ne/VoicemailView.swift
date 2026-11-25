@@ -30,7 +30,7 @@ struct VoicemailView: View {
             .overlay { if accounts.isEmpty { EmptyState("No voicemail", systemImage: "recordingtape", description: Text("Add an account to check its voicemail.")) } }
             .mainBackground()
             .navigationTitle("Voicemail")
-            .toolbar { ProfileToolbar() }
+            .profileToolbar()
         }
     }
 }

@@ -20,13 +20,13 @@ struct AvatarView: View {
 }
 
 /// The avatar in the top-left of a navigation bar, without the system's glass capsule behind it (iOS 26 adds one by default).
-struct ProfileToolbar: ToolbarContent {
-    var body: some ToolbarContent {
+/// A View modifier rather than ToolbarContent: choosing between two toolbar items needs iOS 16, choosing between two Views works on iOS 15.
+extension View {
+    @ViewBuilder func profileToolbar() -> some View {
         if #available(iOS 26.0, *) {
-            ToolbarItem(placement: .topBarLeading) { ProfileButton() }
-                .sharedBackgroundVisibility(.hidden)
+            toolbar { ToolbarItem(placement: .topBarLeading) { ProfileButton() }.sharedBackgroundVisibility(.hidden) }
         } else {
-            ToolbarItem(placement: .topBarLeading) { ProfileButton() }
+            toolbar { ToolbarItem(placement: .topBarLeading) { ProfileButton() } }
         }
     }
 }

@@ -173,8 +173,8 @@ struct RecentsView: View {
             }
             .mainBackground()
             .navigationTitle("Recents")
+            .profileToolbar()
             .toolbar {
-                ProfileToolbar()
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Picker("Show", selection: $missedOnly) {
