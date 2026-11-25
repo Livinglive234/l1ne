@@ -130,7 +130,7 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit, onClose: 
         val imeOpen = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
         // only scrolls when it has to: content taller than the screen (a small phone) or the keyboard is up
         Column(Modifier.fillMaxSize().systemBarsPadding().imePadding().verticalScroll(scroll, enabled = scroll.maxValue > 0 || imeOpen), horizontalAlignment = Alignment.CenterHorizontally) {
-            Column(Modifier.widthIn(max = 520.dp).padding(start = 24.dp, end = 24.dp, top = if (compact) 2.dp else if (snug) 4.dp else 16.dp, bottom = if (compact) 0.dp else if (snug) 4.dp else 24.dp), verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else if (snug) 6.dp else 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.widthIn(max = 520.dp).padding(start = 24.dp, end = 24.dp, top = if (compact) 10.dp else if (snug) 16.dp else 28.dp, bottom = if (compact) 0.dp else if (snug) 4.dp else 24.dp), verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else if (snug) 6.dp else 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Image(painterResource(R.drawable.welcome_logo), null, Modifier.size(if (compact) 40.dp else if (snug) 46.dp else 64.dp).clip(RoundedCornerShape(14.dp)))
                 Text("Welcome to L1ne", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = L1neColors.Text)
                 if (!compact) Text("Sign in to your PBX, or scan its QR code.", textAlign = TextAlign.Center, color = L1neColors.Muted, style = MaterialTheme.typography.bodyMedium)
