@@ -319,7 +319,7 @@ fun LinkDialog(initial: String?, autoScan: Boolean = false, onClose: () -> Unit)
             busy = false
         }
     }
-    if (scanning) androidx.compose.ui.window.Dialog({ scanning = false }, androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) { QRScanner(onCode = { scanning = false; text = it; fetch(it) }, onCancel = { scanning = false }) }
+    if (scanning) androidx.compose.ui.window.Dialog({ scanning = false; if (autoScan) onClose() }, androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) { QRScanner(onCode = { scanning = false; text = it; fetch(it) }, onCancel = { scanning = false; if (autoScan) onClose() }) }
     val r = result
     if (scanning) { /* the scanner is full screen: the link dialog would be drawn on top of it, so leave it out until scanning ends */ }
     else if (r == null) AlertDialog(onClose, containerColor = L1neColors.SheetBg, title = { Text("Set up from a link or QR code") }, text = {
