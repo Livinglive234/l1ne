@@ -57,5 +57,16 @@ only works between Linphone-family apps. Options: (1) skip it; (2) use an open s
 carried inside SIP `MESSAGE`, with public keys published through the PBX (a vCard/URL on the contact, or a small `OPTIONS`/`PUBLISH` exchange). That would be new and only
 L1ne-to-L1ne. Decide later; it must not need a hosted server run by this project (see the push decision above).
 
+## LATER: foldable and dual-screen phones
+
+Not started. The Android layouts already adapt to small phones and tablets (width and height classes), but nothing is tuned or tested for folding devices.
+
+- **Android foldables** (Samsung Galaxy Z Fold and Flip, Google Pixel Fold, and dual-screen phones such as the Microsoft Surface Duo): use Jetpack WindowManager to read the fold and
+  hinge, keep content out of the hinge area, and handle the cover screen and inner screen switching without losing the call or the keypad entry. Ideas: a two-pane layout
+  (list and detail, keypad and call) when the screen is wide, and a **tabletop / laptop posture** for a call (controls on the lower half, caller on the upper half).
+- **Calls across a fold or a screen change** must survive the activity being recreated (a call already keeps going; check the in-call screen state and keyboard).
+- **iPhone:** there is no foldable iPhone yet. Xcode's simulator lists dual-screen device types, so iPad-style size classes and a layout check on them is the way to be ready if one ships.
+- Needs real hardware or the Android emulator's foldable and resizable profiles for testing.
+
 ## LATER: other deferred items
 Opus (many PBXes offer none), conference calls, and Linphone-server features (file sharing, meetings), which a plain SIP server cannot provide.
