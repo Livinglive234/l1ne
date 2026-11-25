@@ -32,8 +32,9 @@ jobs:
 
       - name: Install the NDK
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "ndk;$NDK_VERSION" "platforms;android-36"
+          SM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SM" --licenses > /dev/null || true
+          "$SM" "ndk;$NDK_VERSION" "platforms;android-36"
 
       # PJSIP and OpenSSL take a long time to compile and rarely change, so they are cached.
       - name: Restore the native libraries
