@@ -65,8 +65,11 @@ Not started. The Android layouts already adapt to small phones and tablets (widt
   hinge, keep content out of the hinge area, and handle the cover screen and inner screen switching without losing the call or the keypad entry. Ideas: a two-pane layout
   (list and detail, keypad and call) when the screen is wide, and a **tabletop / laptop posture** for a call (controls on the lower half, caller on the upper half).
 - **Calls across a fold or a screen change** must survive the activity being recreated (a call already keeps going; check the in-call screen state and keyboard).
-- **iPhone:** there is no foldable iPhone yet. Xcode's simulator lists dual-screen device types, so iPad-style size classes and a layout check on them is the way to be ready if one ships.
-- Needs real hardware or the Android emulator's foldable and resizable profiles for testing.
+- **iPhone Duo** (a dual-screen iPhone; Xcode has an *iPhone Duo* simulator, `com.apple.CoreSimulator.SimDeviceType.iPhone-Duo`): a small outer screen and a large inner screen, with the hinge
+  closed, half open (any angle) or flat. The app has to lay out on both screens, survive the switch between them mid-call (a call, the keypad entry and the keyboard must not be lost),
+  and cope with the hinge posture. Test in the simulator by moving the hinge between closed, half open and open and checking each screen. The project already declares full-screen
+  requirements in `project.yml`, so check that no black bars appear on the inner screen.
+- Android: needs real hardware or the emulator's foldable and resizable profiles. iPhone Duo: the Xcode simulator.
 
 ## LATER: other deferred items
 Opus (many PBXes offer none), conference calls, and Linphone-server features (file sharing, meetings), which a plain SIP server cannot provide.
