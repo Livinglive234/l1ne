@@ -19,9 +19,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
 
 /** Camera preview that reports the first QR code it sees. The camera is only on while this is on screen. */
@@ -38,7 +35,6 @@ fun QRScanner(onCode: (String) -> Unit, onCancel: () -> Unit) {
             Text("Scan the QR code from your PBX setup page", Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium)
             if (granted) {
                 val executor = remember { Executors.newSingleThreadExecutor() }
-                val scanner = remember { BarcodeScanning.getClient(com.google.mlkit.vision.barcode.BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()) }
                 var done by remember { mutableStateOf(false) }
                 AndroidView(modifier = Modifier.weight(1f).fillMaxWidth(), factory = { c ->
                     val view = PreviewView(c)
@@ -47,11 +43,15 @@ fun QRScanner(onCode: (String) -> Unit, onCancel: () -> Unit) {
                         val preview = Preview.Builder().build().also { it.setSurfaceProvider(view.surfaceProvider) }
                         val analysis = ImageAnalysis.Builder().setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
                         analysis.setAnalyzer(executor) { proxy ->
-                            val media = proxy.image
-                            if (media == null || done) { proxy.close(); return@setAnalyzer }
-                            scanner.process(InputImage.fromMediaImage(media, proxy.imageInfo.rotationDegrees))
-                                .addOnSuccessListener { codes -> codes.firstNotNullOfOrNull { it.rawValue }?.let { if (!done) { done = true; onCode(it) } } }
-                                .addOnCompleteListener { proxy.close() }
+                            try {
+                                if (!done) {
+                                    val plane = proxy.planes[0]      // brightness only; a QR code is read the same at any rotation
+                                    val luma = QrDecoder.packLuma(plane.buffer, proxy.width, proxy.height, plane.rowStride)
+                                    QrDecoder.decode(luma, proxy.width, proxy.height)?.let { text ->
+                                        if (!done) { done = true; ContextCompat.getMainExecutor(c).execute { onCode(text) } }
+                                    }
+                                }
+                            } finally { proxy.close() }
                         }
                         provider.unbindAll()
                         provider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
