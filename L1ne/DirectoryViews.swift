@@ -135,7 +135,7 @@ struct DirectoryEditor: View {
     }
 
     var body: some View {
-        NavigationStack {
+        AppNavStack {
             Form {
                 Section("Name") { TextField(source.kind == .ldap ? "e.g. Company directory" : "e.g. Contacts", text: $source.name) }
                 .listRowBackground(Theme.surface)
@@ -164,7 +164,7 @@ struct DirectoryEditor: View {
                             Text("LDAPS (encrypted)").tag(LDAPSettings.Security.ldaps)
                             Text("None (password in the clear)").tag(LDAPSettings.Security.none)
                         }
-                        .onChange(of: source.security) { _, new in
+                        .onChangeCompat(of: source.security) { _, new in
                             if new == .ldaps && source.port == 389 { source.port = 636 }
                             if new == .none && source.port == 636 { source.port = 389 }
                         }

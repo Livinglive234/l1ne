@@ -35,7 +35,7 @@ struct ContactsView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        AppNavStack {
             List {
                 ForEach(sections, id: \.0) { letter, items in
                     Section {
@@ -69,10 +69,10 @@ struct ContactsView: View {
                     }
                 }
             }
-            .listStyle(.plain).scrollContentBackground(.hidden)
-            .navigationDestination(item: $detail) { ContactDetailView(person: $0) }
+            .listStyle(.plain).hideScrollBackground()
+            .navDestination(item: $detail) { ContactDetailView(person: $0) }
             .searchable(text: $search)
-            .overlay { if contacts.contacts.isEmpty { ContentUnavailableView("No contacts", systemImage: "person.2", description: Text("Pick contacts that have a SIP address, import a vCard, or add one by hand.")) } }
+            .overlay { if contacts.contacts.isEmpty { EmptyState("No contacts", systemImage: "person.2", description: Text("Pick contacts that have a SIP address, import a vCard, or add one by hand.")) } }
             .mainBackground()
             .navigationTitle("Contacts")
             .toolbar {
@@ -134,7 +134,7 @@ struct ImportURLSheet: View {
     @State private var error: String?
 
     var body: some View {
-        NavigationStack {
+        AppNavStack {
             Form {
                 Section {
                     TextField("https://…/contacts.vcf", text: $text)
@@ -185,7 +185,7 @@ struct AddContactSheet: View {
     @State private var failed = false
 
     var body: some View {
-        NavigationStack {
+        AppNavStack {
             Form {
                 TextField("Name", text: $name)
                 TextField("SIP address (user@domain)", text: $address)

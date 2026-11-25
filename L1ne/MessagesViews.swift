@@ -12,13 +12,13 @@ struct ConversationsView: View {
     @EnvironmentObject var contacts: ContactsStore
     @EnvironmentObject var messages: MessageStore
     @EnvironmentObject var router: AppRouter
-    @State private var path: [ThreadTarget] = []
+    @State private var selected: ThreadTarget?
     @State private var composing = false
 
     private var list: some View {
         List {
             ForEach(messages.conversations) { c in
-                NavigationLink(value: ThreadTarget(accountID: c.accountID, peer: c.peer)) {
+                NavigationLink(tag: ThreadTarget(accountID: c.accountID, peer: c.peer), selection: $selected, destination: { ThreadView(target: ThreadTarget(accountID: c.accountID, peer: c.peer)) }) {
                     HStack(spacing: 12) {
                         Circle().fill(c.unread > 0 ? Theme.brand : .clear).frame(width: 10, height: 10)
                         VStack(alignment: .leading, spacing: 3) {
@@ -38,23 +38,22 @@ struct ConversationsView: View {
             }
             .onDelete { idx in messages.delete(idx.map { messages.conversations[$0].id }) }
         }
-        .scrollDisabled(messages.conversations.isEmpty)      // nothing to scroll when there are no conversations
+        .scrollDisabledCompat(messages.conversations.isEmpty)      // nothing to scroll when there are no conversations
         .overlay {
             if messages.conversations.isEmpty {
-                ContentUnavailableView("No conversations", systemImage: "bubble.left.and.bubble.right",
+                EmptyState("No conversations", systemImage: "bubble.left.and.bubble.right",
                                        description: Text("Texts need a server that supports SIP messages."))
             }
         }
     }
 
     var body: some View {
-        NavigationStack(path: $path) {
+        AppNavStack {
             list
             .mainBackground()
             .navigationTitle("Conversations")
-            .navigationDestination(for: ThreadTarget.self) { ThreadView(target: $0) }
             .task(id: router.pendingThread) {
-                if let t = router.pendingThread { path = [t]; router.pendingThread = nil }
+                if let t = router.pendingThread { selected = t; router.pendingThread = nil }
             }
             .toolbar {
                 ProfileToolbar()
@@ -64,7 +63,7 @@ struct ConversationsView: View {
                 }
             }
             .sheet(isPresented: $composing) {
-                NewMessageSheet { path = [$0] }
+                NewMessageSheet { selected = $0 }
             }
         }
     }
@@ -121,15 +120,15 @@ struct ThreadView: View {
                 }
                 .padding(.horizontal, 12).padding(.top, 8)
             }
-            .defaultScrollAnchor(.bottom)
-            .onChange(of: conversation?.messages.count) { _, _ in
+            .startAtBottom()
+            .onChangeCompat(of: conversation?.messages.count) { _, _ in
                 if let id = conversation?.messages.last?.id { withAnimation { proxy.scrollTo(id, anchor: .bottom) } }
                 messages.markRead(target)
             }
         }
         .mainBackground()
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(item: $info) { ContactDetailView(person: $0) }
+        .navDestination(item: $info) { ContactDetailView(person: $0) }
         .toolbar {
             // name on top, the line you are texting from underneath; tapping opens the contact page
             ToolbarItem(placement: .principal) {
@@ -155,8 +154,7 @@ struct ThreadView: View {
 
     private var composer: some View {
         HStack(alignment: .bottom, spacing: 10) {
-            TextField("Message", text: $draft, axis: .vertical)
-                .lineLimit(1...5)
+            MessageField(text: $draft)
                 .padding(.horizontal, 14).padding(.vertical, 9)
                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 20))
                 .overlay(RoundedRectangle(cornerRadius: 20).stroke(Theme.border))
@@ -208,7 +206,7 @@ struct NewMessageSheet: View {
     private var account: Account? { accountID.flatMap { store.account($0) } ?? store.selected }
 
     var body: some View {
-        NavigationStack {
+        AppNavStack {
             List {
                 if store.accounts.count > 1 {
                     Picker("From", selection: Binding(get: { account?.id ?? UUID() }, set: { accountID = $0 })) {

@@ -62,7 +62,7 @@ struct KeypadView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        AppNavStack {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
                 ZStack(alignment: .bottom) {

@@ -9,7 +9,7 @@ struct VoicemailView: View {
     private var accounts: [Account] { store.accounts.filter { $0.voicemailTarget != nil } }
 
     var body: some View {
-        NavigationStack {
+        AppNavStack {
             List(accounts) { a in
                 HStack(spacing: 14) {
                     Image(systemName: "recordingtape").font(.title3).foregroundStyle(Theme.brand)
@@ -26,8 +26,8 @@ struct VoicemailView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparatorTint(Theme.border)
             }
-            .listStyle(.plain).scrollContentBackground(.hidden)
-            .overlay { if accounts.isEmpty { ContentUnavailableView("No voicemail", systemImage: "recordingtape", description: Text("Add an account to check its voicemail.")) } }
+            .listStyle(.plain).hideScrollBackground()
+            .overlay { if accounts.isEmpty { EmptyState("No voicemail", systemImage: "recordingtape", description: Text("Add an account to check its voicemail.")) } }
             .mainBackground()
             .navigationTitle("Voicemail")
             .toolbar { ProfileToolbar() }

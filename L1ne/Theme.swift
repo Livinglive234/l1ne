@@ -34,14 +34,14 @@ extension View {
     /// Green-tinted page background for sheets, forms and settings.
     func l1neBackground() -> some View {
         self.frame(maxWidth: .infinity, maxHeight: .infinity)
-            .scrollContentBackground(.hidden)
+            .hideScrollBackground()
             .background(Theme.sheet.ignoresSafeArea())
     }
 
     /// Black (light mode: white) background for the main screens (Recents, Contacts, Conversations, Keypad, a thread, the call).
     func mainBackground() -> some View {
         self.frame(maxWidth: .infinity, maxHeight: .infinity)
-            .scrollContentBackground(.hidden)
+            .hideScrollBackground()
             .background(Theme.bg.ignoresSafeArea())
     }
 }

@@ -9,7 +9,7 @@ settings:
 options:
   bundleIdPrefix: com.livenet
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "15.0"
 targets:
   L1ne:
     type: application

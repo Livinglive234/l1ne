@@ -22,7 +22,7 @@ struct ProvisionSheet: View {
     @State private var importInterval = SyncInterval.onOpen
 
     var body: some View {
-        NavigationStack {
+        AppNavStack {
             Form {
                 if let result {
                     review(result)

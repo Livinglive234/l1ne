@@ -32,7 +32,7 @@ struct AccountEditor: View {
     private var canLogin: Bool { !account.username.isEmpty && !secret.isEmpty && !account.domain.trimmingCharacters(in: .whitespaces).isEmpty }
 
     var body: some View {
-        NavigationStack {
+        AppNavStack {
             Group { if isNew { newAccountForm } else { editForm } }
                 .l1neBackground()
                 .navigationTitle(isNew ? "Use a SIP account" : (account.title.isEmpty ? "Account" : account.title))

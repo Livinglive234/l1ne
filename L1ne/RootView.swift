@@ -40,7 +40,7 @@ struct RootView: View {
         .sheet(item: $setupLink) {
             ProvisionSheet(initialLink: $0.text).environmentObject(engine).environmentObject(store).environmentObject(contacts).environmentObject(dirs)
         }
-        .onChange(of: engine.calls.count) { old, new in
+        .onChangeCompat(of: engine.calls.count) { old, new in
             if new > old || new == 0 { router.callMinimized = false }          // a new call, or none left: back to normal
         }
         .task {
@@ -133,7 +133,7 @@ struct RecentsView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        AppNavStack {
             List {
                 ForEach(shown) { r in
                     HStack(spacing: 14) {
@@ -160,15 +160,15 @@ struct RecentsView: View {
                     .swipeActions { Button(role: .destructive) { callLog.delete([r.id]) } label: { Label("Delete", systemImage: "trash") } }
                 }
             }
-            .listStyle(.plain).scrollContentBackground(.hidden)
-            .navigationDestination(item: $detail) { ContactDetailView(person: $0) }
+            .listStyle(.plain).hideScrollBackground()
+            .navDestination(item: $detail) { ContactDetailView(person: $0) }
             .searchable(text: $search)
             .confirmationDialog("Delete all recent calls?", isPresented: $confirmClear, titleVisibility: .visible) {
                 Button("Delete all", role: .destructive) { callLog.removeAll() }
             }
             .overlay {
                 if shown.isEmpty {
-                    ContentUnavailableView(missedOnly ? "No missed calls" : "No recent calls", systemImage: "clock")
+                    EmptyState(missedOnly ? "No missed calls" : "No recent calls", systemImage: "clock")
                 }
             }
             .mainBackground()
@@ -284,7 +284,7 @@ struct CallScreen: View {
         .fullScreenCover(isPresented: $showKeypad) { DTMFScreen(call: c.id).environmentObject(engine).preferredColorScheme(.dark) }
         .sheet(isPresented: $showTransfer) { TransferSheet(call: c).environmentObject(engine).environmentObject(store).environmentObject(ContactsStore.shared) }
         .sheet(isPresented: $showCalls) { CallsListSheet().environmentObject(engine) }
-        .sheet(isPresented: $showMore) { moreSheet(c).presentationDetents([.height(300)]).presentationDragIndicator(.visible).preferredColorScheme(.dark) }
+        .sheet(isPresented: $showMore) { moreSheet(c).sheetCard(.height(300)).preferredColorScheme(.dark) }
     }
 
     private func securityLine(_ c: SIPEngine.CallInfo) -> (text: String, icon: String, color: Color)? {
@@ -438,7 +438,7 @@ struct SignalBars: View {
                     }
                     .font(.subheadline.monospacedDigit()).foregroundStyle(Theme.text)
                     .padding(18)
-                    .presentationCompactAdaptation(.popover)
+                    .compactPopover()
                 }
             }
             .accessibilityLabel("Call quality \(word.lowercased())")
@@ -451,7 +451,7 @@ struct CallsListSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        AppNavStack {
             List {
                 ForEach(engine.calls) { c in
                     HStack(spacing: 12) {
@@ -473,7 +473,7 @@ struct CallsListSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
-        .presentationDetents([.medium])
+        .sheetCard(.medium, handle: false)
     }
 
     private func status(_ c: SIPEngine.CallInfo) -> String {
@@ -549,7 +549,7 @@ struct TransferSheet: View {
     @State private var number = ""
 
     var body: some View {
-        NavigationStack {
+        AppNavStack {
             List {
                 Section {
                     TextField("Extension or number", text: $number).keyboardType(.phonePad)
@@ -570,7 +570,7 @@ struct TransferSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
         }
-        .presentationDetents([.medium, .large])
+        .sheetCard(.mediumLarge, handle: false)
     }
 
     private func go(_ dest: String) {

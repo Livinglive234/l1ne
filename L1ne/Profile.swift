@@ -62,7 +62,7 @@ struct ProfileView: View {
     @State private var provisioning = false
 
     var body: some View {
-        NavigationStack {
+        AppNavStack {
             List {
                 Section {
                     ForEach(store.accounts) { a in
@@ -98,7 +98,7 @@ struct ProfileView: View {
             .l1neBackground()
             .navigationTitle("Accounts")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.fontWeight(.semibold) } }
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.font(.body.weight(.semibold)) } }
             .sheet(item: $editing) { AccountEditor(account: $0) }
             .sheet(isPresented: $provisioning) { ProvisionSheet(initialLink: nil) }
         }

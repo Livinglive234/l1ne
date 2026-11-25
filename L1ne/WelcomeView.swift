@@ -104,17 +104,17 @@ struct WelcomeView: View {
                 .background(GeometryReader { g in Color.clear.preference(key: WelcomeHeightKey.self, value: g.size.height) })
             }
             .onPreferenceChange(WelcomeHeightKey.self) { contentHeight = $0 }
-            .scrollDisabled(contentHeight <= geo.size.height + 1 && focus == nil)
-            .scrollDismissesKeyboard(.interactively)
-            .scrollBounceBehavior(.basedOnSize)
+            .scrollDisabledCompat(contentHeight <= geo.size.height + 1 && focus == nil)
+            .dismissKeyboardOnScroll()
+            .scrollBounceOnlyWhenNeeded()
         }
         .background { waves.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom).ignoresSafeArea() }       // fixed to the bottom edge, behind the content
         .background(Theme.bg.ignoresSafeArea())
         .sheet(isPresented: $showQR) { ProvisionSheet(initialLink: nil, autoScan: true) }
         .sheet(isPresented: $showLink) { ProvisionSheet(initialLink: nil) }
         .sheet(isPresented: $showManual) { AccountEditor(account: Account()) }
-        .sheet(isPresented: $showHelp) { HelpCard().presentationDetents([.height(400), .large]).presentationDragIndicator(.visible) }
-        .onChange(of: engine.registration) { _, new in
+        .sheet(isPresented: $showHelp) { HelpCard().sheetCard(.heightLarge(400)) }
+        .onChangeCompat(of: engine.registration) { _, new in
             guard let id = pending, let s = new[id] else { return }
             if s == "Registered" { pending = nil; signingIn = false }
             else if s != "Registering…" && !s.hasPrefix("Waiting") { fail(Self.explain(s)) }

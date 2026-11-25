@@ -8,7 +8,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/vendor/pjproject"
 OUT="$ROOT/vendor/build"
-MIN_IOS=17.0
+MIN_IOS=15.0
 JOBS=$(sysctl -n hw.ncpu)
 
 [ -d "$SRC" ] || { echo "missing $SRC (run scripts/fetch-deps.sh)"; exit 1; }

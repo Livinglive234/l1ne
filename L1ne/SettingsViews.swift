@@ -13,7 +13,7 @@ struct SettingsView: View {
     private var recordingCount: Int { RecordingsView.files().count }
 
     var body: some View {
-        NavigationStack {
+        AppNavStack {
             List {
                 Section {
                     Picker("Appearance", selection: $settings.appearance) {
@@ -27,14 +27,14 @@ struct SettingsView: View {
                     Toggle("Show calls in the Phone app", isOn: $settings.callsInPhoneApp)
                     NavigationLink("Advanced calls settings") { AdvancedCallsView() }
                     NavigationLink { RecordingsView() } label: {
-                        LabeledContent("Recordings", value: recordingCount == 0 ? "None" : "\(recordingCount)")
+                        ValueRow("Recordings", value: recordingCount == 0 ? "None" : "\(recordingCount)")
                     }
                 }
                 .listRowBackground(Theme.surface)
 
                 Section {
                     Toggle("Use only Wi-Fi networks", isOn: $settings.wifiOnly)
-                        .onChange(of: settings.wifiOnly) { _, _ in engine.reregisterAll() }
+                        .onChangeCompat(of: settings.wifiOnly) { _, _ in engine.reregisterAll() }
                     Toggle("Allow IPv6", isOn: $settings.allowIPv6)
                 } header: { Text("Network") } footer: {
                     Text("IPv6 changes apply the next time L1ne starts.")
@@ -62,7 +62,7 @@ struct SettingsView: View {
 
                 Section("Contacts") {
                     NavigationLink("Contacts sync") { DirectorySourcesView() }
-                    LabeledContent("In L1ne", value: "\(contacts.contacts.count)")
+                    ValueRow("In L1ne", value: "\(contacts.contacts.count)")
                     Button("Remove all contacts from L1ne", role: .destructive) { confirmRemove = true }
                         .disabled(contacts.contacts.isEmpty)
                 }
@@ -75,15 +75,15 @@ struct SettingsView: View {
                 .listRowBackground(Theme.surface)
 
                 Section("About") {
-                    LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1")
-                    LabeledContent("SIP engine", value: "PJSIP \(SIPEngine.version)")
+                    ValueRow("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1")
+                    ValueRow("SIP engine", value: "PJSIP \(SIPEngine.version)")
                 }
                 .listRowBackground(Theme.surface)
             }
             .l1neBackground()
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.fontWeight(.semibold) } }
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.font(.body.weight(.semibold)) } }
             .sheet(isPresented: $applying) { ProvisionSheet(initialLink: settings.provisioningURL) }
             .confirmationDialog("Remove all contacts from L1ne?", isPresented: $confirmRemove, titleVisibility: .visible) {
                 Button("Remove all", role: .destructive) { contacts.removeAll() }
@@ -178,7 +178,7 @@ struct RecordingsView: View {
                         Text(size(url)).font(.footnote).foregroundStyle(Theme.muted)
                     }
                     Spacer()
-                    ShareLink(item: url) { Image(systemName: "square.and.arrow.up").foregroundStyle(Theme.brand) }
+                    ShareFileButton(url: url) { Image(systemName: "square.and.arrow.up").foregroundStyle(Theme.brand) }
                 }
                 .listRowBackground(Theme.surface)
             }
@@ -189,7 +189,7 @@ struct RecordingsView: View {
         }
         .overlay {
             if files.isEmpty {
-                ContentUnavailableView("No recordings", systemImage: "waveform",
+                EmptyState("No recordings", systemImage: "waveform",
                                        description: Text("Record a call with the Record button while you're on it, or turn on automatic recording in Settings. Check your local laws about telling people you record."))
             }
         }

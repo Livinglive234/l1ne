@@ -17,7 +17,7 @@ build() {
   ( cd "$work"
     export CROSS_TOP="" CROSS_SDK=""
     ./Configure "$target" no-shared no-tests no-apps no-docs no-dso no-engine no-comp no-ssl3 no-weak-ssl-ciphers \
-        "$minflag=17.0" --prefix="$OUT/$name" --openssldir="$OUT/$name/ssl" >configure.log 2>&1 || { tail -20 configure.log; exit 1; }
+        "$minflag=15.0" --prefix="$OUT/$name" --openssldir="$OUT/$name/ssl" >configure.log 2>&1 || { tail -20 configure.log; exit 1; }
     make -j"$JOBS" build_libs >make.log 2>&1 || { tail -30 make.log; exit 1; }
     make install_dev >install.log 2>&1 || { tail -20 install.log; exit 1; }
   )
