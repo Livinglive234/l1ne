@@ -1,21 +1,25 @@
 #!/bin/bash
-# Builds OpenSSL and pjproject (static) for Android into vendor/android/<abi>/, using the NDK from android/local.properties.
+# Builds OpenSSL and pjproject (static) for Android into vendor/android/<abi>/. Runs on macOS, Linux and Windows (Git Bash or MSYS2; WSL counts as Linux).
+# The SDK comes from $ANDROID_HOME or android/local.properties; the NDK version is pinned in scripts/lib.sh.
 # usage: scripts/build-android-native.sh [arm64-v8a|armeabi-v7a]   (default arm64-v8a; run it once per ABI the app ships)
 # Same feature set as the iOS build: audio only, OpenSSL for TLS and DTLS-SRTP, bundled libsrtp for SDES.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SDK=$(sed -n 's/^sdk.dir=//p' "$ROOT/android/local.properties")
-export ANDROID_NDK_ROOT="${ANDROID_NDK_ROOT:-$(ls -d "$SDK"/ndk/* | tail -1)}"
+. "$ROOT/scripts/lib.sh"
+SDK=$(android_sdk "$ROOT")
+export ANDROID_NDK_ROOT="${ANDROID_NDK_ROOT:-$SDK/ndk/$NDK_VERSION}"
+[ -d "$ANDROID_NDK_ROOT" ] || { echo "NDK $NDK_VERSION not found at $ANDROID_NDK_ROOT (install it with: sdkmanager \"ndk;$NDK_VERSION\")"; exit 1; }
 ABI="${1:-arm64-v8a}"
 case "$ABI" in arm64-v8a) SSLTARGET=android-arm64;; armeabi-v7a) SSLTARGET=android-arm;; *) echo "unknown ABI $ABI"; exit 1;; esac
-OUT="$ROOT/vendor/android/$ABI"; JOBS=$(sysctl -n hw.ncpu)
+OUT="$ROOT/vendor/android/$ABI"
 API=26
-TC="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/darwin-x86_64"
+TC="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$NDK_HOST"
+[ "$L1NE_OS" = windows ] && export PATH="$ANDROID_NDK_ROOT/prebuilt/windows-x86_64/bin:$PATH"   # the NDK ships its own make on Windows
 mkdir -p "$OUT"
 
 # OpenSSL
 if [ ! -f "$OUT/openssl/lib/libssl.a" ]; then
-  W="$ROOT/vendor/build/openssl-android-$ABI"; rm -rf "$W"; mkdir -p "$W"; rsync -a "$ROOT/vendor/openssl-dl/openssl-3.5.9/" "$W/"
+  W="$ROOT/vendor/build/openssl-android-$ABI"; rm -rf "$W"; copy_tree "$ROOT/vendor/openssl-dl/openssl-3.5.9" "$W"
   ( cd "$W"; export PATH="$TC/bin:$PATH"
     ./Configure $SSLTARGET -D__ANDROID_API__=$API no-shared no-tests no-apps no-docs no-dso no-engine no-comp no-ssl3 no-weak-ssl-ciphers \
       --prefix="$OUT/openssl" --openssldir="$OUT/openssl/ssl" >configure.log 2>&1 || { tail -20 configure.log; exit 1; }
@@ -30,9 +34,9 @@ for p in "$ROOT"/scripts/patches/*.patch; do
   [ -f "$p" ] || continue
   if git -C "$SRC" apply --check "$p" 2>/dev/null; then git -C "$SRC" apply "$p"; echo "applied $(basename "$p")"; fi
 done
-W="$ROOT/vendor/build/pjsip-android-$ABI"; rm -rf "$W"; mkdir -p "$W"; rsync -a --exclude .git "$SRC/" "$W/src/"
+W="$ROOT/vendor/build/pjsip-android-$ABI"; rm -rf "$W"; mkdir -p "$W"; copy_tree "$SRC" "$W/src"
 # pjproject's OpenSL file calls opensl_to_pj_error before declaring it; current clang refuses that
-sed -i '' 's|^#define THIS_FILE       "opensl_dev.c"|&\npj_status_t opensl_to_pj_error(SLresult code);|' "$W/src/pjmedia/src/pjmedia-audiodev/opensl_dev.c"
+sedi 's|^#define THIS_FILE       "opensl_dev.c"|&\npj_status_t opensl_to_pj_error(SLresult code);|' "$W/src/pjmedia/src/pjmedia-audiodev/opensl_dev.c"
 cat > "$W/src/pjlib/include/pj/config_site.h" <<'EOT'
 #define PJ_CONFIG_ANDROID 1
 #include <pj/config_site_sample.h>
@@ -54,5 +58,5 @@ EOT
   make -j"$JOBS" lib >"$W/make.log" 2>&1 || { tail -40 "$W/make.log"; exit 1; } )
 mkdir -p "$OUT/pjsip/lib" "$OUT/pjsip/include"
 cp "$W"/src/*/lib/*.a "$W"/src/third_party/lib/*.a "$OUT/pjsip/lib/" 2>/dev/null || true
-for d in pjlib pjlib-util pjnath pjmedia pjsip; do rsync -a "$W/src/$d/include/" "$OUT/pjsip/include/"; done
+for d in pjlib pjlib-util pjnath pjmedia pjsip; do cp -R "$W/src/$d/include/." "$OUT/pjsip/include/"; done
 echo "pjsip libs: $(ls "$OUT/pjsip/lib" | tr '\n' ' ')"

@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$ROOT/vendor/openssl-dl/openssl-3.5.9"
 OUT="$ROOT/vendor/openssl"
-JOBS=$(sysctl -n hw.ncpu)
+. "$ROOT/scripts/lib.sh"; need_mac "Building OpenSSL for iOS"   # also sets JOBS
 [ -d "$SRC" ] || { echo "missing $SRC"; exit 1; }
 
 build() {

@@ -1,0 +1,46 @@
+name: Build scripts
+
+# Checks that the native build scripts really run on macOS, Linux and Windows (Git Bash).
+# iOS builds need macOS and Xcode, so they are covered by the iOS workflow only.
+
+on:
+  push:
+    branches: [main]
+    paths: ['scripts/**', '.github/workflows/scripts.yml']
+  pull_request:
+    paths: ['scripts/**', '.github/workflows/scripts.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-native:
+    name: Android native libraries on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-26, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - name: Read the pinned NDK version
+        run: echo "NDK_VERSION=$(sed -n 's/^NDK_VERSION=//p' scripts/lib.sh)" >> "$GITHUB_ENV"
+      - name: Install the NDK
+        run: |
+          SM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"; [ -f "$SM.bat" ] && SM="$SM.bat"
+          yes | "$SM" --licenses > /dev/null || true
+          "$SM" "ndk;$NDK_VERSION"
+      - name: Download the sources
+        run: scripts/fetch-deps.sh
+      - name: Build (arm64-v8a)
+        run: scripts/build-android-native.sh arm64-v8a
+      - name: Check the result
+        run: |
+          ls vendor/android/arm64-v8a/openssl/lib vendor/android/arm64-v8a/pjsip/lib | head -30
+          test -f vendor/android/arm64-v8a/openssl/lib/libssl.a
+          ls vendor/android/arm64-v8a/pjsip/lib/libpjsua-*.a

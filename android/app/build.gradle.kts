@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "com.livenet.l1ne"
     compileSdk = 36
+    ndkVersion = "29.0.14206865"      // keep in step with NDK_VERSION in scripts/lib.sh (the native libraries are built with the same NDK)
     defaultConfig {
         applicationId = "com.livenet.l1ne"
         minSdk = 26
