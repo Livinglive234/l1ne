@@ -41,6 +41,21 @@ to wake the app; CallKit by itself cannot do that.
 While the app is running, a local notification is easy. With the app closed it needs push (see [PUSH.md](PUSH.md)): the relay would be told about new voicemail and push the phone. Until then the Voicemail tab badge and the keypad
 button count show new messages only while L1ne is running.
 
+## LATER: ZRTP, video calls and end-to-end encrypted texts
+
+None of these is started. They are listed so they are not forgotten, with what each one needs.
+
+**ZRTP (call encryption without the PBX's help).** ZRTP agrees keys between the two phones during the call and shows a short code both people can read out to rule
+out a man in the middle. It works on a plain PBX, since the PBX only relays audio. **Not in PJSIP.** It needs a ZRTP library (GNU ZRTP or ZRTP4PJ) built for iOS and
+Android and hooked into PJSIP's media layer, plus a "verify this code" screen. Only worth it if the other end also speaks ZRTP (Linphone does; most phones do not).
+
+**Video calls.** Needs PJSIP rebuilt with video: H.264 (VideoToolbox on iPhone, MediaCodec on Android) and VP8, the camera and its permissions, a video call screen
+(picture-in-picture, camera flip, mute video), bandwidth handling and the SDP/AVPF settings. Many PBXes need video enabled per extension. It is a large piece of work on both platforms.
+
+**End-to-end encrypted texts.** Plain SIP `MESSAGE` goes through the PBX in the clear. The usual fix is Linphone's LIME, which needs a **key server** run by Linphone, so it
+only works between Linphone-family apps. Options: (1) skip it; (2) use an open standard that needs no vendor server, for example an OMEMO-style or Signal-style double ratchet
+carried inside SIP `MESSAGE`, with public keys published through the PBX (a vCard/URL on the contact, or a small `OPTIONS`/`PUBLISH` exchange). That would be new and only
+L1ne-to-L1ne. Decide later; it must not need a hosted server run by this project (see the push decision above).
+
 ## LATER: other deferred items
-Opus (many PBXes offer none), conference calls, video calls, and Linphone-server features (end-to-end encrypted chat, file sharing, meetings),
-which a plain SIP server cannot provide.
+Opus (many PBXes offer none), conference calls, and Linphone-server features (file sharing, meetings), which a plain SIP server cannot provide.

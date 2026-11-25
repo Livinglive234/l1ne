@@ -26,7 +26,7 @@ class MainActivity : ComponentActivity() {
         handle(intent)
         val app = application as L1neApplication
         requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.POST_NOTIFICATIONS), 1)
-        app.engine.start(); app.engine.registerAll()
+        app.engine.start(); app.engine.registerMissing()
         if (app.settings.keepAlive && app.store.accounts.value.isNotEmpty()) com.livenet.l1ne.sip.KeepAliveService.start(this)
         lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.RESUMED) {           // directory syncs run while L1ne is open
             app.dirSync.syncDue(onOpen = true); while (true) { delay(60_000); app.dirSync.syncDue() } } }
