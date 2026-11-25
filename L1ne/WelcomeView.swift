@@ -100,7 +100,7 @@ struct WelcomeView: View {
                             help
                         }
                     }
-                    .padding(.horizontal, 24).padding(.top, 8).padding(.bottom, 16)
+                    .padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 16)
                     .frame(maxWidth: 520)
                 }
                 .frame(maxWidth: .infinity, minHeight: max(geo.size.height - 64, 0), alignment: .top)     // fills the space above the hills; the spacers share out what is left
