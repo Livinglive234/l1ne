@@ -70,5 +70,19 @@ Not started. The Android layouts already adapt to small phones and tablets (widt
   and cope with the hinge posture. Test in the simulator by moving the hinge between closed, half open and open and checking each screen. Check that no black bars appear on the inner screen.
 - Android: needs real hardware or the emulator's foldable and resizable profiles. iPhone Duo: the Xcode simulator.
 
+## LATER: desktop apps (Windows, macOS, Linux)
+
+Not started. A softphone on the computer, with the same privacy rules (no account, no cloud, no analytics) and the same look.
+
+- **What can be shared.** The SIP engine is PJSIP, which already builds for all three. The Kotlin core (`android/core`: accounts, provisioning, dial rules, parsers) has no Android dependency
+  and could run on the JVM; the iPhone app has its own Swift twin of the same logic.
+- **Choices to make.** (1) **Compose Multiplatform** (Kotlin) reusing the Android screens and core, a JNI/JNA bridge to PJSIP, one codebase for Windows, macOS and Linux;
+  (2) a native Mac app in SwiftUI (reusing much of the iPhone app; Mac Catalyst or a native macOS target) plus something else for Windows and Linux;
+  (3) Electron or Tauri, which is quick but heavy and awkward for audio. Leaning to (1), with a Mac build from the same code.
+- **Desktop-specific work.** Audio device choice (headset, speakers, mic) and echo cancellation, call notifications and a ringing window, a system tray / menu bar icon, global
+  `sip:` and `tel:` link handling, keyboard shortcuts, running at login, window sizes, secure password storage (Keychain, Windows Credential Manager, Secret Service), and installers
+  (signed `.msi`/`.exe`, notarised `.dmg`, `.deb`/AppImage/Flatpak). Mac distribution has the same GPL/App Store question as the iPhone ([LICENSING.md](../LICENSING.md)).
+- **No push needed** on a desktop: the app can stay running and registered.
+
 ## LATER: other deferred items
 Opus (many PBXes offer none), conference calls, and Linphone-server features (file sharing, meetings), which a plain SIP server cannot provide.
