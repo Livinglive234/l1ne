@@ -11,6 +11,7 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,8 +31,16 @@ fun L1neApp() {
     val app = LocalApp.current
     val accounts by app.store.accounts.collectAsState()
     var signingIn by remember { mutableStateOf(false) }      // the welcome screen stays up while a first login is being checked
-    if (accounts.isEmpty() || signingIn) WelcomeScreen(signingIn) { signingIn = it } else MainTabs()
+    var adding by remember { mutableStateOf(false) }         // "Add account" shows the same welcome screen on top of the tabs, so adding an account feels like the first one
+    if (accounts.isEmpty()) adding = false
+    if (accounts.isEmpty() || signingIn && !adding) WelcomeScreen(signingIn, { signingIn = it }) else Box {
+        CompositionLocalProvider(LocalAddAccount provides { adding = true }) { MainTabs() }
+        if (adding) Surface(Modifier.fillMaxSize().pointerInput(Unit) {}, color = L1neColors.Bg) { WelcomeScreen(signingIn, { signingIn = it }, onClose = { adding = false }) }
+    }
 }
+
+/** Lets the Accounts screen open the welcome screen to add an account. */
+val LocalAddAccount = staticCompositionLocalOf<() -> Unit> { {} }
 
 /** Tabs like iOS: Recents, Contacts, Chats, Keypad, and an optional Voicemail tab. The avatar at the top left opens the profile menu. */
 @OptIn(ExperimentalMaterial3Api::class)

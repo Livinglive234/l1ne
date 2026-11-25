@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,8 +54,11 @@ import kotlinx.coroutines.delay
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
+fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit, onClose: (() -> Unit)? = null) {
     val app = LocalApp.current
+    // onClose != null means this is "Add account" on top of the tabs: it gets a close button, and it closes itself as soon as an account was added
+    val accountList by app.store.accounts.collectAsState()
+    val startCount = remember { accountList.size }
     val reg by app.engine.registration.collectAsState()
     val focus = LocalFocusManager.current
     var server by remember { mutableStateOf("") }; var username by remember { mutableStateOf("") }; var displayName by remember { mutableStateOf("") }; var password by remember { mutableStateOf("") }
@@ -81,6 +85,10 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
     val root = remember { androidx.compose.ui.focus.FocusRequester() }
     LaunchedEffect(Unit) { delay(200); root.requestFocus(); keyboard?.hide() }       // some phones put the cursor in the first field on launch; park the focus on the screen itself and start with the keyboard closed
     val status = pending?.let { reg[it] }
+    if (onClose != null) {
+        androidx.activity.compose.BackHandler(!help && !showLink && !manual) { if (pending != null) { removePending(); error = null; setSigningIn(false) }; onClose() }
+        LaunchedEffect(accountList.size, pending) { if (pending == null && accountList.size > startCount) { setSigningIn(false); onClose() } }
+    }
     LaunchedEffect(pending, status) {
         if (pending == null || status == null) return@LaunchedEffect
         when {
@@ -116,6 +124,7 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
 
     Box(Modifier.fillMaxSize().focusRequester(root).focusable()) {
         Waves(Modifier.align(Alignment.BottomCenter))           // attached to the bottom edge of the screen, whatever its size
+        if (onClose != null) IconButton({ if (pending != null) { removePending(); error = null; setSigningIn(false) }; onClose() }, Modifier.align(Alignment.TopStart).zIndex(1f).systemBarsPadding().padding(4.dp)) { Icon(Icons.Filled.Close, "Close", tint = L1neColors.Text) }
         val scroll = rememberScrollState()
         val imeOpen = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
         // only scrolls when it has to: content taller than the screen (a small phone) or the keyboard is up
