@@ -73,13 +73,14 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit, onClose: 
 
     fun removePending() { pending?.let { app.engine.unregister(it); app.store.remove(it) }; pending = null }
     fun fail(message: String) { removePending(); error = message; setSigningIn(false) }
-    fun login() {
+    // the one way an account gets in: saved, registered, and taken out again if the PBX refuses or doesn't answer (the fields and "More options" both end up here)
+    fun submit(acc: Account, pw: String) {
         focus.clearFocus(); error = null
-        val acc = Account(username = username.trim(), displayName = displayName.trim()).withTransport(transport).finishedNew(server)   // parses "host:port", keeps SRTP only on TLS
-        app.store.save(acc, password)
+        app.store.save(acc, pw)
         pending = acc.id; setSigningIn(true)                 // keeps this screen up while the PBX answers
         app.engine.register(acc)
     }
+    fun login() = submit(Account(username = username.trim(), displayName = displayName.trim()).withTransport(transport).finishedNew(server), password)   // parses "host:port", keeps SRTP only on TLS
 
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val root = remember { androidx.compose.ui.focus.FocusRequester() }
@@ -192,7 +193,7 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit, onClose: 
         }
     }
     if (showLink) LinkDialog(null, autoScan = scanFirst) { showLink = false }
-    if (manual) Surface(Modifier.fillMaxSize(), color = L1neColors.Bg) { AccountEditorScreen(null) { manual = false } }
+    if (manual) Surface(Modifier.fillMaxSize(), color = L1neColors.Bg) { AccountEditorScreen(null, onSubmit = ::submit) { manual = false } }
 }
 
 /** Plain words for the usual ways a first login goes wrong. */

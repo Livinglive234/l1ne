@@ -205,7 +205,7 @@ private val countries = listOf("United States / Canada" to "1", "United Kingdom"
 
 /** New account: the short form. Existing account: "Manage account" with everything. */
 @Composable
-fun AccountEditorScreen(id: String?, onBack: () -> Unit) {
+fun AccountEditorScreen(id: String?, onSubmit: ((Account, String) -> Unit)? = null, onBack: () -> Unit) {
     val app = LocalApp.current; val ctx = LocalContext.current
     val existing = id?.let { i -> app.store.accounts.value.firstOrNull { it.id == i } }
     val isNew = existing == null
@@ -224,6 +224,7 @@ fun AccountEditorScreen(id: String?, onBack: () -> Unit) {
 
     fun save() {
         val acc = if (isNew) a.finishedNew(server) else a.withServer(a.domain)
+        if (isNew && onSubmit != null) { onSubmit(acc, secret); onBack(); return }     // a new account is only kept once the PBX accepts the login (the welcome screen checks)
         app.store.save(acc, secret.ifEmpty { null }); if (turnSecret.isNotEmpty()) app.store.saveTurnSecret(acc.id, turnSecret)
         app.engine.register(acc); onBack()
     }

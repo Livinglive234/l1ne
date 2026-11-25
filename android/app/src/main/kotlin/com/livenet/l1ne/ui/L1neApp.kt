@@ -117,7 +117,7 @@ private fun MainTabs() {
                 Dest.NewMessage -> { NewMessageDialog({ d2 -> back(); open(d2) }, ::back) }
                 Dest.Settings -> SettingsScreen(::open, ::back)
                 Dest.Accounts -> AccountsScreen(::open, ::back)
-                is Dest.Account -> AccountEditorScreen(d.id, ::back)
+                is Dest.Account -> AccountEditorScreen(d.id, onBack = ::back)
                 Dest.AdvancedCalls -> AdvancedCallsScreen(::back)
                 Dest.ContactsSync -> ContactsSyncScreen(::back)
                 Dest.Voicemail -> VoicemailScreen()
