@@ -116,13 +116,16 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
 
     Box(Modifier.fillMaxSize().focusRequester(root).focusable()) {
         Waves(Modifier.align(Alignment.BottomCenter))           // attached to the bottom edge of the screen, whatever its size
-        Column(Modifier.fillMaxSize().systemBarsPadding().imePadding().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-            Column(Modifier.widthIn(max = 520.dp).padding(start = 24.dp, end = 24.dp, top = if (compact) 4.dp else if (snug) 6.dp else 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else if (snug) 6.dp else 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Image(painterResource(R.drawable.welcome_logo), null, Modifier.size(if (compact) 44.dp else if (snug) 52.dp else 64.dp).clip(RoundedCornerShape(14.dp)))
+        val scroll = rememberScrollState()
+        val imeOpen = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+        // only scrolls when it has to: content taller than the screen (a small phone) or the keyboard is up
+        Column(Modifier.fillMaxSize().systemBarsPadding().imePadding().verticalScroll(scroll, enabled = scroll.maxValue > 0 || imeOpen), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.widthIn(max = 520.dp).padding(start = 24.dp, end = 24.dp, top = if (compact) 4.dp else if (snug) 4.dp else 16.dp, bottom = if (snug) 4.dp else 24.dp), verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else if (snug) 6.dp else 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Image(painterResource(R.drawable.welcome_logo), null, Modifier.size(if (compact) 44.dp else if (snug) 46.dp else 64.dp).clip(RoundedCornerShape(14.dp)))
                 Text("Welcome to L1ne", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = L1neColors.Text)
                 if (!compact) Text("Sign in to your PBX, or scan its QR code.", textAlign = TextAlign.Center, color = L1neColors.Muted, style = MaterialTheme.typography.bodyMedium)
 
-                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (snug) 13.dp else 16.dp)) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (snug) 12.dp else 16.dp)) {
                     Labeled("Server") { Input(server, { server = it }, "pbx.example.com", KeyboardType.Uri, ImeAction.Next) }
                     Labeled("Username or extension") { Input(username, { username = it }, "Username", KeyboardType.Text, ImeAction.Next) }
                     Labeled("Display name (optional)") { Input(displayName, { displayName = it }, "Shown to people you call", KeyboardType.Text, ImeAction.Next, caps = KeyboardCapitalization.Words) }
@@ -138,7 +141,7 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
                         }
                     }
                 }
-                Spacer(Modifier.height(if (snug) 8.dp else 12.dp))
+                Spacer(Modifier.height(if (snug) 4.dp else 12.dp))
                 error?.let { Text(it, color = L1neColors.Danger, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall) }
                 Button(::login, Modifier.fillMaxWidth().height(46.dp), enabled = canLogin && pending == null, shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(containerColor = L1neColors.Brand, contentColor = L1neColors.OnBrand, disabledContainerColor = L1neColors.Brand.copy(alpha = 0.4f), disabledContentColor = L1neColors.OnBrand)) {

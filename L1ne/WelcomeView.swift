@@ -20,6 +20,7 @@ struct WelcomeView: View {
     @State private var showLink = false
     @State private var showManual = false
     @State private var showHelp = false
+    @State private var contentHeight: CGFloat = 0     // measured, so the page only scrolls when it has to (a small phone, or the keyboard is up)
     @FocusState private var focus: Field?
     private enum Field { case server, user, name, pass }
 
@@ -100,7 +101,10 @@ struct WelcomeView: View {
                     .frame(maxWidth: 520)
                 }
                 .frame(maxWidth: .infinity, minHeight: max(geo.size.height - 64, 0), alignment: .top)     // fills the space above the hills; the spacers share out what is left
+                .background(GeometryReader { g in Color.clear.preference(key: WelcomeHeightKey.self, value: g.size.height) })
             }
+            .onPreferenceChange(WelcomeHeightKey.self) { contentHeight = $0 }
+            .scrollDisabled(contentHeight <= geo.size.height + 1 && focus == nil)
             .scrollDismissesKeyboard(.interactively)
             .scrollBounceBehavior(.basedOnSize)
         }
@@ -266,4 +270,9 @@ struct WelcomeView: View {
         default: return "Couldn't sign in: \(status)"
         }
     }
+}
+
+private struct WelcomeHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
