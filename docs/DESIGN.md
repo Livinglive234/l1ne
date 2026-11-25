@@ -56,8 +56,8 @@ a `linphone-config:https://…` or `l1ne-config:https://…` link, or a pasted U
 The review screen shows each account with its own switch; nothing is forced. Fixtures: `tests/fixtures/linphone-provision.xml`.
 
 ## Push (later)
-See [ROADMAP.md](ROADMAP.md). Decided approach: a push **proxy** that registers on the user's behalf, pushes the phone on an incoming call, and
-passes the call through, so any SIP server works unchanged. Not started.
+See [PUSH.md](PUSH.md) and [ROADMAP.md](ROADMAP.md). Decided approach: a per-account choice of No push (default), Webhook push (one PBX snippet; the relay stores only a
+device token) or a self-hosted proxy. A hosted proxy that holds people's SIP logins was ruled out on purpose. Designed, not built.
 
 ## Android
 Same product, formats and rules, with Android conventions: Material 3 theme with the same palette, three bottom-bar destinations, an avatar menu

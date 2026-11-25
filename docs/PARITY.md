@@ -3,7 +3,7 @@
 Source: screenshots of Linphone for iOS settings (Calls, Advanced calls settings, Conversations, Contacts, Meetings,
 Network, Advanced settings, Manage account, Account settings incl. NAT policy and Advanced), 2026-11-23.
 
-Tiers: **A** = PJSIP supports it and it works on a plain PBX, build now. **B** = doable but needs extra work or the push gateway.
+Tiers: **A** = PJSIP supports it and it works on a plain PBX, build now. **B** = doable but needs extra work or push.
 **C** = depends on Linphone's own servers, or is a large separate project, or conflicts with a decision already made.
 Status: ☐ not started · ◐ partly · ☑ done.
 
@@ -76,7 +76,7 @@ Status: ☐ not started · ◐ partly · ☑ done.
 
 | | Linphone setting | L1ne | Tier | Notes |
 |---|---|---|---|---|
-| ☐ | Allow push notifications | Per-account switch | **LATER** | Push proxy, see `docs/ROADMAP.md`. Needs the Apple Developer Program organization account and a server |
+| ☐ | Allow push notifications | Per-account switch | **LATER** | Push, see `docs/PUSH.md` (no hosted registration proxy). Needs the Apple Developer Program organization account and a small relay |
 | ☐ | Voicemail URI | Field + a Voicemail button on the keypad | A | FreePBX: `*97` |
 | ☐ | MWI server URI (message waiting indicator) | Voicemail badge | A | `mwi_enabled` and `on_mwi_info`; FreePBX mailbox must exist for that extension |
 | ☐ | Format phone numbers using international prefix / Replace + by 00 | Two switches in dial rules | A | Matches the PBX's own provisioning flags (`dial_escape_plus=0`) |
@@ -89,7 +89,7 @@ Status: ☐ not started · ◐ partly · ☑ done.
 1. **Account screen and advanced account settings** (everything marked A under Manage account and Account settings, plus Network and NAT).
 2. **Calls settings**: codecs, SRTP mandatory, early media, recording.
 3. **Voicemail and MWI**, call hold/mute/speaker/transfer (the in-call controls Linphone has).
-4. **Push proxy (marked LATER in `docs/ROADMAP.md`)**: calls, then messages, then the push switches.
+4. **Push (designed in `docs/PUSH.md`, marked LATER in `docs/ROADMAP.md`)**: the push-mode choice, then the relay and wake-up, then the push switches.
 5. **Opus**, conference calls.
 6. Decide later: video, LDAP/CardDAV, Linphone-server features (likely never on a plain PBX).
 
@@ -115,6 +115,6 @@ Status: ☐ not started · ◐ partly · ☑ done.
 - Directory sync scheduling in the background: iOS decides when background runs happen.
 
 **Not done**
-- Tier B: push gateway (needs an Apple Developer Program organization account), Opus (many PBXes offer no Opus), conference calls.
+- Tier B: push (needs an Apple Developer Program organization account), Opus (many PBXes offer no Opus), conference calls.
 - Tier C: video, ZRTP, Linphone-server features.
-- Android: only `core` and a skeleton; none of the above is on Android yet.
+- Android: the app mirrors the iPhone one (same screens and settings, system call screen, foreground service). The rows marked ☐ above are still open on both platforms.

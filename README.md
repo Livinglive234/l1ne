@@ -1,43 +1,94 @@
 # L1ne
 
-A privacy-minded SIP softphone for iOS (SwiftUI) and Android (Compose), built on [PJSIP](https://github.com/pjsip/pjproject).
-It works with any SIP server (FreePBX/Asterisk, Kamailio, 3CX in SIP mode, hosted providers) and can set itself up from the same
-remote-configuration files and QR codes that Linphone uses.
+**A privacy-minded phone app for your own phone system.** L1ne is a SIP softphone for iPhone and Android: sign in to a FreePBX, Asterisk,
+Kamailio, 3CX (in SIP mode) or hosted SIP account and make and receive calls, send texts and keep a call history. It has no account of its own,
+no cloud service, no analytics and no ads. Your login stays on your phone.
 
-> **Status:** early. The iOS app builds and is under test against a real PBX. The Android app is a skeleton with a tested shared core.
-> See [docs/ROADMAP.md](docs/ROADMAP.md) for what exists, what is next and what is deliberately later.
+Built on [PJSIP](https://github.com/pjsip/pjproject), with SwiftUI on iOS and Jetpack Compose on Android. The two apps look and behave the same.
 
-## Supported phones
-- **iPhone / iPad:** iOS 15 and later (iPhone 6s and newer). SwiftUI itself needs iOS 13, and the Xcode used to build this no longer targets anything below iOS 15.
-  Newer-only SwiftUI features (iOS 16 and 17) have stand-ins in `L1ne/Compat.swift`, so older phones get a slightly simpler version of the same screens.
-- **Android:** Android 8.0 (API 26) and later, 64-bit (`arm64-v8a`) and 32-bit (`armeabi-v7a`) ARM. Many budget phones run a 32-bit system even on a 64-bit chip, so the 32-bit build matters.
-  Native libraries: `scripts/build-android-native.sh arm64-v8a` and `scripts/build-android-native.sh armeabi-v7a`.
+- **Your phone system, your data.** L1ne only talks to the server you sign in to.
+- **Its own address book.** It never reads the contacts on your phone. Contacts come from files and servers you set up yourself.
+- **Works on older and cheaper phones.** iOS 15 or newer, Android 8 or newer, including 32-bit Android phones.
+- **Easy setup.** Type three details, scan a QR code, or open a setup link. Linphone-style configuration files work too.
+
+> **Status: early but usable.** Both apps make and receive calls and are being tested against a real FreePBX server. Calls arrive while the app is
+> open or running in the background on Android. Waking an iPhone for a call while the app is closed needs push notifications, which are designed
+> but **not built yet** (see [Incoming calls in the background](#incoming-calls-in-the-background)). The [roadmap](docs/ROADMAP.md) lists what is next.
+
+## Getting started
+
+Open the app and you land on a welcome screen. Pick whichever of these your phone-system administrator gave you:
+
+| You have | Do this |
+|---|---|
+| A server name, an extension or username, and a password | Type them in and tap **Login**. Add the display name people should see when you call them, and choose TLS, TCP or UDP if your server needs it. |
+| A QR code | Tap **Scan QR code**. |
+| A setup link (`https://…`, `l1ne-config:` or `linphone-config:`) | Tap **Open a setup link**. |
+| A server with unusual settings (own registrar, outbound proxy, separate authentication name) | Tap **More options**. |
+
+The password is the SIP password for the extension, not a web login. L1ne checks the login right away and tells you in plain words what went wrong:
+wrong password, unknown extension or an unreachable server. You can add more accounts later from the profile menu.
 
 ## What it does
-- Several accounts at once, each with its own server, transport (TLS / TCP / UDP), SRTP or DTLS-SRTP, NAT settings, dial rules and voicemail number.
-- Calls with hold, mute, speaker, DTMF, blind transfer, recording and call history; message-waiting indicator.
+
+**Calls**
+- Several accounts at once, each with its own server, transport (TLS, TCP or UDP), media encryption (SRTP or DTLS-SRTP), NAT settings, dial rules and voicemail number.
+- Hold, mute, speaker, Bluetooth and headset routing, keypad tones, blind transfer, call recording and a call-quality indicator.
+- Shows whether a call is encrypted. Message-waiting light and a voicemail button.
+- Local ringback tones (classic US and UK, chime, digital and pulse) while the other phone rings, because most phone systems send no ringback of their own.
+- **Quiet redial:** if a call fails right after the phone changes network (Wi-Fi to mobile), L1ne retries once without bothering you.
+- Dial from the keypad by name: type letters or digits and pick a suggestion.
+- `sip:` and `sips:` links open L1ne with the number filled in.
+
+**Messages and contacts**
 - Text messages over SIP `MESSAGE` (the server has to route them; see [docs/PBX-MESSAGING.md](docs/PBX-MESSAGING.md)).
-- Its **own address book**: it never reads your phone's contacts. Contacts arrive only through imports and syncs you set up
-  (vCard file or link, CardDAV, LDAP), and only entries with a SIP address are kept.
-- Linphone-compatible provisioning: scan a QR code or open a `linphone-config:` / `l1ne-config:` link.
-- TLS and DTLS-SRTP through OpenSSL with a bundled CA list; calls, texts and subscriptions are routed through the account's server.
+- Contacts from a vCard file or link, CardDAV, LDAP or a PBX contact list. Only entries that have a SIP address are kept.
+
+**On the phone**
+- iPhone: calls use CallKit, so they look like normal calls, appear in the Phone app's Recents and can be called back from there.
+- Android: calls use the system call screen (self-managed Telecom), a lock-screen call notification and the proximity sensor.
+- Light and dark mode and large-text support. The Android layouts adapt to small phones and tablets.
+
+## Supported phones
+
+- **iPhone and iPad: iOS 15 or later** (iPhone 6s and newer). SwiftUI itself needs iOS 13, and the Xcode used here builds nothing below iOS 15.
+  A few newer SwiftUI features have stand-ins in `L1ne/Compat.swift`, so older phones get slightly simpler versions of the same screens.
+- **Android: 8.0 (API 26) or later**, on 64-bit (`arm64-v8a`) and 32-bit (`armeabi-v7a`) ARM. Many budget phones run a 32-bit system even on a 64-bit chip.
+
+Tested so far: iPhone (current iOS) and a Samsung Galaxy (current Android), the Android 8 emulator, and small-phone, tablet and large-text sizes.
+**Not yet tried on real hardware:** iOS 15 and 16, and any 32-bit Android phone. They build and should work; reports are welcome.
+
+## Privacy
+
+- No account, no analytics, no advertising, no crash reporting, no third-party servers. L1ne talks only to the servers you add.
+- SIP passwords are kept in the iOS Keychain or the Android Keystore, never in plain files.
+- The app never reads your phone's address book. Contacts that arrive through an import stay inside L1ne.
+- The iOS privacy manifest declares no tracking and no data collection.
+- If you turn on push in future, the push relay stores only a device push token. Details and the exact rules are in [docs/PUSH.md](docs/PUSH.md).
 
 ## Incoming calls in the background
-iOS suspends apps, and a suspended app cannot keep its SIP registration alive, so a call can only wake an iPhone through an
-Apple VoIP push. L1ne is built so that **nobody has to hand their SIP login to a third party**. You choose per account:
 
-| Option | PBX setup | Who holds your SIP login |
-|---|---|---|
-| **No push** (default) | none. Calls arrive while L1ne is open; the app says so plainly | your phone only |
-| **Webhook push** | one snippet pasted into your PBX (FreePBX/Asterisk first) | your phone only |
-| **Self-hosted proxy** | run the open-source proxy yourself | your own server |
+iOS suspends apps, and a suspended app cannot keep its SIP registration alive, so a call can only wake an iPhone through an Apple VoIP push.
+Android can keep L1ne running with a small foreground notification, so it works there today.
 
-The push relay stores only a device push token and nothing about your calls, accounts or contacts. There is no hosted service
-that keeps your registration alive for you. Design and data rules: [docs/PUSH.md](docs/PUSH.md). This is a design so far; nothing here
-is built yet except the default (no push).
+L1ne is designed so that **nobody has to hand their SIP login to a third party**. The plan, per account:
 
-## Build (iOS)
-Requires Xcode 26+, [XcodeGen](https://github.com/yonaskolb/XcodeGen), and about 5 GB of disk for the dependency builds.
+| Option | PBX setup | Who holds your SIP login | Status |
+|---|---|---|---|
+| **No push** (default) | none; calls arrive while L1ne is open, and the app says so plainly | your phone only | works today |
+| **Webhook push** | one snippet pasted into your PBX (FreePBX/Asterisk first) | your phone only | designed |
+| **Self-hosted proxy** | run the open-source proxy yourself | your own server | designed |
+
+There is deliberately no hosted service that keeps your registration alive for you. The design, the data rules for the push relay and the wake-up
+sequence are in [docs/PUSH.md](docs/PUSH.md).
+
+## Building from source
+
+You need a Mac with Xcode 26 or newer for iOS, and a JDK plus the Android SDK and NDK for Android. The native libraries (PJSIP and OpenSSL) are
+downloaded and built from source; nothing third-party is stored in this repository.
+
+### iOS
+Needs [XcodeGen](https://github.com/yonaskolb/XcodeGen) and about 5 GB of disk for the dependency builds.
 
 ```bash
 scripts/fetch-deps.sh            # downloads pjproject 2.17 and OpenSSL 3.5.9 (checksum verified) into vendor/
@@ -48,25 +99,46 @@ scripts/gen.sh                   # generates L1ne.xcodeproj from project.yml
 xcodebuild -project L1ne.xcodeproj -scheme L1ne -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ```
 
-The bundle ID in `project.yml` is `com.livenet.l1ne`; change `APP_ID` if you build your own copy. The push capability is left out until push
-exists (see the roadmap), so a free Apple developer account is enough to run it on your own device.
+The bundle ID in `project.yml` is `com.livenet.l1ne`; change `APP_ID` if you build your own copy. The push capability is left out until push exists
+(a commented skeleton is in `project.yml`), so a free Apple developer account is enough to run it on your own device.
 
-## Build (Android)
+### Android
 ```bash
+scripts/fetch-deps.sh                          # if you have not already
+scripts/build-android-native.sh arm64-v8a      # OpenSSL + PJSIP for 64-bit phones into vendor/android/arm64-v8a
+scripts/build-android-native.sh armeabi-v7a    # the same for 32-bit phones
 cd android
-gradle :core:test      # the shared Kotlin core builds with just a JDK
-# :app needs the Android SDK and NDK; set ANDROID_HOME or sdk.dir in local.properties, then: gradle :app:assembleDebug
+gradle :core:test                              # the shared Kotlin core needs only a JDK
+gradle :app:assembleDebug                      # needs the Android SDK and NDK: set sdk.dir in android/local.properties
 ```
 
 ## Tests
-- `tests/parsers`: vCard, provisioning, dial rules, account migration, contact-source rules (plain Swift, no simulator).
+- `android/core`, `android/app`: JVM unit tests (`gradle :core:test :app:testDebugUnitTest`) and instrumented tests for the stores and the engine's event handling
+  (`gradle :app:connectedDebugAndroidTest`, on a device or emulator).
+- `tests/parsers`: vCard, provisioning, dial rules, account migration and contact-source rules as plain Swift, no simulator needed.
   `swiftc -o /tmp/p L1ne/VCard.swift L1ne/Provisioning.swift L1ne/Account.swift L1ne/SystemContacts.swift L1ne/ContactsStore.swift tests/parsers/main.swift && /tmp/p tests/fixtures`
 - `tests/directory/run.sh`: the LDAP and CardDAV clients against real OpenLDAP and Radicale servers (`brew install openldap`, a Python venv with `radicale`).
 - `tests/mock`: a local SIP-over-TLS server and scripts that place a call from the simulator and print the encryption lines in the offer.
-- `android/core`: the same fixtures from Kotlin (`gradle :core:test`).
+
+Be careful with `connectedDebugAndroidTest` on a phone you use: Android removes the app (and its data) when the test run ends unless
+`android.injected.androidTest.leaveApksInstalledAfterRun=true` is set, which `android/gradle.properties` does.
+
+## Project layout
+
+| Path | What is in it |
+|---|---|
+| `L1ne/` | the iPhone app (SwiftUI) |
+| `android/core/` | shared Kotlin logic with no Android dependencies: accounts, provisioning, dial rules, parsers |
+| `android/app/` | the Android app (Compose), the PJSIP bridge in C (`src/main/cpp`) and the Telecom integration |
+| `scripts/` | dependency download and native build scripts, and the one PJSIP patch |
+| `tests/` | parser tests, directory-server tests, a mock SIP server and fixtures |
+| `docs/` | [design](docs/DESIGN.md), [roadmap](docs/ROADMAP.md), [feature parity](docs/PARITY.md), [push design](docs/PUSH.md), [PBX text messaging](docs/PBX-MESSAGING.md) |
 
 ## License
+
 - L1ne's own source code is **MIT** ([LICENSE](LICENSE)).
-- A built copy of L1ne contains **PJSIP (GPL-2.0-or-later)**, so anyone who distributes a build must follow the GPL for the combined work.
-  Using your own build needs nothing; distributing one does. Read [LICENSING.md](LICENSING.md) first, in particular the section about the App Store and TestFlight.
+- A built copy of L1ne contains **PJSIP (GPL-2.0-or-later)**, so anyone who distributes a build must follow the GPL for the combined work. Using your
+  own build needs nothing; distributing one does. Read [LICENSING.md](LICENSING.md) first, in particular the section about the App Store and TestFlight.
 - Third-party components and their licenses: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+L1ne is not affiliated with Linphone, Teluu (PJSIP) or any phone-system vendor.
