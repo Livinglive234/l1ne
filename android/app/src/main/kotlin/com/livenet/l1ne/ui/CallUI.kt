@@ -88,12 +88,12 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
                         when (routes.active) { android.telecom.CallAudioState.ROUTE_BLUETOOTH -> "bluetooth"; android.telecom.CallAudioState.ROUTE_WIRED_HEADSET -> "headset"; else -> "speaker" }, speaker, true) {
                         if (routes.bluetooth || routes.headset) routeMenu = true else engine.setSpeaker(!speaker) }),
                     listOf(Btn(Icons.Filled.Add, "add call", false, live) { setMinimized(true) }, Btn(if (call.id in held) Icons.Filled.PlayArrow else Icons.Filled.Pause, if (call.id in held) "resume" else "hold", call.id in held, live) { engine.toggleHold(call.id) }, Btn(Icons.Filled.MoreHoriz, "more", false, true) { more = true }))
-                rows.forEach { r -> Row(Modifier.fillMaxWidth().padding(bottom = 26.dp), horizontalArrangement = Arrangement.SpaceEvenly) { r.forEach { RoundBtn(it) } } }
+                rows.forEach { r -> Row(Modifier.fillMaxWidth().padding(bottom = 26.dp * cs()), horizontalArrangement = Arrangement.SpaceEvenly) { r.forEach { RoundBtn(it) } } }
             }
             Spacer(Modifier.weight(1f))
-            if (call.incoming && !live) Row(Modifier.fillMaxWidth().padding(bottom = 34.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            if (call.incoming && !live) Row(Modifier.fillMaxWidth().padding(bottom = 34.dp * cs()), horizontalArrangement = Arrangement.SpaceEvenly) {
                 Big(CallDanger, Icons.Filled.CallEnd, "decline") { engine.hangup(call.id) }; Big(CallBrand, Icons.Filled.Call, "accept") { engine.answer(call.id) } }
-            else Box(Modifier.padding(bottom = 34.dp)) { Big(CallDanger, Icons.Filled.CallEnd, null) { engine.hangup(call.id) } }
+            else Box(Modifier.padding(bottom = 34.dp * cs())) { Big(CallDanger, Icons.Filled.CallEnd, null) { engine.hangup(call.id) } }
         }
     }
 
@@ -124,8 +124,8 @@ private class Btn(val icon: ImageVector, val label: String, val on: Boolean, val
 
 @Composable
 private fun RoundBtn(b: Btn) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(88.dp)) {
-        Box(Modifier.size(78.dp).clip(CircleShape).background(if (b.on) CallBrand else CallSurface).then(if (b.on) Modifier else Modifier.border(1.dp, CallBorder, CircleShape)).clickable(enabled = b.enabled, onClick = b.onClick), contentAlignment = Alignment.Center) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(88.dp * cs())) {
+        Box(Modifier.size(78.dp * cs()).clip(CircleShape).background(if (b.on) CallBrand else CallSurface).then(if (b.on) Modifier else Modifier.border(1.dp, CallBorder, CircleShape)).clickable(enabled = b.enabled, onClick = b.onClick), contentAlignment = Alignment.Center) {
             Icon(b.icon, b.label, tint = if (b.on) Color(0xFF04120A) else CallText.copy(alpha = if (b.enabled) 1f else 0.4f), modifier = Modifier.size(28.dp)) }
         Text(b.label, color = CallText.copy(alpha = if (b.enabled) 1f else 0.4f), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
     }
@@ -134,7 +134,7 @@ private fun RoundBtn(b: Btn) {
 @Composable
 private fun Big(color: Color, icon: ImageVector, label: String?, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(78.dp).clip(CircleShape).background(color).clickable(onClick = onClick), contentAlignment = Alignment.Center) { Icon(icon, label ?: "End", tint = if (color == CallBrand) Color(0xFF04120A) else Color.White, modifier = Modifier.size(32.dp)) }
+        Box(Modifier.size(78.dp * cs()).clip(CircleShape).background(color).clickable(onClick = onClick), contentAlignment = Alignment.Center) { Icon(icon, label ?: "End", tint = if (color == CallBrand) Color(0xFF04120A) else Color.White, modifier = Modifier.size(32.dp)) }
         if (label != null) Text(label, color = CallText, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
     }
 }
@@ -176,14 +176,14 @@ private fun DtmfScreen(call: CallInfo, engine: SipEngine, onBack: () -> Unit) {
         Surface(Modifier.fillMaxSize(), color = CallBg) {
             Column(Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp)) { IconButton(onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = CallText) } }
-                Text(typed.ifEmpty { " " }, color = CallText, fontSize = 34.sp, fontWeight = FontWeight.Light, maxLines = 1, modifier = Modifier.padding(top = 24.dp).height(48.dp))
+                Text(typed.ifEmpty { " " }, color = CallText, fontSize = 34.sp, fontWeight = FontWeight.Light, maxLines = 1, modifier = Modifier.padding(top = 24.dp * cs()).height(48.dp))
                 Spacer(Modifier.weight(1f))
                 listOf("123" to "", "456" to "", "789" to "", "*0#" to "").forEach { (row, _) ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.padding(bottom = 16.dp)) {
-                        row.forEach { k -> Box(Modifier.size(78.dp).clip(CircleShape).background(CallSurface).border(1.dp, CallBorder, CircleShape).clickable { typed += k; engine.dtmf(call.id, k.toString()) }, contentAlignment = Alignment.Center) { Text(k.toString(), fontSize = 30.sp, fontWeight = FontWeight.Light, color = CallText) } }
+                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.padding(bottom = 16.dp * cs())) {
+                        row.forEach { k -> Box(Modifier.size(78.dp * cs()).clip(CircleShape).background(CallSurface).border(1.dp, CallBorder, CircleShape).clickable { typed += k; engine.dtmf(call.id, k.toString()) }, contentAlignment = Alignment.Center) { Text(k.toString(), fontSize = 30.sp, fontWeight = FontWeight.Light, color = CallText) } }
                     }
                 }
-                Spacer(Modifier.weight(1f)); Box(Modifier.padding(bottom = 34.dp)) { Big(CallDanger, Icons.Filled.CallEnd, null) { engine.hangup(call.id) } }
+                Spacer(Modifier.weight(1f)); Box(Modifier.padding(bottom = 34.dp * cs())) { Big(CallDanger, Icons.Filled.CallEnd, null) { engine.hangup(call.id) } }
             }
         }
     }
@@ -223,4 +223,12 @@ fun CallBar(call: CallInfo, onClick: () -> Unit) {
     Box(Modifier.fillMaxWidth().background(CallBrand).statusBarsPadding().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp), contentAlignment = Alignment.CenterStart) {
         Text("$name · ${if (call.active) "%d:%02d".format(secs / 60, secs % 60) else "calling"} — tap to return", color = Color(0xFF04120A), fontWeight = FontWeight.Medium)
     }
+}
+
+/** Call-screen scale: 1.0 on a normal phone, smaller on a short one so the end-call button stays on screen, a little larger on a tablet. */
+@Composable
+private fun cs(): Float {
+    val h = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.toFloat()
+    val cap = if (h > 1000f) 1.3f else 1f
+    return minOf((h - 360f) / 340f, (h - 260f) / 488f).coerceIn(0.6f, cap)
 }

@@ -248,7 +248,7 @@ fun AccountEditorScreen(id: String?, onBack: () -> Unit) {
             } else {
                 SectionHeader("Details")
                 Card {
-                    if (a.username.isNotEmpty() && a.domain.isNotEmpty()) { Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Text("SIP address  ", color = L1neColors.Muted); Text(a.sipAddress, Modifier.weight(1f), maxLines = 1)
+                    if (a.username.isNotEmpty() && a.domain.isNotEmpty()) { Row(Modifier.padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("SIP address", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted); Text(a.sipAddress, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
                         IconButton({ (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("sip", a.sipAddress)) }) { Icon(Icons.Filled.ContentCopy, "Copy", tint = L1neColors.Brand) } }; RowDivider() }
                     Field("Label", a.label, { a = a.copy(label = it) }); Field("Display name (shown to people you call)", a.displayName, { a = a.copy(displayName = it) })
                     var cm by remember { mutableStateOf(false) }

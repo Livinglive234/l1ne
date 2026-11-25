@@ -53,7 +53,13 @@ fun KeypadScreen(open: (Dest) -> Unit) {
     fun dial(n: String, from: com.livenet.l1ne.core.Account? = account) { if (n.isNotEmpty()) { app.engine.call(n, from); number = "" } }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
-    val keySize = ((maxHeight.value - 220f) / 5.2f).coerceIn(50f, 76f).dp          // keys shrink when the call bar takes room
+    // everything scales from the room there is: short phones get smaller keys and a slimmer suggestion area (so the call button is never pushed off screen), tablets get bigger keys
+    val compact = maxHeight < 560.dp
+    val gap = if (compact) 8.dp else 14.dp
+    val suggestionH = if (compact) 56.dp else 112.dp
+    val numberH = if (compact) 44.dp else 52.dp
+    val fixedH = suggestionH.value + numberH.value + 8f + 5f * gap.value + 16f + (if (accounts.size > 1) 40f else 0f)
+    val keySize = ((maxHeight.value - fixedH) / 5f).coerceIn(40f, if (maxHeight > 800.dp) 96f else 76f).dp
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         if (accounts.size > 1) Box(Modifier.padding(top = 4.dp)) {
             AssistChip({ lineMenu = true }, label = { Text(account?.title ?: "Line") }, trailingIcon = { Icon(Icons.Filled.ExpandMore, null) })
@@ -62,7 +68,7 @@ fun KeypadScreen(open: (Dest) -> Unit) {
             }
         }
         Spacer(Modifier.weight(1f))
-        Box(Modifier.height(112.dp).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {      // always reserved, so the keys never move
+        Box(Modifier.height(suggestionH).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {      // always reserved, so the keys never move
             Column(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).background(if (suggestions.isEmpty()) androidx.compose.ui.graphics.Color.Transparent else L1neColors.Surface)) {
                 suggestions.forEachIndexed { i, c ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -77,16 +83,16 @@ fun KeypadScreen(open: (Dest) -> Unit) {
                 }
             }
         }
-        Text(number.ifEmpty { " " }, fontSize = 40.sp, fontWeight = FontWeight.Light, maxLines = 1, modifier = Modifier.height(52.dp))
+        Text(number.ifEmpty { " " }, fontSize = if (compact) 32.sp else 40.sp, fontWeight = FontWeight.Light, maxLines = 1, modifier = Modifier.height(numberH))
         Spacer(Modifier.height(8.dp))
         keys.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.padding(bottom = 14.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.padding(bottom = gap)) {
                 row.forEach { (k, sub) ->
                     Box(Modifier.size(keySize).clip(CircleShape).background(L1neColors.Surface).border(1.dp, L1neColors.Border, CircleShape)
                         .combinedClickable(onClick = { number += k }, onLongClick = { if (k == "0") number += "+" }), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(k, fontSize = 30.sp, fontWeight = FontWeight.Light)
-                            if (sub.isNotEmpty()) Text(sub, fontSize = 9.sp, color = L1neColors.Muted, letterSpacing = 1.5.sp)
+                            Text(k, fontSize = (keySize.value * 0.4f).coerceIn(20f, 38f).sp, fontWeight = FontWeight.Light)
+                            if (sub.isNotEmpty() && keySize >= 52.dp) Text(sub, fontSize = 9.sp, color = L1neColors.Muted, letterSpacing = 1.5.sp)
                         }
                     }
                 }

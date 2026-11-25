@@ -84,13 +84,15 @@ private fun MainTabs() {
             }
         },
     ) { pad ->
-        Box(Modifier.padding(pad).fillMaxSize()) {
-            when (tab) {
-                Tab.Recents -> RecentsScreen(::open)
-                Tab.Contacts -> ContactsScreen(::open)
-                Tab.Chats -> ConversationsScreen(::open)
-                Tab.Keypad -> KeypadScreen(::open)
-                Tab.Voicemail -> VoicemailScreen()
+        Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Box(Modifier.widthIn(max = 720.dp).fillMaxSize()) {       // on a tablet the lists keep a readable width instead of stretching edge to edge
+                when (tab) {
+                    Tab.Recents -> RecentsScreen(::open)
+                    Tab.Contacts -> ContactsScreen(::open)
+                    Tab.Chats -> ConversationsScreen(::open)
+                    Tab.Keypad -> KeypadScreen(::open)
+                    Tab.Voicemail -> VoicemailScreen()
+                }
             }
         }
     }
@@ -99,6 +101,7 @@ private fun MainTabs() {
     stack.lastOrNull()?.let { d ->
         BackHandler { back() }
         Surface(Modifier.fillMaxSize(), color = L1neColors.Bg) {
+          Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) { Box(Modifier.widthIn(max = 720.dp).fillMaxSize()) {
             when (d) {
                 is Dest.Person -> PersonScreen(d.p, ::open, ::back)
                 is Dest.Thread -> ThreadScreen(d.accountID, d.peer, ::open, ::back)
@@ -110,6 +113,7 @@ private fun MainTabs() {
                 Dest.ContactsSync -> ContactsSyncScreen(::back)
                 Dest.Voicemail -> VoicemailScreen()
             }
+          } }
         }
     }
     }

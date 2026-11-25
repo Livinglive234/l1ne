@@ -91,7 +91,7 @@ fun NavRow(title: String, value: String? = null, icon: ImageVector? = null, dang
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
         if (icon != null) { Icon(icon, null, tint = if (danger) L1neColors.Danger else L1neColors.Brand); Spacer(Modifier.width(12.dp)) }
         Text(title, Modifier.weight(1f), color = if (danger) L1neColors.Danger else L1neColors.Text)
-        if (value != null) Text(value, color = L1neColors.Muted)
+        if (value != null) Text(value, Modifier.widthIn(max = 150.dp).padding(start = 8.dp), color = L1neColors.Muted, textAlign = androidx.compose.ui.text.style.TextAlign.End)
         if (!danger && icon == null) Icon(Icons.Filled.ChevronRight, null, tint = L1neColors.Muted)
     }
 }
