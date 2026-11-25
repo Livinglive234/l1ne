@@ -11,10 +11,28 @@ android {
         applicationId = "com.livenet.l1ne"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        // CI sets these for releases. Android only installs an APK over an older one when its versionCode is higher, so CI passes its run number.
+        versionCode = (System.getenv("L1NE_VERSION_CODE") ?: "1").toInt()
+        versionName = System.getenv("L1NE_VERSION_NAME") ?: "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }     // 64-bit for current phones, 32-bit ARM for the many older and budget phones that still run a 32-bit system
+    }
+    // Release signing comes from environment variables (CI fills them from repository secrets); the key is never stored in the repository.
+    // Without them, assembleRelease still works but gives an unsigned APK.
+    val releaseKeystore = System.getenv("L1NE_KEYSTORE")
+    signingConfigs {
+        if (releaseKeystore != null) create("release") {
+            storeFile = file(releaseKeystore)
+            storePassword = System.getenv("L1NE_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("L1NE_KEY_ALIAS")
+            keyPassword = System.getenv("L1NE_KEY_PASSWORD")
+        }
+    }
+    buildTypes {
+        release {
+            if (releaseKeystore != null) signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false     // not shrunk (yet): the PJSIP bridge and Compose are untested under R8
+        }
     }
     externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }
     defaultConfig { externalNativeBuild { cmake { arguments += "-DANDROID_STL=c++_static" } } }
