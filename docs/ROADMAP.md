@@ -67,8 +67,7 @@ Not started. The Android layouts already adapt to small phones and tablets (widt
 - **Calls across a fold or a screen change** must survive the activity being recreated (a call already keeps going; check the in-call screen state and keyboard).
 - **iPhone Duo** (a dual-screen iPhone; Xcode has an *iPhone Duo* simulator, `com.apple.CoreSimulator.SimDeviceType.iPhone-Duo`): a small outer screen and a large inner screen, with the hinge
   closed, half open (any angle) or flat. The app has to lay out on both screens, survive the switch between them mid-call (a call, the keypad entry and the keyboard must not be lost),
-  and cope with the hinge posture. Test in the simulator by moving the hinge between closed, half open and open and checking each screen. The project already declares full-screen
-  requirements in `project.yml`, so check that no black bars appear on the inner screen.
+  and cope with the hinge posture. Test in the simulator by moving the hinge between closed, half open and open and checking each screen. Check that no black bars appear on the inner screen.
 - Android: needs real hardware or the emulator's foldable and resizable profiles. iPhone Duo: the Xcode simulator.
 
 ## LATER: other deferred items
