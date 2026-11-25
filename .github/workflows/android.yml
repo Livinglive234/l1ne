@@ -93,15 +93,21 @@ jobs:
       - name: Unit tests and APK
         working-directory: android
         run: |
-          TASK=assembleDebug; [ -n "$RELEASE_TAG" ] && TASK=assembleRelease
-          ./gradlew --no-daemon :core:test :app:testDebugUnitTest ":app:$TASK"
+          if [ -n "$RELEASE_TAG" ]; then
+            # one APK per architecture, plus a universal one
+            ./gradlew --no-daemon -Pl1ne.splits=true :core:test :app:testDebugUnitTest :app:assembleRelease
+          else
+            ./gradlew --no-daemon :core:test :app:testDebugUnitTest :app:assembleDebug
+          fi
 
       - name: Name the APK
         run: |
           if [ -n "$RELEASE_TAG" ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk "L1ne-${RELEASE_TAG}-android.apk"
-            # Show who signed it: the SHA-256 must stay the same for every release, or phones will refuse to update.
-            "$(ls -d "$ANDROID_HOME"/build-tools/*/ | tail -1)apksigner" verify --print-certs "L1ne-${RELEASE_TAG}-android.apk" | grep -E "SHA-256|Verifies"
+            for abi in arm64-v8a armeabi-v7a universal; do
+              cp "android/app/build/outputs/apk/release/app-$abi-release.apk" "L1ne-${RELEASE_TAG}-android-$abi.apk"
+              # Show who signed it: the SHA-256 must stay the same for every release, or phones will refuse to update.
+              echo "== $abi"; "$(ls -d "$ANDROID_HOME"/build-tools/*/ | tail -1)apksigner" verify --print-certs "L1ne-${RELEASE_TAG}-android-$abi.apk" | grep -E "SHA-256|Verifies"
+            done
           else
             cp android/app/build/outputs/apk/debug/app-debug.apk "L1ne-android-debug-${GITHUB_SHA::7}.apk"
           fi

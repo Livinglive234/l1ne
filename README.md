@@ -67,9 +67,10 @@ Tested so far: iPhone (current iOS) and a Samsung Galaxy (current Android), the 
 **Releases** (the *Releases* page on the right) are the builds to use. A release is made by pushing a version tag such as `v0.1.0`: GitHub Actions builds
 it, drafts the release, and the maintainer publishes it after a look.
 
-- **Android `.apk`:** needs Android 8 or later; one file for 64-bit and 32-bit phones. Releases are signed with the project's release key, so each new release
-  installs over the previous one and keeps your accounts and data (allow installs from your browser or file manager the first time). If you installed an earlier
-  *debug* build, uninstall it once first: Android will not replace an app signed with a different key.
+- **Android `.apk`:** needs Android 8 or later. Choose `arm64-v8a` for almost any phone from the last several years (about 25 MB), `armeabi-v7a` for older
+  or budget phones with a 32-bit system (about 22 MB), or `universal` if you are not sure (about 31 MB). Releases are signed with the project's release key, so
+  each new release installs over the previous one and keeps your accounts and data (allow installs from your browser or file manager the first time). If you
+  installed an earlier *debug* build, uninstall it once first: Android will not replace an app signed with a different key.
 - **iPhone `.ipa`:** **unsigned**, so it will not install as it is. Sign it with your own Apple ID using a sideloading tool, or build from source (below).
 
 Every push to `main` and every pull request is also built; open a finished run under the **Actions** tab and look in its *Artifacts* section. Those APKs are
