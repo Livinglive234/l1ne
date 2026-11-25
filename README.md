@@ -64,12 +64,16 @@ Tested so far: iPhone (current iOS) and a Samsung Galaxy (current Android), the 
 
 ## Downloads
 
-Every push is built by GitHub Actions. Open a finished run under the **Actions** tab and download the files from its *Artifacts* section; tagged versions
-(`v0.1.0` and so on) attach them to a **Release**.
+**Releases** (the *Releases* page on the right) are the builds to use. A release is made by pushing a version tag such as `v0.1.0`: GitHub Actions builds
+it, drafts the release, and the maintainer publishes it after a look.
 
-- **Android `.apk`:** needs Android 8 or later; one file for 64-bit and 32-bit phones. It is signed with a throwaway debug key, so you can install it
-  (allow installs from your browser or file manager) but cannot update an earlier install of it in place. It is not for Google Play.
+- **Android `.apk`:** needs Android 8 or later; one file for 64-bit and 32-bit phones. Releases are signed with the project's release key, so each new release
+  installs over the previous one and keeps your accounts and data (allow installs from your browser or file manager the first time). If you installed an earlier
+  *debug* build, uninstall it once first: Android will not replace an app signed with a different key.
 - **iPhone `.ipa`:** **unsigned**, so it will not install as it is. Sign it with your own Apple ID using a sideloading tool, or build from source (below).
+
+Every push to `main` and every pull request is also built; open a finished run under the **Actions** tab and look in its *Artifacts* section. Those APKs are
+debug-signed with a throwaway key, for testing only, and cannot be updated in place.
 
 These are GPL-covered builds; see [LICENSING.md](LICENSING.md) for what that means if you pass them on. The source for any build is this repository at that commit.
 
