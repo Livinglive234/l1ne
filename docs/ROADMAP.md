@@ -57,6 +57,20 @@ only works between Linphone-family apps. Options: (1) skip it; (2) use an open s
 carried inside SIP `MESSAGE`, with public keys published through the PBX (a vCard/URL on the contact, or a small `OPTIONS`/`PUBLISH` exchange). That would be new and only
 L1ne-to-L1ne. Decide later; it must not need a hosted server run by this project (see the push decision above).
 
+## LATER (maybe): group chats through a self-hosted Flexisip server
+
+Not started, and not planned for the first releases. Plain SIP `MESSAGE` is one person to one person, and FreePBX/Asterisk have no group text. Linphone's group chats need a **chat room server**, and the one
+they use is **Flexisip** (Belledonne Communications), published as open source (**AGPLv3**, with a paid proprietary licence as the alternative). A user would run it themselves; no server run by this project would be involved.
+
+What the Linphone documentation says about running it next to an existing phone system ([third-party SIP servers page](https://wiki.linphone.org/xwiki/wiki/public/view/Flexisip/Conference%20server/Flexisip%20group%20chat%20server%20integration%20with%20third%20party%20SIP%20servers/), read 2026-11-26):
+- The existing system must be **proxy-style software** (the page names Kamailio, OpenSIPS and SER) that authenticates the clients and routes their SIP. **It does not mention Asterisk or FreePBX**, so whether this can work with a plain FreePBX is unknown and probably needs an extra proxy in front.
+- That proxy must **copy accepted REGISTERs to the Flexisip machine**, **route `sip:conference-factory@<domain>` and `sip:chatroom-*@<domain>` to it**, and **let requests from the Flexisip machine through without a login challenge**.
+- Flexisip keeps chat room state in **MySQL/MariaDB**, and today also needs **Redis** (the page says a later version will drop the Redis and registrar-copy requirements).
+- Clients need Linphone 5.x (linphone-sdk 5.2 or newer) to be "conference aware".
+
+Not confirmed: how a client is told the server's address (the page does not say; the address pattern above suggests a `conference-factory` account setting), and the exact option names. Check Flexisip's [conference server configuration](https://wiki.linphone.org/xwiki/wiki/public/view/Flexisip/Configuration/Conference%20server%20configuration/) and liblinphone before building anything.
+Supporting it in L1ne would mean implementing Linphone's group chat protocol on both platforms, and it would only work against a Flexisip server. A "group" that just sends the same text to each person separately was rejected: replies would come back as separate one-to-one chats, which is misleading.
+
 ## Built: wide screens, and LATER: foldable and dual-screen phones
 
 **Built (2026-11-25): two-pane layouts on wide windows**, on both platforms, whenever the window is wide (iPad, the iPhone Duo's inner screen, an Android tablet or unfolded foldable; Android: 840 dp or more).
