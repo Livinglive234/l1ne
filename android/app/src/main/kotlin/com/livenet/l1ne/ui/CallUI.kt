@@ -64,9 +64,8 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
     androidx.activity.compose.BackHandler(enabled = !minimized) { setMinimized(true) }
 
     if (minimized) return
-    // Three layouts from the same two pieces: a plain screen, a tablet or unfolded foldable (the column keeps a phone's width instead
-    // of stretching across the screen), and tabletop posture (half open with a horizontal fold: who is calling above the fold, buttons below it)
-    val fold = LocalFold.current
+    // On a tablet or an unfolded foldable the column keeps a phone's width instead of stretching across the screen.
+    // Half open is treated exactly like open: the screen never changes layout with the fold.
     val header: @Composable ColumnScope.() -> Unit = {
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton({ setMinimized(true) }) { Icon(Icons.Filled.KeyboardArrowDown, "Minimise call", tint = CallText, modifier = Modifier.size(30.dp)) }
@@ -100,15 +99,7 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
     }
     Surface(Modifier.fillMaxSize(), color = CallBg) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-            if (fold.tabletop) {
-                val d = androidx.compose.ui.platform.LocalDensity.current
-                val topDp = with(d) { fold.hinge!!.top.toDp() }; val gapDp = with(d) { fold.hinge!!.height.toDp() }
-                Column(Modifier.widthIn(max = 520.dp).fillMaxSize().padding(horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Column(Modifier.fillMaxWidth().height(topDp).windowInsetsPadding(WindowInsets.statusBars), horizontalAlignment = Alignment.CenterHorizontally) { header(); Spacer(Modifier.weight(1f)) }
-                    Spacer(Modifier.height(gapDp))
-                    Column(Modifier.fillMaxWidth().weight(1f).windowInsetsPadding(WindowInsets.navigationBars), horizontalAlignment = Alignment.CenterHorizontally) { Spacer(Modifier.weight(1f)); controls() }
-                }
-            } else Column(Modifier.widthIn(max = 520.dp).fillMaxSize().systemBarsPadding().padding(horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.widthIn(max = 520.dp).fillMaxSize().systemBarsPadding().padding(horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 header(); Spacer(Modifier.weight(1f)); controls()
             }
         }

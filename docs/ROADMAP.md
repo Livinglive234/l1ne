@@ -78,19 +78,12 @@ Recents, Contacts and Chats show the list beside the person or conversation; the
 Voicemail and Settings stay single-column (nothing to show beside them) at a readable width. On a narrow window nothing changes. The keypad also shrinks its keys on a short screen. Tested on the iPad Pro 13" and iPhone Duo simulators and an Android tablet emulator; the Duo's hinge postures were checked (closed, half open, flat) and the keypad entry survived switching screens.
 Android's main activity handles size changes itself, so folding does not recreate it.
 
-**Android foldables and tablets (built 2026-11-26, not yet seen on a foldable):** the app reads the fold with Jetpack WindowManager (`ui/Fold.kt`). Two panes start at 700 dp (a foldable's inner screen counts) or whenever a vertical fold already splits the window
-(held like a book: the list on one side of the hinge and the detail on the other, nothing drawn across it, a gap for a hinge that hides screen). On the call screen, **tabletop** (half open, horizontal fold) puts the caller above the fold and the buttons below it; on a tablet the call screen keeps a phone-width column.
-The window changing size (folding, unfolding, rotating, split screen) does not recreate the activity: checked mid-call on the tablet emulator, same call and timer; the open person or conversation moves between the right pane and a page. The pane-width and posture rules have unit tests (`FoldTest`).
-**Not yet seen on a foldable:** the emulator images here are Android 8 and 9, which have no fold sensor, so book and tabletop are untested on a device. Needs an Android 14 image with the foldable profile, or real hardware.
-
-- **Android foldables** (Samsung Galaxy Z Fold and Flip, Google Pixel Fold, and dual-screen phones such as the Microsoft Surface Duo): use Jetpack WindowManager to read the fold and
-  hinge, keep content out of the hinge area, and handle the cover screen and inner screen switching without losing the call or the keypad entry. Ideas: a two-pane layout
-  (list and detail, keypad and call) when the screen is wide, and a **tabletop / laptop posture** for a call (controls on the lower half, caller on the upper half).
-- **Calls across a fold or a screen change** must survive the activity being recreated (a call already keeps going; check the in-call screen state and keyboard).
-- **iPhone Duo** (a dual-screen iPhone; Xcode has an *iPhone Duo* simulator, `com.apple.CoreSimulator.SimDeviceType.iPhone-Duo`): a small outer screen and a large inner screen, with the hinge
-  closed, half open (any angle) or flat. The app has to lay out on both screens, survive the switch between them mid-call (a call, the keypad entry and the keyboard must not be lost),
-  and cope with the hinge posture. Test in the simulator by moving the hinge between closed, half open and open and checking each screen. Check that no black bars appear on the inner screen.
-- Android: needs real hardware or the emulator's foldable and resizable profiles. iPhone Duo: the Xcode simulator.
+**Foldables and tablets: decision (2026-11-26): half open is treated exactly like open.** The app has no half-open, tabletop or book layout, on either platform, and does not read the fold at all.
+The layouts depend only on the window's width: two panes from 700 dp on Android (a foldable's inner screen in portrait counts), and on iPhone/iPad whenever the window is "regular" width. A tablet's call screen keeps a phone-width column.
+The window changing size (folding, unfolding, rotating, split screen) does not recreate the activity: checked mid-call on the tablet emulator, same call and timer; the open person or conversation moves between the right pane and a page.
+- **iPhone Duo:** the simulator lights the inner screen whenever the hinge is half open or flat, and the app shows the same layout either way (checked at 110° and flat; the keypad entry survived closed, half open and flat).
+- **Android foldables:** checked on a foldable emulator profile (see below for what that found).
+- **Not planned:** a tabletop call screen, list and detail either side of a hinge, or anything that changes with the hinge angle. Tried briefly and removed on purpose.
 
 ## LATER: desktop apps (Windows, macOS, Linux)
 

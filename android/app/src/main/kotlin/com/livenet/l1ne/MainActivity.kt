@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { app.engine.calls.collect { if (it.isEmpty()) { window.decorView.invalidate(); window.decorView.postInvalidateOnAnimation(); delay(150); window.decorView.invalidate() } } }
         setContent {
             val look by app.settings.appearanceF.collectAsState()
-            L1neTheme(look) { androidx.compose.runtime.CompositionLocalProvider(com.livenet.l1ne.ui.LocalApp provides app, com.livenet.l1ne.ui.LocalFold provides com.livenet.l1ne.ui.rememberFold(this@MainActivity)) { L1neApp() } }
+            L1neTheme(look) { androidx.compose.runtime.CompositionLocalProvider(com.livenet.l1ne.ui.LocalApp provides app) { L1neApp() } }
         }
     }
 }

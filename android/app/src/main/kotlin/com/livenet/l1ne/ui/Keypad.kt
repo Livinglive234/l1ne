@@ -56,8 +56,8 @@ fun KeypadScreen(open: (Dest) -> Unit, wide: Boolean = false) {
 
     fun dial(n: String, from: com.livenet.l1ne.core.Account? = account) { if (n.isNotEmpty()) { app.engine.call(n, from); number = "" } }
 
-    val fold = LocalFold.current; val windowDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp; val dens = androidx.compose.ui.platform.LocalDensity.current.density
-    val padDp = leadingPaneWidthDp(windowDp.toFloat(), dens, fold, 480f); val gapDp = hingeGapDp(dens, fold)      // the keys end at the fold on a foldable held like a book
+    val windowDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
+    val padDp = keypadPaneWidthDp(windowDp)
     Row(Modifier.fillMaxSize()) {
     Box(if (wide) Modifier.width(padDp.dp).fillMaxHeight() else Modifier.fillMaxSize()) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -122,7 +122,7 @@ fun KeypadScreen(open: (Dest) -> Unit, wide: Boolean = false) {
     }
     }
     if (wide) {
-        if (gapDp > 0f) Spacer(Modifier.width(gapDp.dp)) else VerticalDivider(color = L1neColors.Border)
+        VerticalDivider(color = L1neColors.Border)
         // the right side: contacts matching what is typed, or recent calls while the number is empty
         fun fill(address: String) { number = if (accounts.any { a -> address.endsWith("@" + a.domain, true) }) address.substringBefore('@') else address }
         LazyColumn(Modifier.weight(1f).fillMaxHeight()) {
