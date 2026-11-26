@@ -64,12 +64,12 @@ Tested so far: iPhone (current iOS) and a Samsung Galaxy (current Android), the 
 
 ## Downloads
 
-**Releases** (the *Releases* page on the right) are the builds to use. A release is made by pushing a version tag such as `v0.1.0`: GitHub Actions builds
-it, drafts the release, and the maintainer publishes it after a look.
+**Releases** (the *Releases* page on the right) are the builds to use. A release is made by pushing a version tag: GitHub Actions builds it and signs the Android APKs.
+A tag such as `v0.1.0-beta.3` becomes a published **pre-release** ("L1ne 0.1.0 beta 3"); a plain `v0.1.0` becomes a draft that the maintainer publishes after a look. See [docs/RELEASING.md](docs/RELEASING.md).
 
 - **Android `.apk`:** needs Android 8 or later. Choose `arm64-v8a` for almost any phone from the last several years (about 25 MB), `armeabi-v7a` for older
-  or budget phones with a 32-bit system (about 22 MB), or `universal` if you are not sure (about 31 MB). Releases are signed with the project's release key, so
-  each new release installs over the previous one and keeps your accounts and data (allow installs from your browser or file manager the first time). If you
+  or budget phones with a 32-bit system (about 22 MB), or `universal` if you are not sure (about 31 MB). Releases and betas are signed with the project's release key, so
+  each new one installs over the previous one and keeps your accounts and data (allow installs from your browser or file manager the first time). If you
   installed an earlier *debug* build, uninstall it once first: Android will not replace an app signed with a different key.
 - **iPhone `.ipa`:** **unsigned**, so it will not install as it is. Sign it with your own Apple ID using a sideloading tool, or build from source (below).
 

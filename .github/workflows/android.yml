@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Optional: build a signed release and put it in a DRAFT release with this tag name (for example v0.1.0)'
+        description: 'Optional: build a signed release with this tag name (for example v0.1.0-beta.1): a published pre-release when the tag has a suffix, a draft when it does not'
         required: false
         type: string
 
@@ -107,6 +107,9 @@ jobs:
               cp "android/app/build/outputs/apk/release/app-$abi-release.apk" "L1ne-${RELEASE_TAG}-android-$abi.apk"
               # Show who signed it: the SHA-256 must stay the same for every release, or phones will refuse to update.
               echo "== $abi"; "$(ls -d "$ANDROID_HOME"/build-tools/*/ | tail -1)apksigner" verify --print-certs "L1ne-${RELEASE_TAG}-android-$abi.apk" | grep -E "SHA-256|Verifies"
+              # Every release must be signed by the same key (pinned in .github/release-cert.sha256), or no phone will install it over the last one. Stop here if not.
+              GOT="$("$(ls -d "$ANDROID_HOME"/build-tools/*/ | tail -1)apksigner" verify --print-certs "L1ne-${RELEASE_TAG}-android-$abi.apk" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)"
+              [ "$GOT" = "$(tr -d '[:space:]' < .github/release-cert.sha256)" ] || { echo "::error::$abi APK is signed by $GOT, not the pinned release key. Phones would refuse to update to it."; exit 1; }
             done
           else
             cp android/app/build/outputs/apk/debug/app-debug.apk "L1ne-android-debug-${GITHUB_SHA::7}.apk"
@@ -166,9 +169,10 @@ jobs:
         working-directory: android
         run: ./gradlew --no-daemon :app:assembleDebug
 
-  # Puts the signed APK in a DRAFT release. Nothing is public until you open the draft on GitHub and press Publish.
+  # Puts the signed APKs in the release for the tag. A tag with a suffix (v0.1.0-beta.3, v0.1.0-rc1) becomes a published PRE-RELEASE named like "L1ne 0.1.0 beta 3";
+  # a plain version tag (v0.1.0) becomes a DRAFT that is published by hand. See scripts/make-release.sh.
   release:
-    name: Draft the release
+    name: Publish the release
     if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
     needs: build
     runs-on: ubuntu-latest
@@ -180,11 +184,11 @@ jobs:
         with:
           name: L1ne-android
           path: dist
-      - name: Draft the release and attach the APK
+      - name: Create the release and attach the APKs
         env:
           GH_TOKEN: ${{ github.token }}
           INPUT_TAG: ${{ inputs.tag }}
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then TAG="$GITHUB_REF_NAME"; else TAG="$INPUT_TAG"; fi
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "L1ne $TAG" --notes-file .github/release-notes.md || true
+          scripts/make-release.sh "$TAG" "$GITHUB_SHA"
           gh release upload "$TAG" dist/*.apk --clobber
