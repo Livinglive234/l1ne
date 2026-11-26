@@ -26,9 +26,10 @@ struct Conversation: Codable, Identifiable, Equatable {
 }
 
 /// Where to open a thread, whether or not it has messages yet.
-struct ThreadTarget: Hashable {
+struct ThreadTarget: Hashable, Identifiable {
     var accountID: UUID
     var peer: String
+    var id: String { Conversation.key(accountID, peer) }
 }
 
 @MainActor

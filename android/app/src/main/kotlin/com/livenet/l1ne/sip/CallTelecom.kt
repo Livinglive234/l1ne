@@ -116,21 +116,22 @@ object CallNotifications {
     fun showIncoming(ctx: Context, callId: Int, name: String) {
         channels(ctx)
         val open = PendingIntent.getActivity(ctx, 0, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE)
-        val person = Person.Builder().setName(name).setImportant(true).build()
-        val n = Notification.Builder(ctx, INCOMING).setSmallIcon(R.drawable.ic_stat_l1ne).setCategory(Notification.CATEGORY_CALL).setOngoing(true)
+        val person = androidx.core.app.Person.Builder().setName(name).setImportant(true).build()
+        val n = androidx.core.app.NotificationCompat.Builder(ctx, INCOMING).setSmallIcon(R.drawable.ic_stat_l1ne).setCategory(Notification.CATEGORY_CALL).setOngoing(true)
             .setFullScreenIntent(open, true).setContentIntent(open)
-            .setStyle(Notification.CallStyle.forIncomingCall(person, action(ctx, "decline", callId), action(ctx, "answer", callId))).build()
+            .setStyle(androidx.core.app.NotificationCompat.CallStyle.forIncomingCall(person, action(ctx, "decline", callId), action(ctx, "answer", callId))).build()
         runCatching { NotificationManagerCompat.from(ctx).notify(ID_INCOMING, n) }
     }
     fun cancelIncoming(ctx: Context) = NotificationManagerCompat.from(ctx).cancel(ID_INCOMING)
 
-    /** The persistent notification of the service: "Connected" while idle, the call and a Hang up button during one. */
+    /** (androidx's CallStyle, not the framework's: android.app.Notification.CallStyle only exists from Android 12 and crashed every call on older phones.)
+     *  The persistent notification of the service: "Connected" while idle, the call and a Hang up button during one. */
     fun service(ctx: Context, callName: String?, callId: Int?): Notification {
         channels(ctx)
         val open = PendingIntent.getActivity(ctx, 1, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
-        val b = Notification.Builder(ctx, SERVICE).setSmallIcon(R.drawable.ic_stat_l1ne).setContentIntent(open).setOngoing(true)
+        val b = androidx.core.app.NotificationCompat.Builder(ctx, SERVICE).setSmallIcon(R.drawable.ic_stat_l1ne).setContentIntent(open).setOngoing(true)
         return if (callName != null && callId != null)
-            b.setStyle(Notification.CallStyle.forOngoingCall(Person.Builder().setName(callName).build(), action(ctx, "hangup", callId))).setCategory(Notification.CATEGORY_CALL).build()
+            b.setStyle(androidx.core.app.NotificationCompat.CallStyle.forOngoingCall(androidx.core.app.Person.Builder().setName(callName).build(), action(ctx, "hangup", callId))).setCategory(Notification.CATEGORY_CALL).build()
         else b.setContentTitle("L1ne").setContentText("Connected — you can receive calls").build()
     }
 }

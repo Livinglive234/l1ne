@@ -14,44 +14,77 @@ struct ConversationsView: View {
     @EnvironmentObject var router: AppRouter
     @State private var selected: ThreadTarget?
     @State private var composing = false
+    @Environment(\.horizontalSizeClass) private var hSize
+    private var wide: Bool { hSize == .regular }       // an iPad, or the iPhone Duo opened: the list on the left, the conversation on the right
+
+    private func target(_ c: Conversation) -> ThreadTarget { ThreadTarget(accountID: c.accountID, peer: c.peer) }
+
+    @ViewBuilder private func row(_ c: Conversation) -> some View {
+        if wide {
+            Button { selected = target(c) } label: { rowContent(c) }.buttonStyle(.plain)
+                .listRowBackground(selected == target(c) ? Theme.brand.opacity(0.14) : Theme.surface)
+        } else {
+            Button { selected = target(c) } label: {
+                HStack { rowContent(c); Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted.opacity(0.6)) }
+            }.buttonStyle(.plain)
+                .listRowBackground(Theme.surface)
+        }
+    }
+
+    private func rowContent(_ c: Conversation) -> some View {
+        HStack(spacing: 12) {
+            Circle().fill(c.unread > 0 ? Theme.brand : .clear).frame(width: 10, height: 10)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack {
+                    Text(displayName(c.peer, contacts: contacts)).font(.headline).foregroundStyle(Theme.text)
+                    Spacer()
+                    if let d = c.last?.date { Text(d, format: .dateTime.hour().minute()).font(.caption).foregroundStyle(Theme.muted) }
+                }
+                Text(c.last?.text ?? "").lineLimit(2).font(.subheadline).foregroundStyle(Theme.muted)
+                if store.accounts.count > 1, let a = store.account(c.accountID) {
+                    Text("via \(a.title)").font(.caption).foregroundStyle(Theme.muted.opacity(0.8))
+                }
+            }
+        }
+    }
 
     private var list: some View {
         List {
-            ForEach(messages.conversations) { c in
-                NavigationLink(tag: ThreadTarget(accountID: c.accountID, peer: c.peer), selection: $selected, destination: { ThreadView(target: ThreadTarget(accountID: c.accountID, peer: c.peer)) }) {
-                    HStack(spacing: 12) {
-                        Circle().fill(c.unread > 0 ? Theme.brand : .clear).frame(width: 10, height: 10)
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack {
-                                Text(displayName(c.peer, contacts: contacts)).font(.headline).foregroundStyle(Theme.text)
-                                Spacer()
-                                if let d = c.last?.date { Text(d, format: .dateTime.hour().minute()).font(.caption).foregroundStyle(Theme.muted) }
-                            }
-                            Text(c.last?.text ?? "").lineLimit(2).font(.subheadline).foregroundStyle(Theme.muted)
-                            if store.accounts.count > 1, let a = store.account(c.accountID) {
-                                Text("via \(a.title)").font(.caption).foregroundStyle(Theme.muted.opacity(0.8))
-                            }
-                        }
-                    }
-                }
-                .listRowBackground(Theme.surface)
-            }
+            ForEach(messages.conversations) { c in row(c) }
             .onDelete { idx in messages.delete(idx.map { messages.conversations[$0].id }) }
         }
         .scrollDisabledCompat(messages.conversations.isEmpty)      // nothing to scroll when there are no conversations
         .overlay {
             if messages.conversations.isEmpty {
-                EmptyState("No conversations", systemImage: "bubble.left.and.bubble.right",
+                EmptyState("No chats", systemImage: "bubble.left.and.bubble.right",
                                        description: Text("Texts need a server that supports SIP messages."))
             }
         }
     }
 
     var body: some View {
+        if wide {
+            HStack(spacing: 0) {
+                listStack.frame(width: 380)
+                Divider()
+                Group {
+                    if let t = selected {
+                        AppNavStack { ThreadView(target: t).id(t) }
+                    } else {
+                        EmptyState("No chat selected", systemImage: "bubble.left.and.bubble.right", description: Text("Pick one on the left, or start a new message."))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity).mainBackground()
+                    }
+                }
+            }
+        } else { listStack }
+    }
+
+    private var listStack: some View {
         AppNavStack {
             list
+            .navDestination(item: wide ? .constant(nil) : $selected) { ThreadView(target: $0) }       // a chat can be opened before it has a row (a new one, or from a contact)
             .mainBackground()
-            .navigationTitle("Conversations")
+            .navigationTitle("Chats")
             .task(id: router.pendingThread) {
                 if let t = router.pendingThread { selected = t; router.pendingThread = nil }
             }
@@ -75,6 +108,7 @@ struct ThreadView: View {
     @EnvironmentObject var store: AccountStore
     @EnvironmentObject var contacts: ContactsStore
     @EnvironmentObject var messages: MessageStore
+    @Environment(\.horizontalSizeClass) private var hSize
     @State private var draft = ""
     @State private var info: PersonTarget?
     @State private var otherAppsDismissed = MessagingWarnings.otherAppsDismissed
@@ -132,14 +166,7 @@ struct ThreadView: View {
         .toolbar {
             // name on top, the line you are texting from underneath; tapping opens the contact page
             ToolbarItem(placement: .principal) {
-                Button { info = person } label: {
-                    VStack(spacing: 1) {
-                        Text(person.name).font(.headline).foregroundStyle(Theme.text).lineLimit(1)
-                        if store.accounts.count > 1 {
-                            Text("from \(line?.title ?? "—")").font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
-                        }
-                    }
-                }.buttonStyle(.plain)
+                if hSize != .regular { nameButton }       // beside the list the iPad's top tab bar sits in the middle, so the name goes in a header instead
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button { info = person } label: { Image(systemName: "info.circle") }
@@ -149,7 +176,24 @@ struct ThreadView: View {
             }
         }
         .safeAreaInset(edge: .bottom) { composer }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if hSize == .regular {
+                HStack { Spacer(); nameButton; Spacer() }.padding(.horizontal, 16).padding(.vertical, 8).background(Theme.bg)
+            }
+        }
         .onAppear { messages.markRead(target) }
+    }
+
+    /// Name on top, the line you are texting from underneath; tapping opens the contact page.
+    private var nameButton: some View {
+        Button { info = person } label: {
+            VStack(alignment: .center, spacing: 1) {
+                Text(person.name).font(hSize == .regular ? .title2 : .headline).fontWeight(hSize == .regular ? .heavy : .semibold).foregroundStyle(Theme.text).lineLimit(1)
+                if store.accounts.count > 1 {
+                    Text("from \(line?.title ?? "—")").font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
+                }
+            }
+        }.buttonStyle(.plain)
     }
 
     private var composer: some View {

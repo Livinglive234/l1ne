@@ -59,7 +59,8 @@ struct ProfileView: View {
     @EnvironmentObject var store: AccountStore
     @Environment(\.dismiss) private var dismiss
     @State private var editing: Account?
-    @State private var provisioning = false
+    @State private var adding = false           // "Add account" shows the welcome screen over this, so adding one feels like the first
+    @State private var addSigningIn = false
 
     var body: some View {
         AppNavStack {
@@ -88,10 +89,7 @@ struct ProfileView: View {
                     .onDelete { idx in
                         for i in idx { engine.unregister(store.accounts[i].id); store.remove(store.accounts[i].id) }
                     }
-                    Menu {
-                        Button("Set up from QR code or link…", systemImage: "qrcode.viewfinder") { provisioning = true }
-                        Button("Enter details by hand…", systemImage: "keyboard") { editing = Account() }
-                    } label: { Label("Add account", systemImage: "plus.circle.fill") }
+                    Button { adding = true } label: { Label("Add account", systemImage: "plus.circle.fill") }
                 }
                 .listRowBackground(Theme.surface)
             }
@@ -100,7 +98,7 @@ struct ProfileView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.font(.body.weight(.semibold)) } }
             .sheet(item: $editing) { AccountEditor(account: $0) }
-            .sheet(isPresented: $provisioning) { ProvisionSheet(initialLink: nil) }
+            .fullScreenCover(isPresented: $adding) { WelcomeView(signingIn: $addSigningIn, onClose: { adding = false }) }
         }
     }
 

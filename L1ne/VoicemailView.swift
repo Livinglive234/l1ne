@@ -6,6 +6,7 @@ struct VoicemailView: View {
     @EnvironmentObject var engine: SIPEngine
     @EnvironmentObject var store: AccountStore
 
+    @Environment(\.horizontalSizeClass) private var hSize
     private var accounts: [Account] { store.accounts.filter { $0.voicemailTarget != nil } }
 
     var body: some View {
@@ -27,6 +28,8 @@ struct VoicemailView: View {
                 .listRowSeparatorTint(Theme.border)
             }
             .listStyle(.plain).hideScrollBackground()
+            .frame(maxWidth: hSize == .regular ? 640 : .infinity)       // nothing to show beside it, so on a wide screen the list keeps a readable width
+            .frame(maxWidth: .infinity)
             .overlay { if accounts.isEmpty { EmptyState("No voicemail", systemImage: "recordingtape", description: Text("Add an account to check its voicemail.")) } }
             .mainBackground()
             .navigationTitle("Voicemail")

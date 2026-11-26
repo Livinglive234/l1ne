@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,8 +54,11 @@ import kotlinx.coroutines.delay
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
+fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit, onClose: (() -> Unit)? = null) {
     val app = LocalApp.current
+    // onClose != null means this is "Add account" on top of the tabs: it gets a close button, and it closes itself as soon as an account was added
+    val accountList by app.store.accounts.collectAsState()
+    val startCount = remember { accountList.size }
     val reg by app.engine.registration.collectAsState()
     val focus = LocalFocusManager.current
     var server by remember { mutableStateOf("") }; var username by remember { mutableStateOf("") }; var displayName by remember { mutableStateOf("") }; var password by remember { mutableStateOf("") }
@@ -69,18 +73,23 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
 
     fun removePending() { pending?.let { app.engine.unregister(it); app.store.remove(it) }; pending = null }
     fun fail(message: String) { removePending(); error = message; setSigningIn(false) }
-    fun login() {
+    // the one way an account gets in: saved, registered, and taken out again if the PBX refuses or doesn't answer (the fields and "More options" both end up here)
+    fun submit(acc: Account, pw: String) {
         focus.clearFocus(); error = null
-        val acc = Account(username = username.trim(), displayName = displayName.trim()).withTransport(transport).finishedNew(server)   // parses "host:port", keeps SRTP only on TLS
-        app.store.save(acc, password)
+        app.store.save(acc, pw)
         pending = acc.id; setSigningIn(true)                 // keeps this screen up while the PBX answers
         app.engine.register(acc)
     }
+    fun login() = submit(Account(username = username.trim(), displayName = displayName.trim()).withTransport(transport).finishedNew(server), password)   // parses "host:port", keeps SRTP only on TLS
 
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val root = remember { androidx.compose.ui.focus.FocusRequester() }
     LaunchedEffect(Unit) { delay(200); root.requestFocus(); keyboard?.hide() }       // some phones put the cursor in the first field on launch; park the focus on the screen itself and start with the keyboard closed
     val status = pending?.let { reg[it] }
+    if (onClose != null) {
+        androidx.activity.compose.BackHandler(!help && !showLink && !manual) { if (pending != null) { removePending(); error = null; setSigningIn(false) }; onClose() }
+        LaunchedEffect(accountList.size, pending) { if (pending == null && accountList.size > startCount) { setSigningIn(false); onClose() } }
+    }
     LaunchedEffect(pending, status) {
         if (pending == null || status == null) return@LaunchedEffect
         when {
@@ -116,11 +125,12 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
 
     Box(Modifier.fillMaxSize().focusRequester(root).focusable()) {
         Waves(Modifier.align(Alignment.BottomCenter))           // attached to the bottom edge of the screen, whatever its size
+        if (onClose != null) IconButton({ if (pending != null) { removePending(); error = null; setSigningIn(false) }; onClose() }, Modifier.align(Alignment.TopStart).zIndex(1f).systemBarsPadding().padding(4.dp)) { Icon(Icons.Filled.Close, "Close", tint = L1neColors.Text) }
         val scroll = rememberScrollState()
         val imeOpen = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
         // only scrolls when it has to: content taller than the screen (a small phone) or the keyboard is up
         Column(Modifier.fillMaxSize().systemBarsPadding().imePadding().verticalScroll(scroll, enabled = scroll.maxValue > 0 || imeOpen), horizontalAlignment = Alignment.CenterHorizontally) {
-            Column(Modifier.widthIn(max = 520.dp).padding(start = 24.dp, end = 24.dp, top = if (compact) 2.dp else if (snug) 4.dp else 16.dp, bottom = if (compact) 0.dp else if (snug) 4.dp else 24.dp), verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else if (snug) 6.dp else 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.widthIn(max = 520.dp).padding(start = 24.dp, end = 24.dp, top = if (compact) 10.dp else if (snug) 16.dp else 28.dp, bottom = if (compact) 0.dp else if (snug) 4.dp else 24.dp), verticalArrangement = Arrangement.spacedBy(if (compact) 3.dp else if (snug) 6.dp else 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Image(painterResource(R.drawable.welcome_logo), null, Modifier.size(if (compact) 40.dp else if (snug) 46.dp else 64.dp).clip(RoundedCornerShape(14.dp)))
                 Text("Welcome to L1ne", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = L1neColors.Text)
                 if (!compact) Text("Sign in to your PBX, or scan its QR code.", textAlign = TextAlign.Center, color = L1neColors.Muted, style = MaterialTheme.typography.bodyMedium)
@@ -183,7 +193,7 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit) {
         }
     }
     if (showLink) LinkDialog(null, autoScan = scanFirst) { showLink = false }
-    if (manual) Surface(Modifier.fillMaxSize(), color = L1neColors.Bg) { AccountEditorScreen(null) { manual = false } }
+    if (manual) Surface(Modifier.fillMaxSize(), color = L1neColors.Bg) { AccountEditorScreen(null, onSubmit = ::submit) { manual = false } }
 }
 
 /** Plain words for the usual ways a first login goes wrong. */

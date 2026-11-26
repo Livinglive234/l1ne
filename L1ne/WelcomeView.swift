@@ -7,6 +7,9 @@ struct WelcomeView: View {
     @EnvironmentObject var engine: SIPEngine
     @EnvironmentObject var store: AccountStore
     @Binding var signingIn: Bool
+    /// Set when this is "Add account" shown over the tabs: it gets a close button and closes itself once an account was added.
+    var onClose: (() -> Void)? = nil
+    @State private var startCount = 0
 
     @State private var server = ""
     @State private var username = ""
@@ -21,6 +24,9 @@ struct WelcomeView: View {
     @State private var showManual = false
     @State private var showHelp = false
     @State private var contentHeight: CGFloat = 0     // measured, so the page only scrolls when it has to (a small phone, or the keyboard is up)
+    @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.verticalSizeClass) private var vSize
+    private var roomy: Bool { hSize == .regular && vSize == .regular }     // an iPad: keep the content together in the middle instead of spreading it over the tall screen
     @FocusState private var focus: Field?
     private enum Field { case server, user, name, pass }
 
@@ -34,7 +40,7 @@ struct WelcomeView: View {
                 VStack(spacing: 0) {
                     VStack(spacing: 12) {
                         header
-                        Spacer(minLength: 4)
+                        Spacer(minLength: 4).frame(maxHeight: roomy ? 24 : .infinity)
                         VStack(alignment: .leading, spacing: 12) {
                             field("Server") {
                                 TextField("pbx.example.com", text: $server)
@@ -71,7 +77,7 @@ struct WelcomeView: View {
                                 .pickerStyle(.segmented)
                             }
                         }
-                        Spacer(minLength: 4)
+                        Spacer(minLength: 4).frame(maxHeight: roomy ? 24 : .infinity)
                         if let error {
                             Text(error).font(.footnote).foregroundStyle(Theme.danger).multilineTextAlignment(.center)
                         }
@@ -97,10 +103,10 @@ struct WelcomeView: View {
                             help
                         }
                     }
-                    .padding(.horizontal, 24).padding(.top, 8).padding(.bottom, 16)
+                    .padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 16)
                     .frame(maxWidth: 520)
                 }
-                .frame(maxWidth: .infinity, minHeight: max(geo.size.height - 64, 0), alignment: .top)     // fills the space above the hills; the spacers share out what is left
+                .frame(maxWidth: .infinity, minHeight: max(geo.size.height - 64, 0), alignment: roomy ? .center : .top)     // fills the space above the hills; the spacers share out what is left
                 .background(GeometryReader { g in Color.clear.preference(key: WelcomeHeightKey.self, value: g.size.height) })
             }
             .onPreferenceChange(WelcomeHeightKey.self) { contentHeight = $0 }
@@ -110,13 +116,23 @@ struct WelcomeView: View {
         }
         .background { waves.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom).ignoresSafeArea() }       // fixed to the bottom edge, behind the content
         .background(Theme.bg.ignoresSafeArea())
+        .overlay(alignment: .topLeading) {
+            if onClose != nil {
+                Button { close() } label: { Image(systemName: "xmark").font(.body.weight(.semibold)).foregroundStyle(Theme.text).frame(width: 44, height: 44) }
+                    .accessibilityLabel("Close").padding(.leading, 8)
+            }
+        }
+        .onAppear { startCount = store.accounts.count }
+        .onChangeCompat(of: store.accounts.count) { _, n in      // an account came in through the QR or link sheet
+            if onClose != nil, pending == nil, n > startCount { signingIn = false; onClose?() }
+        }
         .sheet(isPresented: $showQR) { ProvisionSheet(initialLink: nil, autoScan: true) }
         .sheet(isPresented: $showLink) { ProvisionSheet(initialLink: nil) }
-        .sheet(isPresented: $showManual) { AccountEditor(account: Account()) }
+        .sheet(isPresented: $showManual) { AccountEditor(account: Account(), onSubmit: { submit($0, secret: $1) }) }
         .sheet(isPresented: $showHelp) { HelpCard().sheetCard(.heightLarge(400)) }
         .onChangeCompat(of: engine.registration) { _, new in
             guard let id = pending, let s = new[id] else { return }
-            if s == "Registered" { pending = nil; signingIn = false }
+            if s == "Registered" { pending = nil; signingIn = false; onClose?() }
             else if s != "Registering…" && !s.hasPrefix("Waiting") { fail(Self.explain(s)) }
         }
         .task(id: pending) {
@@ -238,18 +254,26 @@ struct WelcomeView: View {
     // MARK: sign in
 
     private func login() {
-        focus = nil; error = nil
         var a = Account()
         a.domain = server
         a.username = username.trimmingCharacters(in: .whitespaces)
         a.displayName = displayName.trimmingCharacters(in: .whitespaces)
         a.changeTransport(to: transport)           // moves the port with it (5061 TLS, 5060 TCP/UDP) unless the server text names one
         a.finishNewAccount()                       // parses "host:port", keeps SRTP only on TLS, like the Settings form
-        store.save(a, secret: password)
+        submit(a, secret: password)
+    }
+
+    /// The one way an account gets in: saved, registered, and taken out again if the PBX refuses or doesn't answer.
+    /// The fields above and the "More options" form both end up here.
+    private func submit(_ a: Account, secret: String) {
+        focus = nil; error = nil
+        store.save(a, secret: secret)
         pending = a.id
         signingIn = true                           // keeps this screen up while the PBX answers
         engine.register(a, secret: store.secret(a.id))
     }
+
+    private func close() { if pending != nil { removePending(); error = nil; signingIn = false }; onClose?() }
 
     private func cancelLogin() { removePending(); error = nil; signingIn = false }
 

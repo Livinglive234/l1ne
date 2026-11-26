@@ -11,6 +11,7 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,8 +31,16 @@ fun L1neApp() {
     val app = LocalApp.current
     val accounts by app.store.accounts.collectAsState()
     var signingIn by remember { mutableStateOf(false) }      // the welcome screen stays up while a first login is being checked
-    if (accounts.isEmpty() || signingIn) WelcomeScreen(signingIn) { signingIn = it } else MainTabs()
+    var adding by remember { mutableStateOf(false) }         // "Add account" shows the same welcome screen on top of the tabs, so adding an account feels like the first one
+    if (accounts.isEmpty()) adding = false
+    if (accounts.isEmpty() || signingIn && !adding) WelcomeScreen(signingIn, { signingIn = it }) else Box {
+        CompositionLocalProvider(LocalAddAccount provides { adding = true }) { MainTabs() }
+        if (adding) Surface(Modifier.fillMaxSize().pointerInput(Unit) {}, color = L1neColors.Bg) { WelcomeScreen(signingIn, { signingIn = it }, onClose = { adding = false }) }
+    }
 }
+
+/** Lets the Accounts screen open the welcome screen to add an account. */
+val LocalAddAccount = staticCompositionLocalOf<() -> Unit> { {} }
 
 /** Tabs like iOS: Recents, Contacts, Chats, Keypad, and an optional Voicemail tab. The avatar at the top left opens the profile menu. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,7 +55,15 @@ private fun MainTabs() {
     val stack = remember { mutableStateListOf<Dest>() }
     val tabs = Tab.entries.filter { it != Tab.Voicemail || vmTab }
     if (tab !in tabs) tab = Tab.Recents
-    fun open(d: Dest) { stack.add(d) }
+    // wide windows (a tablet, an unfolded foldable, a landscape split): the list on the left and the person or conversation on the right
+    val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 840
+    var pane by remember { mutableStateOf<Dest?>(null) }
+    fun open(d: Dest) { if (wide && (d is Dest.Person || d is Dest.Thread)) pane = d else stack.add(d) }
+    LaunchedEffect(tab) { pane = null }
+    LaunchedEffect(wide) {       // the window changed width: the open person or conversation moves between the right pane and a page on top of the list
+        if (!wide) pane?.let { stack.add(it); pane = null }
+        else stack.lastOrNull()?.takeIf { it is Dest.Person || it is Dest.Thread }?.let { stack.removeAt(stack.lastIndex); pane = it }
+    }
     fun back() { if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex) }
     var minimized by remember { mutableStateOf(false) }
     val pendingDial by app.pendingDial.collectAsState()
@@ -85,7 +102,30 @@ private fun MainTabs() {
         },
     ) { pad ->
         Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-            Box(Modifier.widthIn(max = 720.dp).fillMaxSize()) {       // on a tablet the lists keep a readable width instead of stretching edge to edge
+            if (wide && tab == Tab.Keypad) KeypadScreen(::open, wide = true)
+            else if (wide && tab != Tab.Voicemail) Row(Modifier.fillMaxSize()) {
+                Box(Modifier.width(380.dp).fillMaxHeight()) {
+                    when (tab) {
+                        Tab.Recents -> RecentsScreen(::open)
+                        Tab.Contacts -> ContactsScreen(::open)
+                        else -> ConversationsScreen(::open)
+                    }
+                }
+                VerticalDivider(color = L1neColors.Border)
+                Box(Modifier.weight(1f).fillMaxHeight()) {
+                    when (val d = pane) {
+                        is Dest.Person -> key(d) { PersonScreen(d.p, ::open, null) }
+                        is Dest.Thread -> key(d) { ThreadScreen(d.accountID, d.peer, ::open, null) }
+                        else -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                            Icon(if (tab == Tab.Chats) Icons.Filled.Forum else Icons.Filled.Person, null, Modifier.size(56.dp), tint = L1neColors.Muted)
+                            Spacer(Modifier.height(12.dp))
+                            Text(if (tab == Tab.Chats) "No chat selected" else "Nobody selected", style = MaterialTheme.typography.titleLarge)
+                            Text(if (tab == Tab.Chats) "Pick one on the left, or start a new message." else "Pick someone on the left.", color = L1neColors.Muted)
+                        }
+                    }
+                }
+            }
+            else Box(Modifier.widthIn(max = 720.dp).fillMaxSize()) {       // on a tablet the lists keep a readable width instead of stretching edge to edge
                 when (tab) {
                     Tab.Recents -> RecentsScreen(::open)
                     Tab.Contacts -> ContactsScreen(::open)
@@ -108,7 +148,7 @@ private fun MainTabs() {
                 Dest.NewMessage -> { NewMessageDialog({ d2 -> back(); open(d2) }, ::back) }
                 Dest.Settings -> SettingsScreen(::open, ::back)
                 Dest.Accounts -> AccountsScreen(::open, ::back)
-                is Dest.Account -> AccountEditorScreen(d.id, ::back)
+                is Dest.Account -> AccountEditorScreen(d.id, onBack = ::back)
                 Dest.AdvancedCalls -> AdvancedCallsScreen(::back)
                 Dest.ContactsSync -> ContactsSyncScreen(::back)
                 Dest.Voicemail -> VoicemailScreen()

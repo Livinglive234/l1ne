@@ -57,7 +57,7 @@ fun ConversationsScreen(open: (Dest) -> Unit) {
     Box(Modifier.fillMaxSize()) {
         if (convs.isEmpty()) Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Icon(Icons.AutoMirrored.Filled.Chat, null, Modifier.size(56.dp), tint = L1neColors.Muted); Spacer(Modifier.height(12.dp))
-            Text("No conversations", style = MaterialTheme.typography.titleLarge); Text("Texts need a server that supports SIP messages.", color = L1neColors.Muted, modifier = Modifier.padding(top = 8.dp))
+            Text("No chats", style = MaterialTheme.typography.titleLarge); Text("Texts need a server that supports SIP messages.", color = L1neColors.Muted, modifier = Modifier.padding(top = 8.dp))
         } else LazyColumn(Modifier.fillMaxSize()) {
             items(convs, key = { it.id }) { c ->
                 SwipeToDelete({ app.messages.delete(listOf(c.id)) }) {
@@ -81,7 +81,7 @@ fun ConversationsScreen(open: (Dest) -> Unit) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ThreadScreen(accountID: String, peer: String, open: (Dest) -> Unit, onBack: () -> Unit) {
+fun ThreadScreen(accountID: String, peer: String, open: (Dest) -> Unit, onBack: (() -> Unit)?) {
     val app = LocalApp.current; val ctx = LocalContext.current
     val convs by app.messages.conversations.collectAsState(); val accounts by app.store.accounts.collectAsState()
     val conv = convs.firstOrNull { it.id == Conversation.key(accountID, peer) }

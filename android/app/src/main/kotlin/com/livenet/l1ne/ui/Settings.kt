@@ -172,7 +172,7 @@ private fun RecordingsScreen(onBack: () -> Unit) {
 @Composable
 fun AccountsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
     val app = LocalApp.current; val accounts by app.store.accounts.collectAsState(); val reg by app.engine.registration.collectAsState(); val sel by app.store.selectedId.collectAsState()
-    var addMenu by remember { mutableStateOf(false) }; var linking by remember { mutableStateOf(false) }
+    val addAccount = LocalAddAccount.current
     BackHandler(onBack = onBack)
     PageScaffold("Accounts", onBack) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 8.dp)) {
@@ -192,14 +192,10 @@ fun AccountsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
                     }
                     RowDivider()
                 }
-                Box { NavRow("Add account", icon = Icons.Filled.AddCircle) { addMenu = true }
-                    DropdownMenu(addMenu, { addMenu = false }, shape = MaterialTheme.shapes.extraLarge, containerColor = L1neColors.Surface) {
-                        DropdownMenuItem({ Text("Set up from QR code or link…") }, { addMenu = false; linking = true }, leadingIcon = { Icon(Icons.Filled.QrCodeScanner, null) })
-                        DropdownMenuItem({ Text("Enter details by hand…") }, { addMenu = false; open(Dest.Account(null)) }, leadingIcon = { Icon(Icons.Filled.Keyboard, null) }) } }
+                NavRow("Add account", icon = Icons.Filled.AddCircle) { addAccount() }
             }
         }
     }
-    if (linking) LinkDialog(null) { linking = false }
 }
 
 private val countries = listOf("United States / Canada" to "1", "United Kingdom" to "44", "Australia" to "61", "New Zealand" to "64", "Ireland" to "353", "Germany" to "49", "France" to "33", "Spain" to "34", "Italy" to "39", "Netherlands" to "31",
@@ -209,7 +205,7 @@ private val countries = listOf("United States / Canada" to "1", "United Kingdom"
 
 /** New account: the short form. Existing account: "Manage account" with everything. */
 @Composable
-fun AccountEditorScreen(id: String?, onBack: () -> Unit) {
+fun AccountEditorScreen(id: String?, onSubmit: ((Account, String) -> Unit)? = null, onBack: () -> Unit) {
     val app = LocalApp.current; val ctx = LocalContext.current
     val existing = id?.let { i -> app.store.accounts.value.firstOrNull { it.id == i } }
     val isNew = existing == null
@@ -228,6 +224,7 @@ fun AccountEditorScreen(id: String?, onBack: () -> Unit) {
 
     fun save() {
         val acc = if (isNew) a.finishedNew(server) else a.withServer(a.domain)
+        if (isNew && onSubmit != null) { onSubmit(acc, secret); onBack(); return }     // a new account is only kept once the PBX accepts the login (the welcome screen checks)
         app.store.save(acc, secret.ifEmpty { null }); if (turnSecret.isNotEmpty()) app.store.saveTurnSecret(acc.id, turnSecret)
         app.engine.register(acc); onBack()
     }
@@ -296,7 +293,7 @@ fun AccountEditorScreen(id: String?, onBack: () -> Unit) {
             }
         }
     }
-    if (confirmRemove) AlertDialog({ confirmRemove = false }, containerColor = L1neColors.SheetBg, title = { Text("Remove ${a.title}?") }, text = { Text("Its text conversations and call history on this phone are deleted too.") },
+    if (confirmRemove) AlertDialog({ confirmRemove = false }, containerColor = L1neColors.SheetBg, title = { Text("Remove ${a.title}?") }, text = { Text("Its chats and call history on this phone are deleted too.") },
         confirmButton = { TextButton({ app.engine.unregister(a.id); app.messages.removeAccount(a.id); app.callLog.removeAccount(a.id); app.store.remove(a.id); confirmRemove = false; onBack() }) { Text("Remove account", color = L1neColors.Danger) } }, dismissButton = { TextButton({ confirmRemove = false }) { Text("Cancel") } })
 }
 

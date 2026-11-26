@@ -13,11 +13,15 @@ class KeepAliveService : Service() {
     override fun onBind(i: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val app = application as L1neApplication
-        app.engine.start(); app.engine.registerAll()
+        app.engine.start(); app.engine.registerMissing()
         val call = app.engine.currentCall
         val n = CallNotifications.service(this, call?.let { app.engine.displayName(it.id) }, call?.id)
-        runCatching { startForeground(NOTE, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or (if (call != null) ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL else 0)) }
-            .onFailure { runCatching { startForeground(NOTE, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE) } }
+        // ServiceCompat, not Service.startForeground(id, n, type): that three-argument form does not exist before Android 10, so on
+        // Android 8 and 9 the call threw (and was swallowed), the service never went foreground, and Android killed the app for it.
+        val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or (if (call != null) ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL else 0)
+        runCatching { androidx.core.app.ServiceCompat.startForeground(this, NOTE, n, type) }
+            .onFailure { runCatching { androidx.core.app.ServiceCompat.startForeground(this, NOTE, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE) } }
+            .onFailure { runCatching { startForeground(NOTE, n) } }
         return START_STICKY
     }
     companion object {

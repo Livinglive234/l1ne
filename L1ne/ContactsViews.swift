@@ -34,7 +34,20 @@ struct ContactsView: View {
         }
     }
 
+    @Environment(\.horizontalSizeClass) private var hSize
+    private var wide: Bool { hSize == .regular }       // an iPad, or the iPhone Duo opened: the list on the left, the person on the right
+
     var body: some View {
+        if wide {
+            HStack(spacing: 0) {
+                listStack.frame(width: 380)
+                Divider()
+                PersonPane(person: detail)
+            }
+        } else { listStack }
+    }
+
+    private var listStack: some View {
         AppNavStack {
             List {
                 ForEach(sections, id: \.0) { letter, items in
@@ -70,7 +83,7 @@ struct ContactsView: View {
                 }
             }
             .listStyle(.plain).hideScrollBackground()
-            .navDestination(item: $detail) { ContactDetailView(person: $0) }
+            .navDestination(item: wide ? .constant(nil) : $detail) { ContactDetailView(person: $0) }
             .searchable(text: $search)
             .overlay { if contacts.contacts.isEmpty { EmptyState("No contacts", systemImage: "person.2", description: Text("Pick contacts that have a SIP address, import a vCard, or add one by hand.")) } }
             .mainBackground()

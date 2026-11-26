@@ -17,7 +17,7 @@ Status: ☐ not started · ◐ partly · ☑ done.
 | ☐ | Media encryption mandatory | Switch (SRTP mandatory vs optional) | A | Maps to `use_srtp` mandatory/optional |
 | ☐ | Accept early media / Allow outgoing early media | Two switches | A | |
 | ☐ | Audio codecs list with switches and order | Codec list, enable/disable, reorder | A | `pjsua_codec_set_priority`. Today built in: PCMU, PCMA, GSM, G722, speex, iLBC. **Opus** needs the Opus library built for iOS (B). G729 is patent/licence encumbered, skip |
-| ☐ | Video codecs (H265, H264, AV1, VP8) and "Enable video FEC" | Video calls | C | Large project: PJSIP rebuilt with video (VideoToolbox H264, libvpx), camera, video UI. Decide separately |
+| ☐ | Video codecs (H265, H264, AV1, VP8) and "Enable video FEC" | Video calls | C (on the roadmap, see ROADMAP.md) | Large project: PJSIP rebuilt with video (VideoToolbox H264, libvpx), camera, video UI. Decide separately |
 | ☐ | Advanced calls settings screen | New Settings > Calls > Advanced | A | |
 
 ## Conversations

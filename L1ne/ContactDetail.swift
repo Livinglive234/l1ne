@@ -19,6 +19,19 @@ struct PersonTarget: Hashable, Identifiable {
     var id: String { address.lowercased() }
 }
 
+/// The right-hand side of the wide Recents and Contacts layouts.
+struct PersonPane: View {
+    let person: PersonTarget?
+    var body: some View {
+        if let p = person {
+            AppNavStack { ContactDetailView(person: p).id(p) }
+        } else {
+            EmptyState("Nobody selected", systemImage: "person.crop.circle", description: Text("Pick someone on the left."))
+                .frame(maxWidth: .infinity, maxHeight: .infinity).mainBackground()
+        }
+    }
+}
+
 struct ContactDetailView: View {
     @EnvironmentObject var engine: SIPEngine
     @EnvironmentObject var store: AccountStore

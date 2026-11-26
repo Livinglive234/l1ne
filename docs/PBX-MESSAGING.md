@@ -1,6 +1,6 @@
 # SIP text messaging on Asterisk / FreePBX (draft)
 
-Status: **draft; nothing here has been applied anywhere.** L1ne's Conversations tab (and Linphone) send SIP `MESSAGE`. A stock Asterisk has the
+Status: **draft; nothing here has been applied anywhere.** L1ne's Chats tab (and Linphone) send SIP `MESSAGE`. A stock Asterisk has the
 messaging module loaded but no endpoint has a `message_context` and there is no messages dialplan, so a `MESSAGE` is refused.
 
 ## 1. Endpoint setting
