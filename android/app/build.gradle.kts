@@ -78,6 +78,9 @@ dependencies {
     androidTestImplementation("androidx.test:rules:1.6.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation(kotlin("test-junit"))
+    androidTestImplementation(platform("androidx.compose:compose-bom:2025.10.00"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")      // screen tests: ScreenTest
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
 
 // Each split APK gets its own versionCode (base x 10 + a digit for the architecture). The numbers only ever go up from one release to the next,

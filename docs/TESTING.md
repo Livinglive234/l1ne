@@ -39,6 +39,16 @@ tests/mock/run-android-wire-tests.sh          # starts the fake PBX and an emula
 Run it on an **emulator**: the tests add and remove their own accounts and change the codec settings, and the emulator reaches the computer as `10.0.2.2`.
 The script clears the app's data first.
 
+## Android: `ScreenTest` (8 tests)
+`android/app/src/androidTest/kotlin/com/livenet/l1ne/ScreenTest.kt` renders the real app screens (Jetpack Compose UI tests) with a few contacts, chats and calls in place, at a phone width and a wide width, and clicks through them.
+It checks that a wide window shows Recents, Contacts, Chats and the Keypad as two panes, that a narrow window keeps the single column with a page and a back arrow, that starting a chat with someone new opens it,
+and that an open person moves between the right pane and a page as the window changes size. No PBX is needed. The width is faked through the configuration the layouts read, so the same tests run on any emulator.
+
+```bash
+cd android && ANDROID_SERIAL=<emulator> ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.livenet.l1ne.ScreenTest
+```
+Keep the emulator awake and unlocked (`adb shell svc power stayon true`): a sleeping screen makes every test fail with "No compose hierarchies found". Breaking `TWO_PANE_MIN_DP` on purpose makes 5 of the 8 fail, so they do notice.
+
 ## iPhone: `WireTests` (32 tests)
 `tests/ios/L1neTests/WireTests.swift` is the same set of scenarios as the Android one (registration, calls, what is offered, texts, message waiting and the QR / setup-link login check), run by Xcode inside the app on a simulator so it drives the app's own engine.
 
