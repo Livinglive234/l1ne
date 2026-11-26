@@ -64,6 +64,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.core:core-ktx:1.17.0")
+    implementation("androidx.window:window:1.4.0")               // reads the fold, only to lay a flip phone's call screen out when it stands half open; Apache-2.0, no Google Play services
     val camerax = "1.4.2"
     implementation("androidx.camera:camera-core:$camerax")
     implementation("androidx.camera:camera-camera2:$camerax")

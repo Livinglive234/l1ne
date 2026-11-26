@@ -101,6 +101,7 @@ async def process(text, send, host, proto, peer):
                        f"Max-Forwards: 70\r\nFrom: {d['from']}\r\nTo: {hs['to']}\r\nCall-ID: {hs['call-id']}\r\nCSeq: {hs['cseq'].split()[0]} ACK\r\nContent-Length: 0\r\n\r\n")
                 await send(ack); log("-> ACK to phone")
         return
+    if len(start.split()) < 2: return           # a bare CRLF keep-alive from the phone, not a request
     method, ruri = start.split()[0], start.split()[1]; cseq = hs.get("cseq", "")
     m_host = re.search(r"sips?:(?:[^@/;>]*@)?([^:;>/]+)", ruri)
     if m_host and re.match(r"[\d.]+$|[A-Za-z]", m_host.group(1)): host = m_host.group(1)       # advertise the address the phone dialled (the socket's own address is 127.0.0.1 behind the emulator's NAT)
