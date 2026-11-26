@@ -81,7 +81,7 @@ fun ConversationsScreen(open: (Dest) -> Unit) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ThreadScreen(accountID: String, peer: String, open: (Dest) -> Unit, onBack: () -> Unit) {
+fun ThreadScreen(accountID: String, peer: String, open: (Dest) -> Unit, onBack: (() -> Unit)?) {
     val app = LocalApp.current; val ctx = LocalContext.current
     val convs by app.messages.conversations.collectAsState(); val accounts by app.store.accounts.collectAsState()
     val conv = convs.firstOrNull { it.id == Conversation.key(accountID, peer) }

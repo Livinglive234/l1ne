@@ -57,9 +57,14 @@ only works between Linphone-family apps. Options: (1) skip it; (2) use an open s
 carried inside SIP `MESSAGE`, with public keys published through the PBX (a vCard/URL on the contact, or a small `OPTIONS`/`PUBLISH` exchange). That would be new and only
 L1ne-to-L1ne. Decide later; it must not need a hosted server run by this project (see the push decision above).
 
-## LATER: foldable and dual-screen phones
+## Built: wide screens, and LATER: foldable and dual-screen phones
 
-Not started. The Android layouts already adapt to small phones and tablets (width and height classes), but nothing is tuned or tested for folding devices.
+**Built (2026-11-25): two-pane layouts on wide windows**, on both platforms, whenever the window is wide (iPad, the iPhone Duo's inner screen, an Android tablet or unfolded foldable; Android: 840 dp or more).
+Recents, Contacts and Chats show the list beside the person or conversation; the Keypad shows the matching contacts (or recent calls while the number is empty) beside the keys.
+Voicemail and Settings stay single-column (nothing to show beside them) at a readable width. On a narrow window nothing changes. The keypad also shrinks its keys on a short screen. Tested on the iPad Pro 13" and iPhone Duo simulators and an Android tablet emulator; the Duo's hinge postures were checked (closed, half open, flat) and the keypad entry survived switching screens.
+Android's main activity handles size changes itself, so folding does not recreate it.
+
+**Still to do for foldables:** Jetpack WindowManager fold and hinge handling, a tabletop posture, the call screen across a screen change, and testing on a foldable emulator profile or real hardware.
 
 - **Android foldables** (Samsung Galaxy Z Fold and Flip, Google Pixel Fold, and dual-screen phones such as the Microsoft Surface Duo): use Jetpack WindowManager to read the fold and
   hinge, keep content out of the hinge area, and handle the cover screen and inner screen switching without losing the call or the keypad entry. Ideas: a two-pane layout

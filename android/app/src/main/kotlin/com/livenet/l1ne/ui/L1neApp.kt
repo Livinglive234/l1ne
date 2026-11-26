@@ -111,8 +111,8 @@ private fun MainTabs() {
                 VerticalDivider(color = L1neColors.Border)
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     when (val d = pane) {
-                        is Dest.Person -> key(d) { PersonScreen(d.p, ::open, { pane = null }) }
-                        is Dest.Thread -> key(d) { ThreadScreen(d.accountID, d.peer, ::open, { pane = null }) }
+                        is Dest.Person -> key(d) { PersonScreen(d.p, ::open, null) }
+                        is Dest.Thread -> key(d) { ThreadScreen(d.accountID, d.peer, ::open, null) }
                         else -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                             Icon(if (tab == Tab.Chats) Icons.Filled.Forum else Icons.Filled.Person, null, Modifier.size(56.dp), tint = L1neColors.Muted)
                             Spacer(Modifier.height(12.dp))

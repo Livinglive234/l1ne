@@ -157,7 +157,7 @@ private fun LinkImportDialog(onClose: () -> Unit, report: (String) -> Unit) {
 
 /** A person: big avatar, name, round call / message buttons, the SIP address, and Add to contacts when they aren't saved. */
 @Composable
-fun PersonScreen(p: PersonTarget, open: (Dest) -> Unit, onBack: () -> Unit) {
+fun PersonScreen(p: PersonTarget, open: (Dest) -> Unit, onBack: (() -> Unit)?) {
     val app = LocalApp.current
     val contacts by app.contacts.contacts.collectAsState(); val accounts by app.store.accounts.collectAsState()
     val saved = contacts.any { it.address.equals(p.address, true) }

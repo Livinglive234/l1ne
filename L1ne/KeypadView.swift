@@ -59,7 +59,7 @@ struct KeypadView: View {
     @State private var size: CGFloat = 76        // shrinks when the screen is short (the iPhone Duo's wide inner screen), so the keypad always fits
     private func fitKeys(to height: CGFloat) {
         guard height > 0 else { return }
-        let s = min(76, max(52, ((height - (wide ? 144 : 256)) / 5).rounded(.down)))      // 256 = number box, suggestions, gaps (144 without the suggestions, which move to the side)
+        let s = min(height > 900 ? 92 : 76, max(52, ((height - (wide ? 144 : 256)) / 5).rounded(.down)))      // 256 = number box, suggestions, gaps (144 without the suggestions, which move to the side)
         if s != size { size = s }
     }
 
