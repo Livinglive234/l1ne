@@ -53,7 +53,12 @@ struct KeypadView: View {
         [("7", "PQRS"), ("8", "TUV"), ("9", "WXYZ")],
         [("*", ""), ("0", "+"), ("#", "")],
     ]
-    private let size: CGFloat = 76
+    @State private var size: CGFloat = 76        // shrinks when the screen is short (the iPhone Duo's wide inner screen), so the keypad always fits
+    private func fitKeys(to height: CGFloat) {
+        guard height > 0 else { return }
+        let s = min(76, max(52, ((height - 256) / 5).rounded(.down)))      // 256 = number box, suggestions, gaps
+        if s != size { size = s }
+    }
 
     private var account: Account? { store.selected }
 
@@ -103,6 +108,9 @@ struct KeypadView: View {
                 Spacer(minLength: 8)
             }
             .frame(maxWidth: .infinity)
+            .background(GeometryReader { g in
+                Color.clear.onAppear { fitKeys(to: g.size.height) }.onChangeCompat(of: g.size.height) { _, h in fitKeys(to: h) }
+            })
             .mainBackground()
             .task(id: router.pendingDial) { if let d = router.pendingDial { number = d; router.pendingDial = nil } }
             .profileToolbar()
