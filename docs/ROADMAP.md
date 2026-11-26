@@ -78,7 +78,10 @@ Recents, Contacts and Chats show the list beside the person or conversation; the
 Voicemail and Settings stay single-column (nothing to show beside them) at a readable width. On a narrow window nothing changes. The keypad also shrinks its keys on a short screen. Tested on the iPad Pro 13" and iPhone Duo simulators and an Android tablet emulator; the Duo's hinge postures were checked (closed, half open, flat) and the keypad entry survived switching screens.
 Android's main activity handles size changes itself, so folding does not recreate it.
 
-**Still to do for foldables:** Jetpack WindowManager fold and hinge handling, a tabletop posture, the call screen across a screen change, and testing on a foldable emulator profile or real hardware.
+**Android foldables and tablets (built 2026-11-26, not yet seen on a foldable):** the app reads the fold with Jetpack WindowManager (`ui/Fold.kt`). Two panes start at 700 dp (a foldable's inner screen counts) or whenever a vertical fold already splits the window
+(held like a book: the list on one side of the hinge and the detail on the other, nothing drawn across it, a gap for a hinge that hides screen). On the call screen, **tabletop** (half open, horizontal fold) puts the caller above the fold and the buttons below it; on a tablet the call screen keeps a phone-width column.
+The window changing size (folding, unfolding, rotating, split screen) does not recreate the activity: checked mid-call on the tablet emulator, same call and timer; the open person or conversation moves between the right pane and a page. The pane-width and posture rules have unit tests (`FoldTest`).
+**Not yet seen on a foldable:** the emulator images here are Android 8 and 9, which have no fold sensor, so book and tabletop are untested on a device. Needs an Android 14 image with the foldable profile, or real hardware.
 
 - **Android foldables** (Samsung Galaxy Z Fold and Flip, Google Pixel Fold, and dual-screen phones such as the Microsoft Surface Duo): use Jetpack WindowManager to read the fold and
   hinge, keep content out of the hinge area, and handle the cover screen and inner screen switching without losing the call or the keypad entry. Ideas: a two-pane layout

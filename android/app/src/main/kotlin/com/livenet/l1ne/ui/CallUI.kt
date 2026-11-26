@@ -64,36 +64,53 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
     androidx.activity.compose.BackHandler(enabled = !minimized) { setMinimized(true) }
 
     if (minimized) return
+    // Three layouts from the same two pieces: a plain screen, a tablet or unfolded foldable (the column keeps a phone's width instead
+    // of stretching across the screen), and tabletop posture (half open with a horizontal fold: who is calling above the fold, buttons below it)
+    val fold = LocalFold.current
+    val header: @Composable ColumnScope.() -> Unit = {
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton({ setMinimized(true) }) { Icon(Icons.Filled.KeyboardArrowDown, "Minimise call", tint = CallText, modifier = Modifier.size(30.dp)) }
+            Spacer(Modifier.weight(1f))
+            if (live) SignalBars(quality[call.id] ?: 0, numbers[call.id])
+        }
+        Spacer(Modifier.height(20.dp))
+        Text(name, fontSize = 34.sp, fontWeight = FontWeight.SemiBold, color = CallText, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Text(status, color = CallMuted, fontSize = 20.sp, modifier = Modifier.padding(top = 6.dp))
+        if (live) when (enc[call.id]) {
+            SipEngine.Security.SRTP -> Label(Icons.Filled.Lock, "Encrypted by SRTP", CallBrand)
+            SipEngine.Security.DTLS -> Label(Icons.Filled.Lock, "Encrypted by DTLS-SRTP", CallBrand)
+            SipEngine.Security.NONE -> Label(Icons.Filled.LockOpen, "Not encrypted", CallDanger)
+            else -> {} }
+        if (call.id in held) Label(Icons.Filled.PauseCircle, "On hold", CallBrand)
+        if (call.id in recording) Label(Icons.Filled.FiberManualRecord, "Recording", CallDanger)
+    }
+    val controls: @Composable ColumnScope.() -> Unit = {
+        if (live || !call.incoming) {
+            val rows = listOf(
+                listOf(Btn(Icons.Filled.MicOff, "mute", call.id in muted, live) { engine.toggleMute(call.id) }, Btn(Icons.Filled.Dialpad, "keypad", false, live) { pad = true }, Btn(if (routes.active == android.telecom.CallAudioState.ROUTE_BLUETOOTH) Icons.Filled.Bluetooth else if (routes.active == android.telecom.CallAudioState.ROUTE_WIRED_HEADSET) Icons.Filled.Headset else Icons.AutoMirrored.Filled.VolumeUp,
+                    when (routes.active) { android.telecom.CallAudioState.ROUTE_BLUETOOTH -> "bluetooth"; android.telecom.CallAudioState.ROUTE_WIRED_HEADSET -> "headset"; else -> "speaker" }, speaker, true) {
+                    if (routes.bluetooth || routes.headset) routeMenu = true else engine.setSpeaker(!speaker) }),
+                listOf(Btn(Icons.Filled.Add, "add call", false, live) { setMinimized(true) }, Btn(if (call.id in held) Icons.Filled.PlayArrow else Icons.Filled.Pause, if (call.id in held) "resume" else "hold", call.id in held, live) { engine.toggleHold(call.id) }, Btn(Icons.Filled.MoreHoriz, "more", false, true) { more = true }))
+            rows.forEach { r -> Row(Modifier.fillMaxWidth().padding(bottom = 26.dp * cs()), horizontalArrangement = Arrangement.SpaceEvenly) { r.forEach { RoundBtn(it) } } }
+        }
+        Spacer(Modifier.weight(1f))
+        if (call.incoming && !live) Row(Modifier.fillMaxWidth().padding(bottom = 34.dp * cs()), horizontalArrangement = Arrangement.SpaceEvenly) {
+            Big(CallDanger, Icons.Filled.CallEnd, "decline") { engine.hangup(call.id) }; Big(CallBrand, Icons.Filled.Call, "accept") { engine.answer(call.id) } }
+        else Box(Modifier.padding(bottom = 34.dp * cs())) { Big(CallDanger, Icons.Filled.CallEnd, null) { engine.hangup(call.id) } }
+    }
     Surface(Modifier.fillMaxSize(), color = CallBg) {
-        Column(Modifier.fillMaxSize().systemBarsPadding().padding(horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton({ setMinimized(true) }) { Icon(Icons.Filled.KeyboardArrowDown, "Minimise call", tint = CallText, modifier = Modifier.size(30.dp)) }
-                Spacer(Modifier.weight(1f))
-                if (live) SignalBars(quality[call.id] ?: 0, numbers[call.id])
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            if (fold.tabletop) {
+                val d = androidx.compose.ui.platform.LocalDensity.current
+                val topDp = with(d) { fold.hinge!!.top.toDp() }; val gapDp = with(d) { fold.hinge!!.height.toDp() }
+                Column(Modifier.widthIn(max = 520.dp).fillMaxSize().padding(horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(Modifier.fillMaxWidth().height(topDp).windowInsetsPadding(WindowInsets.statusBars), horizontalAlignment = Alignment.CenterHorizontally) { header(); Spacer(Modifier.weight(1f)) }
+                    Spacer(Modifier.height(gapDp))
+                    Column(Modifier.fillMaxWidth().weight(1f).windowInsetsPadding(WindowInsets.navigationBars), horizontalAlignment = Alignment.CenterHorizontally) { Spacer(Modifier.weight(1f)); controls() }
+                }
+            } else Column(Modifier.widthIn(max = 520.dp).fillMaxSize().systemBarsPadding().padding(horizontal = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                header(); Spacer(Modifier.weight(1f)); controls()
             }
-            Spacer(Modifier.height(20.dp))
-            Text(name, fontSize = 34.sp, fontWeight = FontWeight.SemiBold, color = CallText, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-            Text(status, color = CallMuted, fontSize = 20.sp, modifier = Modifier.padding(top = 6.dp))
-            if (live) when (enc[call.id]) {
-                SipEngine.Security.SRTP -> Label(Icons.Filled.Lock, "Encrypted by SRTP", CallBrand)
-                SipEngine.Security.DTLS -> Label(Icons.Filled.Lock, "Encrypted by DTLS-SRTP", CallBrand)
-                SipEngine.Security.NONE -> Label(Icons.Filled.LockOpen, "Not encrypted", CallDanger)
-                else -> {} }
-            if (call.id in held) Label(Icons.Filled.PauseCircle, "On hold", CallBrand)
-            if (call.id in recording) Label(Icons.Filled.FiberManualRecord, "Recording", CallDanger)
-            Spacer(Modifier.weight(1f))
-            if (live || !call.incoming) {
-                val rows = listOf(
-                    listOf(Btn(Icons.Filled.MicOff, "mute", call.id in muted, live) { engine.toggleMute(call.id) }, Btn(Icons.Filled.Dialpad, "keypad", false, live) { pad = true }, Btn(if (routes.active == android.telecom.CallAudioState.ROUTE_BLUETOOTH) Icons.Filled.Bluetooth else if (routes.active == android.telecom.CallAudioState.ROUTE_WIRED_HEADSET) Icons.Filled.Headset else Icons.AutoMirrored.Filled.VolumeUp,
-                        when (routes.active) { android.telecom.CallAudioState.ROUTE_BLUETOOTH -> "bluetooth"; android.telecom.CallAudioState.ROUTE_WIRED_HEADSET -> "headset"; else -> "speaker" }, speaker, true) {
-                        if (routes.bluetooth || routes.headset) routeMenu = true else engine.setSpeaker(!speaker) }),
-                    listOf(Btn(Icons.Filled.Add, "add call", false, live) { setMinimized(true) }, Btn(if (call.id in held) Icons.Filled.PlayArrow else Icons.Filled.Pause, if (call.id in held) "resume" else "hold", call.id in held, live) { engine.toggleHold(call.id) }, Btn(Icons.Filled.MoreHoriz, "more", false, true) { more = true }))
-                rows.forEach { r -> Row(Modifier.fillMaxWidth().padding(bottom = 26.dp * cs()), horizontalArrangement = Arrangement.SpaceEvenly) { r.forEach { RoundBtn(it) } } }
-            }
-            Spacer(Modifier.weight(1f))
-            if (call.incoming && !live) Row(Modifier.fillMaxWidth().padding(bottom = 34.dp * cs()), horizontalArrangement = Arrangement.SpaceEvenly) {
-                Big(CallDanger, Icons.Filled.CallEnd, "decline") { engine.hangup(call.id) }; Big(CallBrand, Icons.Filled.Call, "accept") { engine.answer(call.id) } }
-            else Box(Modifier.padding(bottom = 34.dp * cs())) { Big(CallDanger, Icons.Filled.CallEnd, null) { engine.hangup(call.id) } }
         }
     }
 

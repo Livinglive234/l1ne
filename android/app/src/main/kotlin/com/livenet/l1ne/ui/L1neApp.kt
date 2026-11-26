@@ -55,8 +55,11 @@ private fun MainTabs() {
     val stack = remember { mutableStateListOf<Dest>() }
     val tabs = Tab.entries.filter { it != Tab.Voicemail || vmTab }
     if (tab !in tabs) tab = Tab.Recents
-    // wide windows (a tablet, an unfolded foldable, a landscape split): the list on the left and the person or conversation on the right
-    val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 840
+    // wide windows (a tablet, an unfolded foldable, a landscape split): the list on the left and the person or conversation on the right;
+    // with a vertical fold the two panes sit on either side of it and nothing is drawn across the hinge
+    val fold = LocalFold.current; val windowDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp; val dens = androidx.compose.ui.platform.LocalDensity.current.density
+    val wide = useTwoPanes(windowDp, fold)       // 700 dp or more, or a vertical fold that already splits the window (a foldable held like a book)
+    val listDp = leadingPaneWidthDp(windowDp.toFloat(), dens, fold, (windowDp * 0.4f).coerceIn(300f, 380f)); val gapDp = hingeGapDp(dens, fold)
     var pane by remember { mutableStateOf<Dest?>(null) }
     fun open(d: Dest) { if (wide && (d is Dest.Person || d is Dest.Thread)) pane = d else stack.add(d) }
     LaunchedEffect(tab) { pane = null }
@@ -104,14 +107,14 @@ private fun MainTabs() {
         Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             if (wide && tab == Tab.Keypad) KeypadScreen(::open, wide = true)
             else if (wide && tab != Tab.Voicemail) Row(Modifier.fillMaxSize()) {
-                Box(Modifier.width(380.dp).fillMaxHeight()) {
+                Box(Modifier.width(listDp.dp).fillMaxHeight()) {
                     when (tab) {
                         Tab.Recents -> RecentsScreen(::open)
                         Tab.Contacts -> ContactsScreen(::open)
                         else -> ConversationsScreen(::open)
                     }
                 }
-                VerticalDivider(color = L1neColors.Border)
+                if (gapDp > 0f) Spacer(Modifier.width(gapDp.dp)) else VerticalDivider(color = L1neColors.Border)
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     when (val d = pane) {
                         is Dest.Person -> key(d) { PersonScreen(d.p, ::open, null) }
