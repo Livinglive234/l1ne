@@ -14,28 +14,41 @@ struct ConversationsView: View {
     @EnvironmentObject var router: AppRouter
     @State private var selected: ThreadTarget?
     @State private var composing = false
+    @Environment(\.horizontalSizeClass) private var hSize
+    private var wide: Bool { hSize == .regular }       // an iPad, or the iPhone Duo opened: the list on the left, the conversation on the right
+
+    private func target(_ c: Conversation) -> ThreadTarget { ThreadTarget(accountID: c.accountID, peer: c.peer) }
+
+    @ViewBuilder private func row(_ c: Conversation) -> some View {
+        if wide {
+            Button { selected = target(c) } label: { rowContent(c) }.buttonStyle(.plain)
+                .listRowBackground(selected == target(c) ? Theme.brand.opacity(0.14) : Theme.surface)
+        } else {
+            NavigationLink(tag: target(c), selection: $selected, destination: { ThreadView(target: target(c)) }) { rowContent(c) }
+                .listRowBackground(Theme.surface)
+        }
+    }
+
+    private func rowContent(_ c: Conversation) -> some View {
+        HStack(spacing: 12) {
+            Circle().fill(c.unread > 0 ? Theme.brand : .clear).frame(width: 10, height: 10)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack {
+                    Text(displayName(c.peer, contacts: contacts)).font(.headline).foregroundStyle(Theme.text)
+                    Spacer()
+                    if let d = c.last?.date { Text(d, format: .dateTime.hour().minute()).font(.caption).foregroundStyle(Theme.muted) }
+                }
+                Text(c.last?.text ?? "").lineLimit(2).font(.subheadline).foregroundStyle(Theme.muted)
+                if store.accounts.count > 1, let a = store.account(c.accountID) {
+                    Text("via \(a.title)").font(.caption).foregroundStyle(Theme.muted.opacity(0.8))
+                }
+            }
+        }
+    }
 
     private var list: some View {
         List {
-            ForEach(messages.conversations) { c in
-                NavigationLink(tag: ThreadTarget(accountID: c.accountID, peer: c.peer), selection: $selected, destination: { ThreadView(target: ThreadTarget(accountID: c.accountID, peer: c.peer)) }) {
-                    HStack(spacing: 12) {
-                        Circle().fill(c.unread > 0 ? Theme.brand : .clear).frame(width: 10, height: 10)
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack {
-                                Text(displayName(c.peer, contacts: contacts)).font(.headline).foregroundStyle(Theme.text)
-                                Spacer()
-                                if let d = c.last?.date { Text(d, format: .dateTime.hour().minute()).font(.caption).foregroundStyle(Theme.muted) }
-                            }
-                            Text(c.last?.text ?? "").lineLimit(2).font(.subheadline).foregroundStyle(Theme.muted)
-                            if store.accounts.count > 1, let a = store.account(c.accountID) {
-                                Text("via \(a.title)").font(.caption).foregroundStyle(Theme.muted.opacity(0.8))
-                            }
-                        }
-                    }
-                }
-                .listRowBackground(Theme.surface)
-            }
+            ForEach(messages.conversations) { c in row(c) }
             .onDelete { idx in messages.delete(idx.map { messages.conversations[$0].id }) }
         }
         .scrollDisabledCompat(messages.conversations.isEmpty)      // nothing to scroll when there are no conversations
@@ -48,6 +61,23 @@ struct ConversationsView: View {
     }
 
     var body: some View {
+        if wide {
+            HStack(spacing: 0) {
+                listStack.frame(width: 380)
+                Divider()
+                Group {
+                    if let t = selected {
+                        AppNavStack { ThreadView(target: t).id(t) }
+                    } else {
+                        EmptyState("No conversation selected", systemImage: "bubble.left.and.bubble.right", description: Text("Pick one on the left, or start a new message."))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity).mainBackground()
+                    }
+                }
+            }
+        } else { listStack }
+    }
+
+    private var listStack: some View {
         AppNavStack {
             list
             .mainBackground()

@@ -44,6 +44,9 @@ struct KeypadView: View {
     @EnvironmentObject var store: AccountStore
     @EnvironmentObject var contacts: ContactsStore
     @EnvironmentObject var router: AppRouter
+    @EnvironmentObject var callLog: CallLogStore
+    @Environment(\.horizontalSizeClass) private var hSize
+    private var wide: Bool { hSize == .regular }       // an iPad, or the iPhone Duo opened: keypad on the left, matches and recent calls on the right
     @State private var number = ""
     @State private var plusTyped = false
 
@@ -56,7 +59,7 @@ struct KeypadView: View {
     @State private var size: CGFloat = 76        // shrinks when the screen is short (the iPhone Duo's wide inner screen), so the keypad always fits
     private func fitKeys(to height: CGFloat) {
         guard height > 0 else { return }
-        let s = min(76, max(52, ((height - 256) / 5).rounded(.down)))      // 256 = number box, suggestions, gaps
+        let s = min(76, max(52, ((height - (wide ? 144 : 256)) / 5).rounded(.down)))      // 256 = number box, suggestions, gaps (144 without the suggestions, which move to the side)
         if s != size { size = s }
     }
 
@@ -68,13 +71,33 @@ struct KeypadView: View {
 
     var body: some View {
         AppNavStack {
+            Group {
+                if wide {
+                    HStack(spacing: 0) {
+                        pad.frame(maxWidth: 480)
+                        Divider()
+                        sidePanel
+                    }
+                } else { pad }
+            }
+            .mainBackground()
+            .task(id: router.pendingDial) { if let d = router.pendingDial { number = d; router.pendingDial = nil } }
+            .profileToolbar()
+            .toolbar {
+                ToolbarItem(placement: .principal) { lineMenu }      // the line picker sits in the top bar
+            }
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private var pad: some View {
             VStack(spacing: 0) {
                 Spacer(minLength: 0)
                 ZStack(alignment: .bottom) {
                     Color.clear                       // always reserves the space, so the keys never move
-                    suggestionList
+                    if !wide { suggestionList }
                 }
-                .frame(height: 112)
+                .frame(height: wide ? 0 : 112)
                 Text(number.isEmpty ? " " : number)
                     .font(.system(size: 40, weight: .light, design: .rounded))
                     .foregroundStyle(Theme.text)
@@ -111,14 +134,63 @@ struct KeypadView: View {
             .background(GeometryReader { g in
                 Color.clear.onAppear { fitKeys(to: g.size.height) }.onChangeCompat(of: g.size.height) { _, h in fitKeys(to: h) }
             })
-            .mainBackground()
-            .task(id: router.pendingDial) { if let d = router.pendingDial { number = d; router.pendingDial = nil } }
-            .profileToolbar()
-            .toolbar {
-                ToolbarItem(placement: .principal) { lineMenu }      // the line picker sits in the top bar
+    }
+
+    /// The wide layout's right side: contacts matching what is typed, or recent calls while the number is empty.
+    private var sidePanel: some View {
+        let matches = number.isEmpty ? [] : contacts.contacts.filter { T9.matches(number, name: $0.name, address: $0.address) }
+        return List {
+            if number.isEmpty {
+                Section("Recent calls") {
+                    ForEach(callLog.records.prefix(20)) { r in
+                        sideRow(name: peerName(r.peer), detail: r.peer, fill: dialString(address: r.peer)) {
+                            if let a = r.accountID.flatMap({ store.account($0) }) ?? account, engine.call(dialString(address: r.peer), from: a.id) { number = "" }
+                        }
+                    }
+                }
+            } else {
+                Section("Matching contacts") {
+                    ForEach(matches) { c in
+                        sideRow(name: c.name, detail: c.address, fill: dialString(for: c)) {
+                            if let a = c.accountID.flatMap({ store.account($0) }) ?? account, engine.call(dialString(for: c), from: a.id) { number = "" }
+                        }
+                    }
+                }
             }
-            .navigationBarTitleDisplayMode(.inline)
         }
+        .listStyle(.plain).hideScrollBackground()
+        .overlay {
+            if number.isEmpty ? callLog.records.isEmpty : matches.isEmpty {
+                EmptyState(number.isEmpty ? "No recent calls" : "No matches", systemImage: number.isEmpty ? "clock" : "person.crop.circle.badge.questionmark",
+                           description: Text(number.isEmpty ? "Calls you make or receive show up here." : "Keep typing, or press call."))
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func sideRow(name: String, detail: String, fill: String, call: @escaping () -> Void) -> some View {
+        HStack(spacing: 12) {
+            Button { number = fill } label: {         // tapping fills the number in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name).font(.body.weight(.medium)).foregroundStyle(Theme.text).lineLimit(1)
+                    Text(detail).font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+            }.buttonStyle(.plain)
+            CallCircleButton(action: call)
+        }
+        .listRowBackground(Color.clear).listRowSeparatorTint(Theme.border)
+        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+    }
+
+    private func peerName(_ peer: String) -> String {
+        let p = peer.split(separator: "@").map(String.init)
+        return contacts.name(forUser: p.first ?? peer, domain: p.count == 2 ? p[1] : nil) ?? (p.first ?? peer)
+    }
+
+    private func dialString(address: String) -> String {
+        if let a = account, address.lowercased().hasSuffix("@" + a.domain.lowercased()) { return String(address.split(separator: "@").first ?? "") }
+        return address.contains("@") ? "sip:" + address : address
     }
 
     /// Which line the call goes out on: a menu in the top bar, only when there is more than one account.
