@@ -20,6 +20,8 @@ struct ProvisionSheet: View {
     @State private var picked: Set<UUID> = []
     @State private var importContacts = false
     @State private var importInterval = SyncInterval.onOpen
+    @State private var checking = false                 // the PBX is being asked whether each account can sign in
+    @State private var failures: [UUID: String] = [:]   // why an account couldn't, shown under it
 
     var body: some View {
         AppNavStack {
@@ -77,6 +79,9 @@ struct ProvisionSheet: View {
                     if picked.contains(p.account.id) && p.secret.isEmpty {
                         SecureField("Secret", text: Binding(get: { secrets[p.account.id] ?? "" }, set: { secrets[p.account.id] = $0 }))
                     }
+                    if let why = failures[p.account.id] {
+                        Label(why, systemImage: "exclamationmark.triangle.fill").font(.footnote).foregroundStyle(Theme.danger)
+                    }
                 }
             }
         } header: { Text("Accounts to add") }
@@ -99,8 +104,13 @@ struct ProvisionSheet: View {
             .listRowBackground(Theme.surface)
         }
         Section {
-            Button("Add") { add(r) }
-                .disabled(picked.isEmpty || r.accounts.contains { picked.contains($0.account.id) && $0.secret.isEmpty && (secrets[$0.account.id] ?? "").isEmpty })
+            Button { add(r) } label: {
+                HStack(spacing: 10) {
+                    if checking { ProgressView() }
+                    Text(checking ? "Checking with the PBX…" : "Add")
+                }
+            }
+                .disabled(checking || picked.isEmpty || r.accounts.contains { picked.contains($0.account.id) && $0.secret.isEmpty && (secrets[$0.account.id] ?? "").isEmpty })
         }
         .listRowBackground(Theme.surface)
     }
@@ -119,21 +129,38 @@ struct ProvisionSheet: View {
         }
     }
 
+    /// Registers every chosen account with its PBX first and keeps them only if all of them sign in, the same rule the
+    /// Welcome screen's own form follows. If one doesn't, nothing is added and the sheet says why under that account.
     private func add(_ r: Provisioning.Result) {
-        let picked = self.picked, secrets = self.secrets, importContacts = self.importContacts, importInterval = self.importInterval
+        let chosen = r.accounts.filter { picked.contains($0.account.id) }
+        let secrets = self.secrets, importContacts = self.importContacts, importInterval = self.importInterval
         let store = self.store, engine = self.engine, dirs = self.dirs
-        dismiss()
-        // The sheet slides away first and the account is added a moment later. Adding it right now would swap the
-        // screen underneath the sheet (the first account replaces the welcome screen) and cut the sheet off with no animation.
+        func secret(_ p: Provisioning.Parsed) -> String { p.secret.isEmpty ? (secrets[p.account.id] ?? "") : p.secret }
+        checking = true; failures = [:]; error = nil
         Task { @MainActor in
+            var failed: [UUID: String] = [:]
+            await withTaskGroup(of: (UUID, String?).self) { group in
+                for p in chosen {
+                    let a = p.account, sec = secret(p)
+                    group.addTask { @MainActor in (a.id, await LoginCheck.verify(a, secret: sec, engine: engine)) }
+                }
+                for await (id, why) in group { if let why { failed[id] = why } }
+            }
+            checking = false
+            if !failed.isEmpty {
+                for p in chosen { engine.unregister(p.account.id) }      // nothing is kept
+                failures = failed
+                return
+            }
+            dismiss()
+            // The sheet slides away first and the accounts are added a moment later. Adding them right now would swap the
+            // screen underneath the sheet (the first account replaces the welcome screen) and cut the sheet off with no animation.
             try? await Task.sleep(nanoseconds: 450_000_000)
             var first: Account?
-            for p in r.accounts where picked.contains(p.account.id) {
+            for p in chosen {
                 var a = p.account
                 if let c = r.contactsURL, importContacts, !p.pushOnly || !r.hasOtherThanPushOnly { a.contactsURL = c }
-                let secret = p.secret.isEmpty ? (secrets[a.id] ?? "") : p.secret
-                store.save(a, secret: secret)
-                engine.register(a, secret: secret)
+                store.save(a, secret: secret(p))                        // already registered by the check above
                 if first == nil && (!p.pushOnly || !r.hasOtherThanPushOnly) { first = a }
             }
             if importContacts, !dirs.directoryEnabled, let c = r.contactsURL, let acc = first ?? store.selected {
@@ -147,6 +174,26 @@ struct ProvisionSheet: View {
                 await DirectorySync.shared.sync(link.id)
             }
         }
+    }
+}
+
+/// Asks the PBX whether an account can sign in, without saving anything.
+@MainActor enum LoginCheck {
+    /// nil when it registered; otherwise plain words for what went wrong. The registration is dropped again on failure.
+    static func verify(_ a: Account, secret: String, engine: SIPEngine, timeout: TimeInterval = 25) async -> String? {
+        guard a.enabled else { return nil }                     // an account the setup file leaves off has nothing to check
+        engine.register(a, secret: secret)
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if Task.isCancelled { engine.unregister(a.id); return "Cancelled" }
+            if let s = engine.registration[a.id] {
+                if s == "Registered" { return nil }
+                if s != "Registering…" && !s.hasPrefix("Waiting") { engine.unregister(a.id); return WelcomeView.explain(s) }
+            }
+            try? await Task.sleep(nanoseconds: 200_000_000)
+        }
+        engine.unregister(a.id)
+        return "\(a.domain) didn't answer. Check the server name and your connection."
     }
 }
 

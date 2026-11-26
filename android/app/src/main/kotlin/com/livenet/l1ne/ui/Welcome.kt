@@ -1,5 +1,7 @@
 package com.livenet.l1ne.ui
 
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -196,8 +198,21 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit, onClose: 
     if (manual) Surface(Modifier.fillMaxSize(), color = L1neColors.Bg) { AccountEditorScreen(null, onSubmit = ::submit) { manual = false } }
 }
 
+/** Asks the PBX whether an account can sign in, without saving anything. null = it registered; otherwise plain words for what went wrong.
+ *  The registration is dropped again on failure. */
+suspend fun verifyLogin(engine: com.livenet.l1ne.sip.SipEngine, a: Account, password: String, timeoutMs: Long = 25_000): String? {
+    if (!a.enabled) return null                               // an account the setup file leaves off has nothing to check
+    engine.register(a, password)
+    val s = kotlinx.coroutines.withTimeoutOrNull(timeoutMs) {
+        engine.registration.map { it[a.id] }.first { it != null && it != "Registering…" && !it.startsWith("Waiting") }
+    }
+    if (s == "Registered") return null
+    engine.unregister(a.id)
+    return if (s == null) "${a.domain} didn't answer. Check the server name and your connection." else explainRegistration(s)
+}
+
 /** Plain words for the usual ways a first login goes wrong. */
-private fun explainRegistration(status: String): String {
+internal fun explainRegistration(status: String): String {
     val code = Regex("""\b(\d{3})\b""").find(status)?.value?.toIntOrNull() ?: 0
     return when (code) {
         401, 403 -> "The PBX refused that username or password. Check them and try again."

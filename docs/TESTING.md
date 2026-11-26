@@ -26,11 +26,12 @@ what is dialled, so one running copy covers every scenario:
 `GET /log` returns everything it saw, `GET /clear` empties the log. `tests/mock/mock_sip_tls.py` is the older TLS-only server used for certificate and
 encryption-offer checks from the iPhone simulator (`run-call-test.sh`).
 
-## Android: `WireTest` (27 tests)
+## Android: `WireTest` (32 tests)
 `android/app/src/androidTest/kotlin/com/livenet/l1ne/WireTest.kt` uses the app's own engine (PJSIP can only start once per process) and checks both what the
 engine reports and what the server saw on the wire: registration (good and wrong password, 404, 503, silent server, UDP, disabled account), calls (answered, busy,
 declined, unknown, cancelled while ringing, early media, hold and resume, transfer, voicemail button, dial rules, incoming), what is offered (no encryption, SDES keys, DTLS
-fingerprint, disabled codec, codec order, ICE candidates, a STUN lookup), texts (sent, received) and message waiting.
+fingerprint, disabled codec, codec order, ICE candidates, a STUN lookup), texts (sent, received), message waiting, and the login check the QR / setup-link screen
+runs before it keeps an account (good login saves nothing, wrong password, unknown extension, server error, silent server).
 
 ```bash
 tests/mock/run-android-wire-tests.sh          # starts the fake PBX and an emulator (default AVD l1ne_api28), runs the tests, shuts both down

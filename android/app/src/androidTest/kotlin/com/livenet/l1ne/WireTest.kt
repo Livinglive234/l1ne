@@ -18,6 +18,10 @@ import java.net.Socket
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlin.test.assertTrue
 
 /**
@@ -145,4 +149,30 @@ class WireTest {
     @Test fun aTextIsSent() { val a = registered(account("7100")); assertTrue(engine.sendText(a, "7200@$host", "hello from L1ne")); waitServer("MESSAGE from phone: 7100 -> 7200 | hello from L1ne") }
     @Test fun aTextIsReceived() { registered(account("7100")); val before = messages.conversations.value.sumOf { it.messages.size }; http("/text?user=7100&text=ping%20from%20the%20pbx"); waitFor("the text") { messages.conversations.value.sumOf { it.messages.size } > before } }
     @Test fun messageWaitingShowsNewVoicemail() { val a = registered(account("7100")); waitServer("SUBSCRIBE message-summary"); waitFor("3 new") { engine.voicemail.value[a.id] == 3 } }
+
+    // ---- the login check used by the QR / setup-link screen (and the Welcome form's rule): try the account, keep it only if it registers ----
+
+    private fun unsaved(user: String) = Account(label = "mock $user", domain = host, username = user, media = Media.NONE, mediaMandatory = false).withTransport(Transport.TCP)
+    private fun check(a: Account, password: String, timeoutMs: Long = 25_000): String? =
+        runBlocking { withContext(Dispatchers.Main) { com.livenet.l1ne.ui.verifyLogin(engine, a, password, timeoutMs) } }
+
+    @Test fun loginCheckLetsAGoodLoginThroughAndSavesNothing() {
+        val a = unsaved("7100"); assertNull(check(a, "secret"))
+        assertTrue(accounts.accounts.value.none { it.id == a.id }, "the check must not save the account")
+        main { engine.unregister(a.id) }
+    }
+    @Test fun loginCheckRefusesAWrongPasswordInPlainWords() {
+        val a = unsaved("7100"); assertEquals("The PBX refused that username or password. Check them and try again.", check(a, "wrong"))
+        assertNull(engine.registration.value[a.id], "a refused account must not stay registered")
+    }
+    @Test fun loginCheckSaysWhenTheExtensionDoesNotExist() {
+        val a = unsaved("7104"); assertEquals("The PBX doesn't know that username or extension.", check(a, "secret")); assertNull(engine.registration.value[a.id])
+    }
+    @Test fun loginCheckSaysWhenTheServerCannotBeReached() {
+        val a = unsaved("7105"); assertEquals("Couldn't reach the PBX. Check the server name and your connection.", check(a, "secret")); assertNull(engine.registration.value[a.id])
+    }
+    @Test fun loginCheckGivesUpWhenTheServerNeverAnswers() {
+        val a = unsaved("7106"); val why = check(a, "secret", timeoutMs = 4_000)
+        assertNotNull(why); assertTrue(why.contains("didn't answer"), why); assertNull(engine.registration.value[a.id])
+    }
 }

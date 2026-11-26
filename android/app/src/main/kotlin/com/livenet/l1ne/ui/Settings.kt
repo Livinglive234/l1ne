@@ -25,6 +25,8 @@ import com.livenet.l1ne.sip.Native
 import com.livenet.l1ne.sip.SipEngine
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -306,6 +308,7 @@ fun LinkDialog(initial: String?, autoScan: Boolean = false, onClose: () -> Unit)
     var result by remember { mutableStateOf<com.livenet.l1ne.core.Provisioning.Result?>(null) }
     var picked by remember { mutableStateOf(setOf<String>()) }; var importContacts by remember { mutableStateOf(true) }; var secrets by remember { mutableStateOf(mapOf<String, String>()) }
     var interval by remember { mutableStateOf(com.livenet.l1ne.data.SyncInterval.ON_OPEN) }
+    var checking by remember { mutableStateOf(false) }; var failures by remember { mutableStateOf(mapOf<String, String>()) }       // the PBX is being asked; why an account couldn't sign in
     fun fetch(raw: String) {
         val url = com.livenet.l1ne.core.Provisioning.configUrl(raw) ?: run { error = "That isn't an https configuration link."; return }
         busy = true; error = null
@@ -329,17 +332,29 @@ fun LinkDialog(initial: String?, autoScan: Boolean = false, onClose: () -> Unit)
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             r.accounts.forEach { p -> Row(Modifier.clickable { picked = if (p.account.id in picked) picked - p.account.id else picked + p.account.id }, verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(p.account.id in picked, { picked = if (it) picked + p.account.id else picked - p.account.id })
-                Column { Text(p.account.title); Text("${p.account.username}@${p.account.domain}" + if (p.pushOnly) " · incoming only" else "", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted) } }
+                Column { Text(p.account.title); Text("${p.account.username}@${p.account.domain}" + if (p.pushOnly) " · incoming only" else "", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
+                    failures[p.account.id]?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = L1neColors.Danger) } } }
                 if (p.secret.isEmpty() && p.account.id in picked) OutlinedTextField(secrets[p.account.id] ?: "", { secrets = secrets + (p.account.id to it) }, singleLine = true, label = { Text("Password for ${p.account.username}") }, visualTransformation = PasswordVisualTransformation()) }
             if (r.contactsUrl != null) { SwitchRow("Import contacts from ${java.net.URI(r.contactsUrl).host ?: "the link"}", importContacts, enabled = !app.directories.directoryEnabled) { importContacts = it }
                 if (importContacts) Text("L1ne keeps your contacts in step with it. You can change this any time in Settings → Contacts sync.", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted) }
             r.notes.forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted) } } },
-        confirmButton = { TextButton(enabled = picked.isNotEmpty(), onClick = {
-            var first: Account? = null
-            for (p in r.accounts) if (p.account.id in picked) { var acc = p.account; if (r.contactsUrl != null && importContacts && (!p.pushOnly || !r.hasOtherThanPushOnly)) acc = acc.copy(contactsUrl = r.contactsUrl!!)
-                app.store.save(acc, p.secret.ifEmpty { secrets[acc.id] ?: "" }); app.engine.register(acc); if (first == null && (!p.pushOnly || !r.hasOtherThanPushOnly)) first = acc }
-            if (importContacts && !app.directories.directoryEnabled && r.contactsUrl != null) (first ?: app.store.selected)?.let { acc ->
-                val link = com.livenet.l1ne.data.DirectorySource(kind = com.livenet.l1ne.data.DirKind.VCARD_LINK, name = "PBX contacts", url = r.contactsUrl!!, interval = interval, accountID = acc.id)
-                app.directories.save(link, null); scope.launch { app.dirSync.sync(link.id) } }
-            onClose() }) { Text("Add") } }, dismissButton = { TextButton(onClose) { Text("Cancel") } })
+        confirmButton = { TextButton(enabled = picked.isNotEmpty() && !checking, onClick = {
+            // Registers every chosen account first and keeps them only if all sign in, like the Welcome screen's own form.
+            // If one doesn't, nothing is added and the dialog says why under that account.
+            val chosen = r.accounts.filter { it.account.id in picked }
+            fun secretOf(p: com.livenet.l1ne.core.Provisioning.Parsed) = p.secret.ifEmpty { secrets[p.account.id] ?: "" }
+            checking = true; failures = emptyMap()
+            scope.launch {
+                val failed = chosen.map { p -> scope.async { p.account.id to verifyLogin(app.engine, p.account, secretOf(p)) } }.awaitAll().mapNotNull { (id, why) -> why?.let { id to it } }.toMap()
+                checking = false
+                if (failed.isNotEmpty()) { chosen.forEach { app.engine.unregister(it.account.id) }; failures = failed; return@launch }
+                var first: Account? = null
+                for (p in chosen) { var acc = p.account; if (r.contactsUrl != null && importContacts && (!p.pushOnly || !r.hasOtherThanPushOnly)) acc = acc.copy(contactsUrl = r.contactsUrl!!)
+                    app.store.save(acc, secretOf(p)); if (first == null && (!p.pushOnly || !r.hasOtherThanPushOnly)) first = acc }       // already registered by the check above
+                if (importContacts && !app.directories.directoryEnabled && r.contactsUrl != null) (first ?: app.store.selected)?.let { acc ->
+                    val link = com.livenet.l1ne.data.DirectorySource(kind = com.livenet.l1ne.data.DirKind.VCARD_LINK, name = "PBX contacts", url = r.contactsUrl!!, interval = interval, accountID = acc.id)
+                    app.directories.save(link, null); scope.launch { app.dirSync.sync(link.id) } }
+                onClose()
+            }
+        }) { Text(if (checking) "Checking with the PBX…" else "Add") } }, dismissButton = { TextButton(onClose) { Text("Cancel") } })
 }

@@ -123,7 +123,8 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
         else -> "Not registered: $code $text"
     }
 
-    fun register(a: Account) {
+    /** [password] lets an account be tried before it is saved; otherwise the saved one is used. */
+    fun register(a: Account, password: String? = null) {
         start(); if (!started) return
         unregister(a.id)
         if (!a.enabled) { _registration.value = _registration.value + (a.id to "Off"); return }
@@ -134,7 +135,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
         if (!route.contains(";lr")) route += ";lr"
         val name = a.displayName.replace("\"", "")
         val id = Native.nAddAccount(if (name.isEmpty()) "sip:${a.username}@${a.domain}" else "\"$name\" <sip:${a.username}@${a.domain}>", reg, route,
-            a.authUser.ifEmpty { a.username }, store.secret(a.id),
+            a.authUser.ifEmpty { a.username }, password ?: store.secret(a.id),
             when (a.media) { Media.NONE -> 0; Media.SRTP_SDES -> 1; Media.SRTP_DTLS -> 2 }, a.mediaMandatory, a.transport == Transport.TLS,
             maxOf(60, a.expires), a.mwiEnabled, settings.allowIPv6, a.stunServer, a.iceEnabled, a.turnEnabled, a.turnUser, store.turnSecret(a.id))
         if (id < 0) { _registration.value = _registration.value + (a.id to "Could not add account (error ${-id})"); return }
