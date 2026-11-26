@@ -82,7 +82,7 @@ Android's main activity handles size changes itself, so folding does not recreat
 The layouts depend only on the window's width: two panes from 700 dp on Android (a foldable's inner screen in portrait counts), and on iPhone/iPad whenever the window is "regular" width. A tablet's call screen keeps a phone-width column.
 The window changing size (folding, unfolding, rotating, split screen) does not recreate the activity: checked mid-call on the tablet emulator, same call and timer; the open person or conversation moves between the right pane and a page.
 - **iPhone Duo:** the simulator lights the inner screen whenever the hinge is half open or flat, and the app shows the same layout either way (checked at 110° and flat; the keypad entry survived closed, half open and flat).
-- **Android foldables:** checked on a foldable emulator profile (see below for what that found).
+- **Android foldables:** checked on an Android 14 Pixel Fold emulator (inner 2208x1840, cover 1080x2092). Open and half open give the same inner-screen layout: during a call only the timer text differs between them. Closing the hinge moves the call to the cover screen with the normal phone layout and the call keeps going (0:12 on the cover); opening it again brings it back, in the same process. Not seen on real foldable hardware.
 - **Not planned:** a tabletop call screen, list and detail either side of a hinge, or anything that changes with the hinge angle. Tried briefly and removed on purpose.
 
 ## LATER: desktop apps (Windows, macOS, Linux)

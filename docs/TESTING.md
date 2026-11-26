@@ -39,6 +39,11 @@ tests/mock/run-android-wire-tests.sh          # starts the fake PBX and an emula
 Run it on an **emulator**: the tests add and remove their own accounts and change the codec settings, and the emulator reaches the computer as `10.0.2.2`.
 The script clears the app's data first.
 
+## Foldables (Android emulator)
+An Android 14 **Pixel Fold** emulator profile (`l1ne_fold`: `avdmanager`'s `pixel_fold` device on `system-images;android-34;google_apis;arm64-v8a`) has the hinge sensor. Move the hinge with
+`adb shell cmd device_state state 0` (closed: the cover screen), `1` (half open) or `2` (open); screenshots need the display id (`adb exec-out screencap -p -d <id>`, ids from `adb shell dumpsys SurfaceFlinger --display-id`).
+The rule being checked: **half open looks exactly like open**, and a call and the app's process survive every change. The iPhone Duo simulator does the same job on iOS (`set_posture`: closed, half open, open).
+
 ## What this cannot prove
 - Audio quality, echo, Bluetooth and the real network (carrier NAT, firewalls). Only a real call shows those.
 - **TURN** (a relay server). There is no TURN server in the fake PBX yet, so TURN is compiled and switchable but not exercised.
