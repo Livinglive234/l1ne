@@ -105,6 +105,7 @@ struct ThreadView: View {
     @EnvironmentObject var store: AccountStore
     @EnvironmentObject var contacts: ContactsStore
     @EnvironmentObject var messages: MessageStore
+    @Environment(\.horizontalSizeClass) private var hSize
     @State private var draft = ""
     @State private var info: PersonTarget?
     @State private var otherAppsDismissed = MessagingWarnings.otherAppsDismissed
@@ -162,14 +163,7 @@ struct ThreadView: View {
         .toolbar {
             // name on top, the line you are texting from underneath; tapping opens the contact page
             ToolbarItem(placement: .principal) {
-                Button { info = person } label: {
-                    VStack(spacing: 1) {
-                        Text(person.name).font(.headline).foregroundStyle(Theme.text).lineLimit(1)
-                        if store.accounts.count > 1 {
-                            Text("from \(line?.title ?? "—")").font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
-                        }
-                    }
-                }.buttonStyle(.plain)
+                if hSize != .regular { nameButton }       // beside the list the iPad's top tab bar sits in the middle, so the name goes in a header instead
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button { info = person } label: { Image(systemName: "info.circle") }
@@ -179,7 +173,24 @@ struct ThreadView: View {
             }
         }
         .safeAreaInset(edge: .bottom) { composer }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if hSize == .regular {
+                HStack { nameButton; Spacer() }.padding(.horizontal, 16).padding(.vertical, 8).background(Theme.bg)
+            }
+        }
         .onAppear { messages.markRead(target) }
+    }
+
+    /// Name on top, the line you are texting from underneath; tapping opens the contact page.
+    private var nameButton: some View {
+        Button { info = person } label: {
+            VStack(alignment: hSize == .regular ? .leading : .center, spacing: 1) {
+                Text(person.name).font(hSize == .regular ? .title3.weight(.semibold) : .headline).foregroundStyle(Theme.text).lineLimit(1)
+                if store.accounts.count > 1 {
+                    Text("from \(line?.title ?? "—")").font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
+                }
+            }
+        }.buttonStyle(.plain)
     }
 
     private var composer: some View {

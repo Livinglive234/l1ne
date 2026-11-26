@@ -60,7 +60,10 @@ private fun MainTabs() {
     var pane by remember { mutableStateOf<Dest?>(null) }
     fun open(d: Dest) { if (wide && (d is Dest.Person || d is Dest.Thread)) pane = d else stack.add(d) }
     LaunchedEffect(tab) { pane = null }
-    LaunchedEffect(wide) { if (!wide) pane?.let { stack.add(it); pane = null } }     // the window got narrow (folded): the open page moves on top of the list
+    LaunchedEffect(wide) {       // the window changed width: the open person or conversation moves between the right pane and a page on top of the list
+        if (!wide) pane?.let { stack.add(it); pane = null }
+        else stack.lastOrNull()?.takeIf { it is Dest.Person || it is Dest.Thread }?.let { stack.removeAt(stack.lastIndex); pane = it }
+    }
     fun back() { if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex) }
     var minimized by remember { mutableStateOf(false) }
     val pendingDial by app.pendingDial.collectAsState()
