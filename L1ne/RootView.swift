@@ -48,6 +48,9 @@ struct RootView: View {
             if new > old || new == 0 { router.callMinimized = false }          // a new call, or none left: back to normal
         }
         .task {
+            #if DEBUG
+            if UITestSeed.requested { UITestSeed.apply() }        // the screen tests start from sample data
+            #endif
             engine.start()
             for a in store.accounts { engine.register(a, secret: store.secret(a.id)) }
             #if DEBUG

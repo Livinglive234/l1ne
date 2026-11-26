@@ -91,7 +91,7 @@ struct ConversationsView: View {
             .profileToolbar()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { composing = true } label: { Image(systemName: "square.and.pencil") }
+                    Button { composing = true } label: { Image(systemName: "square.and.pencil") }.accessibilityLabel("New message")
                         .disabled(store.accounts.isEmpty)
                 }
             }

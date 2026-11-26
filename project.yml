@@ -27,7 +27,7 @@ targets:
     #       aps-environment: development    # Xcode swaps this to production for archives (TestFlight / App Store) on its own
     # Also needed then: a push proxy holding the APNs key (see the push-proxy plan), and PushKit registration in CallKitManager.
     scheme:
-      testTargets: [L1neTests]              # so `xcodebuild test -scheme L1ne` runs them
+      testTargets: [L1neTests, L1neUITests]     # so `xcodebuild test -scheme L1ne` runs them
     info:
       path: L1ne/Info.plist
       properties:
@@ -78,3 +78,17 @@ targets:
         ARCHS: arm64
         EXCLUDED_ARCHS: x86_64
         OTHER_SWIFT_FLAGS: [-Xcc, -DPJ_AUTOCONF=1]     # the app's PJSIP headers come along with `@testable import L1ne`; same define the library was built with
+
+  L1neUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [tests/ios/L1neUITests]
+    dependencies:
+      - target: L1ne
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.livenet.l1ne.uitests
+        SWIFT_VERSION: "5.0"
+        ARCHS: arm64
+        EXCLUDED_ARCHS: x86_64
