@@ -39,6 +39,16 @@ tests/mock/run-android-wire-tests.sh          # starts the fake PBX and an emula
 Run it on an **emulator**: the tests add and remove their own accounts and change the codec settings, and the emulator reaches the computer as `10.0.2.2`.
 The script clears the app's data first.
 
+## iPhone: `WireTests` (32 tests)
+`tests/ios/L1neTests/WireTests.swift` is the same set of scenarios as the Android one (registration, calls, what is offered, texts, message waiting and the QR / setup-link login check), run by Xcode inside the app on a simulator so it drives the app's own engine.
+
+```bash
+tests/mock/run-ios-wire-tests.sh               # generates the project, boots the simulator (default "iPhone 17"), starts the fake PBX, runs the tests, stops it
+tests/mock/run-ios-wire-tests.sh "iPhone Duo"  # another simulator, by name
+```
+The simulator reaches the computer as `127.0.0.1` (`PBX=<ip>` for a phone on Wi-Fi). The tests switch the local ringback tone off: a Mac with no audio device makes each attempt to play it stall the app for about 15 seconds.
+Written in Swift against `SIPEngine`, `AccountStore` and the other app singletons (`@testable import L1ne`), so they need the PJSIP xcframework built (`scripts/build-pjsip.sh`).
+
 ## Foldables (Android emulator)
 An Android 14 **Pixel Fold** emulator profile (`l1ne_fold`: `avdmanager`'s `pixel_fold` device on `system-images;android-34;google_apis;arm64-v8a`) has the hinge sensor. Move the hinge with
 `adb shell cmd device_state state 0` (closed: the cover screen), `1` (half open) or `2` (open); screenshots need the display id (`adb exec-out screencap -p -d <id>`, ids from `adb shell dumpsys SurfaceFlinger --display-id`).
@@ -48,4 +58,3 @@ The rule being checked: **half open looks exactly like open**, and a call and th
 - Audio quality, echo, Bluetooth and the real network (carrier NAT, firewalls). Only a real call shows those.
 - **TURN** (a relay server). There is no TURN server in the fake PBX yet, so TURN is compiled and switchable but not exercised.
 - **TLS** with a real certificate chain on Android (use `mock_sip_tls.py` for the offer checks) and **DTLS-SRTP** key exchange (only the offer is checked).
-- The iPhone engine. The same scenarios still need an iOS port of `WireTest` (the fake PBX works from the simulator at `localhost`).

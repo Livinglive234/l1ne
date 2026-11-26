@@ -26,6 +26,8 @@ targets:
     #     properties:
     #       aps-environment: development    # Xcode swaps this to production for archives (TestFlight / App Store) on its own
     # Also needed then: a push proxy holding the APNs key (see the push-proxy plan), and PushKit registration in CallKitManager.
+    scheme:
+      testTargets: [L1neTests]              # so `xcodebuild test -scheme L1ne` runs them
     info:
       path: L1ne/Info.plist
       properties:
@@ -60,3 +62,19 @@ targets:
         OTHER_LDFLAGS: [-lc++, -framework, Network, -framework, Security, -framework, AudioToolbox,
                         -framework, CoreAudio, -framework, AVFoundation, -framework, CFNetwork,
                         -framework, CoreMedia, -framework, CoreVideo, -framework, VideoToolbox]
+
+  # Tests (run with tests/mock/run-ios-wire-tests.sh and tests/ios/run-ui-tests.sh). The scheme is declared on the app target below.
+  L1neTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [tests/ios/L1neTests]
+    dependencies:
+      - target: L1ne                       # hosted in the app: PJSIP can only start once per process, so the tests drive the app's own engine
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.livenet.l1ne.tests
+        SWIFT_VERSION: "5.0"
+        ARCHS: arm64
+        EXCLUDED_ARCHS: x86_64
+        OTHER_SWIFT_FLAGS: [-Xcc, -DPJ_AUTOCONF=1]     # the app's PJSIP headers come along with `@testable import L1ne`; same define the library was built with
