@@ -41,7 +41,7 @@ object Provisioning {
             val ident = parseIdentity(e["reg_identity"] ?: "") ?: continue
             if (e["reg_sendregister"] == "0") continue
             val pushOnly = ident.domain.endsWith("linphone.org")
-            var a = Account(username = ident.user, domain = ident.domain, label = ident.domain)
+            var a = Account(username = ident.user, domain = ident.domain, label = ident.domain, displayName = ident.display)
             val proxy = parseProxy(e["reg_proxy"] ?: e["reg_route"] ?: "")
             if (proxy != null) {
                 a = a.copy(

@@ -28,6 +28,7 @@ class ParsersTest {
         assertTrue(r.accounts[1].pushOnly && r.accounts[1].account.domain == "sip.linphone.org" && !r.accounts[0].pushOnly)
         val a = r.accounts[0]
         assertEquals("7201", a.account.username)
+        assertEquals("Max Example", a.account.displayName)   // the name in the QR/link is kept
         assertEquals("pbx.example.com", a.account.domain)
         assertEquals(5061, a.account.port)
         assertEquals(Transport.TLS, a.account.transport)
