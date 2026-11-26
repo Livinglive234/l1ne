@@ -14,16 +14,20 @@ struct RootView: View {
     @State private var setupLink: SetupLink?
     @State private var signingIn = false        // the welcome screen stays up while a first login is being checked
 
+    private var showWelcome: Bool { store.accounts.isEmpty || signingIn }
+
     struct SetupLink: Identifiable { let id = UUID(); let text: String }
 
     var body: some View {
         Group {
-            if store.accounts.isEmpty || signingIn {
+            if showWelcome {
                 WelcomeView(signingIn: $signingIn)
                     .environmentObject(engine).environmentObject(store).environmentObject(contacts)
                     .environmentObject(dirs)
-            } else { mainTabs }
+                    .transition(.opacity.combined(with: .scale(scale: 1.06)))      // the welcome screen eases away, the app fades in
+            } else { mainTabs.transition(.opacity) }
         }
+        .animation(.easeInOut(duration: 0.5), value: showWelcome)
         .environmentObject(engine)
         .environmentObject(store)
         .environmentObject(contacts)
