@@ -24,7 +24,9 @@ struct ConversationsView: View {
             Button { selected = target(c) } label: { rowContent(c) }.buttonStyle(.plain)
                 .listRowBackground(selected == target(c) ? Theme.brand.opacity(0.14) : Theme.surface)
         } else {
-            NavigationLink(tag: target(c), selection: $selected, destination: { ThreadView(target: target(c)) }) { rowContent(c) }
+            Button { selected = target(c) } label: {
+                HStack { rowContent(c); Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Theme.muted.opacity(0.6)) }
+            }.buttonStyle(.plain)
                 .listRowBackground(Theme.surface)
         }
     }
@@ -54,7 +56,7 @@ struct ConversationsView: View {
         .scrollDisabledCompat(messages.conversations.isEmpty)      // nothing to scroll when there are no conversations
         .overlay {
             if messages.conversations.isEmpty {
-                EmptyState("No conversations", systemImage: "bubble.left.and.bubble.right",
+                EmptyState("No chats", systemImage: "bubble.left.and.bubble.right",
                                        description: Text("Texts need a server that supports SIP messages."))
             }
         }
@@ -69,7 +71,7 @@ struct ConversationsView: View {
                     if let t = selected {
                         AppNavStack { ThreadView(target: t).id(t) }
                     } else {
-                        EmptyState("No conversation selected", systemImage: "bubble.left.and.bubble.right", description: Text("Pick one on the left, or start a new message."))
+                        EmptyState("No chat selected", systemImage: "bubble.left.and.bubble.right", description: Text("Pick one on the left, or start a new message."))
                             .frame(maxWidth: .infinity, maxHeight: .infinity).mainBackground()
                     }
                 }
@@ -80,8 +82,9 @@ struct ConversationsView: View {
     private var listStack: some View {
         AppNavStack {
             list
+            .navDestination(item: wide ? .constant(nil) : $selected) { ThreadView(target: $0) }       // a chat can be opened before it has a row (a new one, or from a contact)
             .mainBackground()
-            .navigationTitle("Conversations")
+            .navigationTitle("Chats")
             .task(id: router.pendingThread) {
                 if let t = router.pendingThread { selected = t; router.pendingThread = nil }
             }

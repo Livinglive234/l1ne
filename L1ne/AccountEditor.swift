@@ -50,7 +50,7 @@ struct AccountEditor: View {
                         engine.unregister(account.id); MessageStore.shared.removeAccount(account.id)
                         CallLogStore.shared.removeAccount(account.id); store.remove(account.id); dismiss()
                     }
-                } message: { Text("Its text conversations and call history on this phone are deleted too.") }
+                } message: { Text("Its chats and call history on this phone are deleted too.") }
                 .onAppear { secret = ""; turnSecret = "" }
         }
     }

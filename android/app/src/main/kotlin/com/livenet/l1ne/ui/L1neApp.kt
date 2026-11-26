@@ -119,7 +119,7 @@ private fun MainTabs() {
                         else -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                             Icon(if (tab == Tab.Chats) Icons.Filled.Forum else Icons.Filled.Person, null, Modifier.size(56.dp), tint = L1neColors.Muted)
                             Spacer(Modifier.height(12.dp))
-                            Text(if (tab == Tab.Chats) "No conversation selected" else "Nobody selected", style = MaterialTheme.typography.titleLarge)
+                            Text(if (tab == Tab.Chats) "No chat selected" else "Nobody selected", style = MaterialTheme.typography.titleLarge)
                             Text(if (tab == Tab.Chats) "Pick one on the left, or start a new message." else "Pick someone on the left.", color = L1neColors.Muted)
                         }
                     }

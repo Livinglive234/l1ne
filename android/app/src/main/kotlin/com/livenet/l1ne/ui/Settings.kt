@@ -293,7 +293,7 @@ fun AccountEditorScreen(id: String?, onSubmit: ((Account, String) -> Unit)? = nu
             }
         }
     }
-    if (confirmRemove) AlertDialog({ confirmRemove = false }, containerColor = L1neColors.SheetBg, title = { Text("Remove ${a.title}?") }, text = { Text("Its text conversations and call history on this phone are deleted too.") },
+    if (confirmRemove) AlertDialog({ confirmRemove = false }, containerColor = L1neColors.SheetBg, title = { Text("Remove ${a.title}?") }, text = { Text("Its chats and call history on this phone are deleted too.") },
         confirmButton = { TextButton({ app.engine.unregister(a.id); app.messages.removeAccount(a.id); app.callLog.removeAccount(a.id); app.store.remove(a.id); confirmRemove = false; onBack() }) { Text("Remove account", color = L1neColors.Danger) } }, dismissButton = { TextButton({ confirmRemove = false }) { Text("Cancel") } })
 }
 
