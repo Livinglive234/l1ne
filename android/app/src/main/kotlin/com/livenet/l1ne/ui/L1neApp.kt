@@ -55,7 +55,15 @@ private fun MainTabs() {
     val stack = remember { mutableStateListOf<Dest>() }
     val tabs = Tab.entries.filter { it != Tab.Voicemail || vmTab }
     if (tab !in tabs) tab = Tab.Recents
-    fun open(d: Dest) { stack.add(d) }
+    // wide windows (a tablet, an unfolded foldable, a landscape split): the list on the left and the person or conversation on the right
+    val wide = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 840
+    var pane by remember { mutableStateOf<Dest?>(null) }
+    fun open(d: Dest) { if (wide && (d is Dest.Person || d is Dest.Thread)) pane = d else stack.add(d) }
+    LaunchedEffect(tab) { pane = null }
+    LaunchedEffect(wide) {       // the window changed width: the open person or conversation moves between the right pane and a page on top of the list
+        if (!wide) pane?.let { stack.add(it); pane = null }
+        else stack.lastOrNull()?.takeIf { it is Dest.Person || it is Dest.Thread }?.let { stack.removeAt(stack.lastIndex); pane = it }
+    }
     fun back() { if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex) }
     var minimized by remember { mutableStateOf(false) }
     val pendingDial by app.pendingDial.collectAsState()
@@ -94,7 +102,30 @@ private fun MainTabs() {
         },
     ) { pad ->
         Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-            Box(Modifier.widthIn(max = 720.dp).fillMaxSize()) {       // on a tablet the lists keep a readable width instead of stretching edge to edge
+            if (wide && tab == Tab.Keypad) KeypadScreen(::open, wide = true)
+            else if (wide && tab != Tab.Voicemail) Row(Modifier.fillMaxSize()) {
+                Box(Modifier.width(380.dp).fillMaxHeight()) {
+                    when (tab) {
+                        Tab.Recents -> RecentsScreen(::open)
+                        Tab.Contacts -> ContactsScreen(::open)
+                        else -> ConversationsScreen(::open)
+                    }
+                }
+                VerticalDivider(color = L1neColors.Border)
+                Box(Modifier.weight(1f).fillMaxHeight()) {
+                    when (val d = pane) {
+                        is Dest.Person -> key(d) { PersonScreen(d.p, ::open, null) }
+                        is Dest.Thread -> key(d) { ThreadScreen(d.accountID, d.peer, ::open, null) }
+                        else -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                            Icon(if (tab == Tab.Chats) Icons.Filled.Forum else Icons.Filled.Person, null, Modifier.size(56.dp), tint = L1neColors.Muted)
+                            Spacer(Modifier.height(12.dp))
+                            Text(if (tab == Tab.Chats) "No chat selected" else "Nobody selected", style = MaterialTheme.typography.titleLarge)
+                            Text(if (tab == Tab.Chats) "Pick one on the left, or start a new message." else "Pick someone on the left.", color = L1neColors.Muted)
+                        }
+                    }
+                }
+            }
+            else Box(Modifier.widthIn(max = 720.dp).fillMaxSize()) {       // on a tablet the lists keep a readable width instead of stretching edge to edge
                 when (tab) {
                     Tab.Recents -> RecentsScreen(::open)
                     Tab.Contacts -> ContactsScreen(::open)

@@ -120,26 +120,33 @@ struct ProvisionSheet: View {
     }
 
     private func add(_ r: Provisioning.Result) {
-        var first: Account?
-        for p in r.accounts where picked.contains(p.account.id) {
-            var a = p.account
-            if let c = r.contactsURL, importContacts, !p.pushOnly || !r.hasOtherThanPushOnly { a.contactsURL = c }
-            let secret = p.secret.isEmpty ? (secrets[a.id] ?? "") : p.secret
-            store.save(a, secret: secret)
-            engine.register(a, secret: secret)
-            if first == nil && (!p.pushOnly || !r.hasOtherThanPushOnly) { first = a }
-        }
-        if importContacts, !dirs.directoryEnabled, let c = r.contactsURL, let acc = first ?? store.selected {
-            var link = DirectorySource(kind: .vcardLink)
-            link.name = "PBX contacts"
-            link.url = c
-            link.interval = importInterval
-            link.accountID = acc.id
-            dirs.save(link, password: nil)
-            DirectorySync.shared.scheduleBackground()
-            Task { await DirectorySync.shared.sync(link.id) }
-        }
+        let picked = self.picked, secrets = self.secrets, importContacts = self.importContacts, importInterval = self.importInterval
+        let store = self.store, engine = self.engine, dirs = self.dirs
         dismiss()
+        // The sheet slides away first and the account is added a moment later. Adding it right now would swap the
+        // screen underneath the sheet (the first account replaces the welcome screen) and cut the sheet off with no animation.
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            var first: Account?
+            for p in r.accounts where picked.contains(p.account.id) {
+                var a = p.account
+                if let c = r.contactsURL, importContacts, !p.pushOnly || !r.hasOtherThanPushOnly { a.contactsURL = c }
+                let secret = p.secret.isEmpty ? (secrets[a.id] ?? "") : p.secret
+                store.save(a, secret: secret)
+                engine.register(a, secret: secret)
+                if first == nil && (!p.pushOnly || !r.hasOtherThanPushOnly) { first = a }
+            }
+            if importContacts, !dirs.directoryEnabled, let c = r.contactsURL, let acc = first ?? store.selected {
+                var link = DirectorySource(kind: .vcardLink)
+                link.name = "PBX contacts"
+                link.url = c
+                link.interval = importInterval
+                link.accountID = acc.id
+                dirs.save(link, password: nil)
+                DirectorySync.shared.scheduleBackground()
+                await DirectorySync.shared.sync(link.id)
+            }
+        }
     }
 }
 

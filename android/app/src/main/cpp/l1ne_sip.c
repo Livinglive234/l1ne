@@ -132,7 +132,9 @@ JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nAddAccount(JNIEnv *env,
         ac.turn_cfg.turn_auth_cred.data.static_cred.data = pjdup(tp);
     }
     (*env)->ReleaseStringUTFChars(env, jstun, stun); (*env)->ReleaseStringUTFChars(env, jtuser, tu); (*env)->ReleaseStringUTFChars(env, jtpass, tp);
-    pjsua_acc_id out = -1; pj_status_t st = pjsua_acc_add(&ac, PJ_TRUE, &out);
+    pjsua_acc_id out = -1;
+    // PJSIP aborts the whole app if its account table (PJSUA_MAX_ACC) is full; report an error instead
+    pj_status_t st = pjsua_acc_get_count() >= PJSUA_MAX_ACC ? PJ_ETOOMANY : pjsua_acc_add(&ac, PJ_TRUE, &out);
     (*env)->ReleaseStringUTFChars(env, jid, id); (*env)->ReleaseStringUTFChars(env, jreg, reg); (*env)->ReleaseStringUTFChars(env, jroute, route);
     (*env)->ReleaseStringUTFChars(env, juser, user); (*env)->ReleaseStringUTFChars(env, jpass, pass);
     return st == PJ_SUCCESS ? out : -st;

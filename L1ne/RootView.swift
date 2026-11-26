@@ -14,16 +14,20 @@ struct RootView: View {
     @State private var setupLink: SetupLink?
     @State private var signingIn = false        // the welcome screen stays up while a first login is being checked
 
+    private var showWelcome: Bool { store.accounts.isEmpty || signingIn }
+
     struct SetupLink: Identifiable { let id = UUID(); let text: String }
 
     var body: some View {
         Group {
-            if store.accounts.isEmpty || signingIn {
+            if showWelcome {
                 WelcomeView(signingIn: $signingIn)
                     .environmentObject(engine).environmentObject(store).environmentObject(contacts)
                     .environmentObject(dirs)
-            } else { mainTabs }
+                    .transition(.opacity.combined(with: .scale(scale: 1.06)))      // the welcome screen eases away, the app fades in
+            } else { mainTabs.transition(.opacity) }
         }
+        .animation(.easeInOut(duration: 0.5), value: showWelcome)
         .environmentObject(engine)
         .environmentObject(store)
         .environmentObject(contacts)
@@ -132,7 +136,20 @@ struct RecentsView: View {
         return base.filter { name($0).localizedCaseInsensitiveContains(search) || $0.peer.localizedCaseInsensitiveContains(search) }
     }
 
+    @Environment(\.horizontalSizeClass) private var hSize
+    private var wide: Bool { hSize == .regular }       // an iPad, or the iPhone Duo opened: the list on the left, the person on the right
+
     var body: some View {
+        if wide {
+            HStack(spacing: 0) {
+                listStack.frame(width: 380)
+                Divider()
+                PersonPane(person: detail)
+            }
+        } else { listStack }
+    }
+
+    private var listStack: some View {
         AppNavStack {
             List {
                 ForEach(shown) { r in
@@ -161,7 +178,7 @@ struct RecentsView: View {
                 }
             }
             .listStyle(.plain).hideScrollBackground()
-            .navDestination(item: $detail) { ContactDetailView(person: $0) }
+            .navDestination(item: wide ? .constant(nil) : $detail) { ContactDetailView(person: $0) }
             .searchable(text: $search)
             .confirmationDialog("Delete all recent calls?", isPresented: $confirmClear, titleVisibility: .visible) {
                 Button("Delete all", role: .destructive) { callLog.removeAll() }

@@ -150,6 +150,9 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
     fun unregister(id: String) { pjAcc.remove(id)?.let { accOfPJ.remove(it); Native.nDelAccount(it) }; _registration.value = _registration.value - id }
 
     fun registerAll() = store.accounts.value.forEach { register(it) }
+    /** Registers the accounts that are not registered with PJSIP yet and leaves the rest alone. Starting the service or the activity must use this,
+     *  not registerAll(): that deletes and re-adds every account, which ends any call in progress (and every call start refreshes the service). */
+    fun registerMissing() = store.accounts.value.filter { it.enabled && pjAcc[it.id] == null }.forEach { register(it) }
 
     /** Dials again once the network is back and the account has re-registered; tries for a few seconds, then gives up quietly. */
     private fun redialLater(t: Redial, tries: Int) {

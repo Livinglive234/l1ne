@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
@@ -36,7 +38,7 @@ object T9 {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun KeypadScreen(open: (Dest) -> Unit) {
+fun KeypadScreen(open: (Dest) -> Unit, wide: Boolean = false) {
     val app = LocalApp.current
     val accounts by app.store.accounts.collectAsState()
     val selectedId by app.store.selectedId.collectAsState()
@@ -47,16 +49,20 @@ fun KeypadScreen(open: (Dest) -> Unit) {
     LaunchedEffect(pending) { pending?.let { number = it; app.pendingDial.value = null } }
     var lineMenu by remember { mutableStateOf(false) }
     val account = app.store.selected
-    val suggestions = contacts.filter { T9.matches(number, it.name, it.address) }.take(2)
+    val matches = contacts.filter { T9.matches(number, it.name, it.address) }
+    val suggestions = if (wide) emptyList() else matches.take(2)       // wide: the matches are listed beside the keys instead
+    val records by app.callLog.records.collectAsState()
     val keys = listOf(listOf("1" to "", "2" to "ABC", "3" to "DEF"), listOf("4" to "GHI", "5" to "JKL", "6" to "MNO"), listOf("7" to "PQRS", "8" to "TUV", "9" to "WXYZ"), listOf("*" to "", "0" to "+", "#" to ""))
 
     fun dial(n: String, from: com.livenet.l1ne.core.Account? = account) { if (n.isNotEmpty()) { app.engine.call(n, from); number = "" } }
 
+    Row(Modifier.fillMaxSize()) {
+    Box(if (wide) Modifier.width(480.dp).fillMaxHeight() else Modifier.fillMaxSize()) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
     // everything scales from the room there is: short phones get smaller keys and a slimmer suggestion area (so the call button is never pushed off screen), tablets get bigger keys
     val compact = maxHeight < 560.dp
     val gap = if (compact) 8.dp else 14.dp
-    val suggestionH = if (compact) 56.dp else 112.dp
+    val suggestionH = if (wide) 0.dp else if (compact) 56.dp else 112.dp
     val numberH = if (compact) 44.dp else 52.dp
     val fixedH = suggestionH.value + numberH.value + 8f + 5f * gap.value + 16f + (if (accounts.size > 1) 40f else 0f)
     val keySize = ((maxHeight.value - fixedH) / 5f).coerceIn(40f, if (maxHeight > 800.dp) 96f else 76f).dp
@@ -108,6 +114,36 @@ fun KeypadScreen(open: (Dest) -> Unit) {
             Box(Modifier.size(keySize), contentAlignment = Alignment.Center) {
                 if (number.isNotEmpty()) Box(Modifier.size(56.dp).clip(CircleShape).combinedClickable(onClick = { number = number.dropLast(1) }, onLongClick = { number = "" }), contentAlignment = Alignment.Center) {
                     Icon(Icons.AutoMirrored.Filled.Backspace, "Delete") }
+            }
+        }
+    }
+    }
+    }
+    if (wide) {
+        VerticalDivider(color = L1neColors.Border)
+        // the right side: contacts matching what is typed, or recent calls while the number is empty
+        fun fill(address: String) { number = if (accounts.any { a -> address.endsWith("@" + a.domain, true) }) address.substringBefore('@') else address }
+        LazyColumn(Modifier.weight(1f).fillMaxHeight()) {
+            item { Text(if (number.isEmpty()) "Recent calls" else "Matching contacts", Modifier.padding(horizontal = 20.dp, vertical = 12.dp), color = L1neColors.Muted, style = MaterialTheme.typography.titleSmall) }
+            if (number.isEmpty()) {
+                items(records.take(20), key = { it.id }) { r ->
+                    val p = r.peer.split("@"); val name = app.contacts.name(p[0], p.getOrNull(1)) ?: p[0]
+                    Row(Modifier.fillMaxWidth().clickable { fill(r.peer) }.padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) { Text(name, fontWeight = FontWeight.Medium, maxLines = 1); Text(r.peer, style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted, maxLines = 1) }
+                        CallCircleButton { callBack(app, r) }
+                    }
+                    HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = L1neColors.Border)
+                }
+                if (records.isEmpty()) item { Text("No recent calls yet.", Modifier.padding(20.dp), color = L1neColors.Muted) }
+            } else {
+                items(matches, key = { it.id }) { c ->
+                    Row(Modifier.fillMaxWidth().clickable { fill(c.address) }.padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) { Text(c.name, fontWeight = FontWeight.Medium, maxLines = 1); Text(c.address, style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted, maxLines = 1) }
+                        CallCircleButton { dial(c.user, accounts.firstOrNull { it.id == c.accountID } ?: account) }
+                    }
+                    HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = L1neColors.Border)
+                }
+                if (matches.isEmpty()) item { Text("No matches. Keep typing, or press call.", Modifier.padding(20.dp), color = L1neColors.Muted) }
             }
         }
     }

@@ -136,6 +136,8 @@ cd android
 The NDK version is pinned in `scripts/lib.sh` and `android/app/build.gradle.kts` (keep the two in step). Use `gradlew.bat` in a Windows command prompt.
 
 ## Tests
+- `tests/mock/pbx.py` + `WireTest`: L1ne's real SIP engine against a scriptable fake PBX (login errors, busy, early media, hold, transfer, SRTP/DTLS offers, STUN, texts, voicemail),
+  no real server needed: `tests/mock/run-android-wire-tests.sh`. See [docs/TESTING.md](docs/TESTING.md).
 - `android/core`, `android/app`: JVM unit tests (`gradle :core:test :app:testDebugUnitTest`) and instrumented tests for the stores and the engine's event handling
   (`gradle :app:connectedDebugAndroidTest`, on a device or emulator).
 - `tests/parsers`: vCard, provisioning, dial rules, account migration and contact-source rules as plain Swift, no simulator needed.
@@ -156,7 +158,7 @@ Be careful with `connectedDebugAndroidTest` on a phone you use: Android removes 
 | `scripts/` | dependency download and native build scripts (`lib.sh` holds the macOS/Linux/Windows differences), and the one PJSIP patch |
 | `.github/` | the build workflows (Android, iOS, build scripts) and the release notes text |
 | `tests/` | parser tests, directory-server tests, a mock SIP server and fixtures |
-| `docs/` | [design](docs/DESIGN.md), [roadmap](docs/ROADMAP.md), [feature parity](docs/PARITY.md), [push design](docs/PUSH.md), [PBX text messaging](docs/PBX-MESSAGING.md) |
+| `docs/` | [design](docs/DESIGN.md), [testing](docs/TESTING.md), [roadmap](docs/ROADMAP.md), [feature parity](docs/PARITY.md), [push design](docs/PUSH.md), [PBX text messaging](docs/PBX-MESSAGING.md) |
 
 ## License
 

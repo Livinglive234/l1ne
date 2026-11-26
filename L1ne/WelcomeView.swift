@@ -24,6 +24,9 @@ struct WelcomeView: View {
     @State private var showManual = false
     @State private var showHelp = false
     @State private var contentHeight: CGFloat = 0     // measured, so the page only scrolls when it has to (a small phone, or the keyboard is up)
+    @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.verticalSizeClass) private var vSize
+    private var roomy: Bool { hSize == .regular && vSize == .regular }     // an iPad: keep the content together in the middle instead of spreading it over the tall screen
     @FocusState private var focus: Field?
     private enum Field { case server, user, name, pass }
 
@@ -37,7 +40,7 @@ struct WelcomeView: View {
                 VStack(spacing: 0) {
                     VStack(spacing: 12) {
                         header
-                        Spacer(minLength: 4)
+                        Spacer(minLength: 4).frame(maxHeight: roomy ? 24 : .infinity)
                         VStack(alignment: .leading, spacing: 12) {
                             field("Server") {
                                 TextField("pbx.example.com", text: $server)
@@ -74,7 +77,7 @@ struct WelcomeView: View {
                                 .pickerStyle(.segmented)
                             }
                         }
-                        Spacer(minLength: 4)
+                        Spacer(minLength: 4).frame(maxHeight: roomy ? 24 : .infinity)
                         if let error {
                             Text(error).font(.footnote).foregroundStyle(Theme.danger).multilineTextAlignment(.center)
                         }
@@ -100,10 +103,10 @@ struct WelcomeView: View {
                             help
                         }
                     }
-                    .padding(.horizontal, 24).padding(.top, 8).padding(.bottom, 16)
+                    .padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 16)
                     .frame(maxWidth: 520)
                 }
-                .frame(maxWidth: .infinity, minHeight: max(geo.size.height - 64, 0), alignment: .top)     // fills the space above the hills; the spacers share out what is left
+                .frame(maxWidth: .infinity, minHeight: max(geo.size.height - 64, 0), alignment: roomy ? .center : .top)     // fills the space above the hills; the spacers share out what is left
                 .background(GeometryReader { g in Color.clear.preference(key: WelcomeHeightKey.self, value: g.size.height) })
             }
             .onPreferenceChange(WelcomeHeightKey.self) { contentHeight = $0 }
