@@ -175,7 +175,7 @@ struct ThreadView: View {
         .safeAreaInset(edge: .bottom) { composer }
         .safeAreaInset(edge: .top, spacing: 0) {
             if hSize == .regular {
-                HStack { nameButton; Spacer() }.padding(.horizontal, 16).padding(.vertical, 8).background(Theme.bg)
+                HStack { Spacer(); nameButton; Spacer() }.padding(.horizontal, 16).padding(.vertical, 8).background(Theme.bg)
             }
         }
         .onAppear { messages.markRead(target) }
@@ -184,8 +184,8 @@ struct ThreadView: View {
     /// Name on top, the line you are texting from underneath; tapping opens the contact page.
     private var nameButton: some View {
         Button { info = person } label: {
-            VStack(alignment: hSize == .regular ? .leading : .center, spacing: 1) {
-                Text(person.name).font(hSize == .regular ? .title3.weight(.semibold) : .headline).foregroundStyle(Theme.text).lineLimit(1)
+            VStack(alignment: .center, spacing: 1) {
+                Text(person.name).font(hSize == .regular ? .title2 : .headline).fontWeight(hSize == .regular ? .heavy : .semibold).foregroundStyle(Theme.text).lineLimit(1)
                 if store.accounts.count > 1 {
                     Text("from \(line?.title ?? "—")").font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
                 }
