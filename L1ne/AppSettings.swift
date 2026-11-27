@@ -27,7 +27,16 @@ final class AppSettings: ObservableObject {
         var label: String { rawValue.capitalized }
         var scheme: ColorScheme? { self == .system ? nil : (self == .light ? .light : .dark) }
     }
-    @Published var appearance: Appearance { didSet { d.set(appearance.rawValue, forKey: "set.appearance") } }
+    @Published var appearance: Appearance { didSet { d.set(appearance.rawValue, forKey: "set.appearance"); Self.applyAppearance() } }
+
+    /// Light / Dark / System is set on the app's windows themselves. SwiftUI's own `preferredColorScheme` only reached the screen behind a
+    /// sheet, so the Settings sheet (where the choice is made) kept its old look until it was closed and reopened.
+    static func applyAppearance() {
+        let style: UIUserInterfaceStyle = { switch shared.appearance { case .system: return .unspecified; case .light: return .light; case .dark: return .dark } }()
+        for scene in UIApplication.shared.connectedScenes {
+            for window in (scene as? UIWindowScene)?.windows ?? [] where window.overrideUserInterfaceStyle != style { window.overrideUserInterfaceStyle = style }
+        }
+    }
 
     /// Calls also appear in the iPhone Phone app's Recents (through CallKit). On by default.
     @Published var callsInPhoneApp: Bool { didSet { d.set(callsInPhoneApp, forKey: "set.callsInPhone"); CallKitManager.shared.applySettings() } }

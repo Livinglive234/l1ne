@@ -10,13 +10,13 @@ struct L1neApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
-                .preferredColorScheme(settings.appearance.scheme)
+                .onAppear { AppSettings.applyAppearance() }
                 // calling back from the Phone app's Recents
                 .onContinueUserActivity("INStartCallIntent") { PhoneAppCallBack.handle($0) }
                 .onContinueUserActivity("INStartAudioCallIntent") { PhoneAppCallBack.handle($0) }
                 .onChangeCompat(of: phase) { _, p in
                     switch p {
-                    case .active: DirectorySync.shared.appBecameActive()
+                    case .active: AppSettings.applyAppearance(); DirectorySync.shared.appBecameActive()
                     case .background: DirectorySync.shared.appWentToBackground()
                     default: break
                     }
