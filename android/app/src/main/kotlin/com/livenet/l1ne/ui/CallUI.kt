@@ -43,7 +43,7 @@ private val CallDanger = Color(0xFFE04646)
 @Composable
 fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimized: (Boolean) -> Unit, open: (Dest) -> Unit) {
     val app = LocalApp.current
-    val muted by engine.muted.collectAsState(); val held by engine.held.collectAsState(); val recording by engine.recording.collectAsState()
+    val muted by engine.muted.collectAsState(); val held by engine.held.collectAsState(); val recording by engine.recording.collectAsState(); val transferNotes by engine.transferNote.collectAsState()
     val quality by engine.quality.collectAsState(); val numbers by engine.qualityNumbers.collectAsState(); val enc by engine.encryption.collectAsState()
     val contacts by app.contacts.contacts.collectAsState()
     val routes by engine.routes.collectAsState()
@@ -83,6 +83,7 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
             SipEngine.Security.DTLS -> Label(Icons.Filled.Lock, "Encrypted by DTLS-SRTP", CallBrand)
             SipEngine.Security.NONE -> Label(Icons.Filled.LockOpen, "Not encrypted", CallDanger)
             else -> {} }
+        transferNotes[call.id]?.let { Label(Icons.AutoMirrored.Filled.PhoneForwarded, it, if (it.startsWith("Transfer failed")) CallDanger else CallBrand) }
         if (call.id in held) Label(Icons.Filled.PauseCircle, "On hold", CallBrand)
         if (call.id in recording) Label(Icons.Filled.FiberManualRecord, "Recording", CallDanger)
     }

@@ -13,6 +13,8 @@ import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.livenet.l1ne.core.Account
@@ -66,6 +68,22 @@ class ScreenTest {
     }
     private fun tab(name: String) { compose.onAllNodesWithText(name).onLast().performClick(); compose.waitForIdle() }      // the bottom bar's label comes last (the top bar repeats the name)
     private fun back() = compose.onNodeWithContentDescription("Back")
+
+    // ---- accounts ----
+
+    @Test fun swipingAnAccountAsksFirstAndThenRemovesItAndItsChats() {
+        show(400)
+        compose.onNodeWithText(account.initials).performClick(); compose.waitForIdle()          // the avatar menu
+        compose.onNodeWithText("Accounts").performClick(); compose.waitForIdle()
+        compose.onAllNodesWithText("screen test")[0].performTouchInput { swipeLeft() }; compose.waitForIdle()
+        compose.onNodeWithText("Remove screen test?").assertIsDisplayed()                         // it asks before removing anything
+        compose.onNodeWithText("Cancel").performClick(); compose.waitForIdle()
+        assertTrue(app.store.accounts.value.size == 1, "cancelling removes nothing")
+        compose.onAllNodesWithText("screen test")[0].performTouchInput { swipeLeft() }; compose.waitForIdle()
+        compose.onNodeWithText("Remove account").performClick(); compose.waitForIdle()
+        assertTrue(app.store.accounts.value.isEmpty(), "the account is gone")
+        assertTrue(app.messages.conversations.value.isEmpty() && app.callLog.records.value.isEmpty(), "and so are its chats and call history")
+    }
 
     // ---- wide windows: the list on the left, the person or conversation on the right ----
 

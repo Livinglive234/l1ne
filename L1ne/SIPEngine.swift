@@ -54,6 +54,7 @@ final class SIPEngine: ObservableObject {
     /// New voicemail messages per account (from the message-waiting indicator).
     @Published var voicemail: [UUID: Int] = [:]
     @Published var recording: Set<Int32> = []
+    @Published var transferNote: [Int32: String] = [:]          // what the call screen says about a transfer in progress, or one that failed
     @Published var muted: Set<Int32> = []
     @Published var held: Set<Int32> = []
     @Published var speaker = false
@@ -115,6 +116,10 @@ final class SIPEngine: ObservableObject {
             guard let from, let mime, let body, str(mime.pointee).lowercased().hasPrefix("text/plain") else { return }
             let f = str(from.pointee), text = str(body.pointee)
             Task { @MainActor in SIPEngine.shared.received(from: f, text: text, acc: acc) }
+        }
+        cfg.cb.on_call_transfer_status = { call, status, text, final, _ in       // how a transfer you asked for is going: the other side reports it as it goes
+            let code = Int(status), why = text.map { str($0.pointee) } ?? "", done = final != 0
+            Task { @MainActor in SIPEngine.shared.transferProgress(call: call, code: code, reason: why, final: done) }
         }
         cfg.cb.on_pager_status2 = { _, _, _, userData, status, reason, _, _, acc in
             let tag = Int(bitPattern: userData), code = Int(status.rawValue), why = reason.map { str($0.pointee) } ?? ""
@@ -435,9 +440,26 @@ final class SIPEngine: ObservableObject {
         else { pjsua_conf_disconnect(0, ci.conf_slot); muted.insert(id) }
     }
 
-    func toggleHold(_ id: Int32) {
-        if held.contains(id) { pjsua_call_reinvite(id, UInt32(PJSUA_CALL_UNHOLD.rawValue), nil); held.remove(id) }
-        else { pjsua_call_set_hold(id, nil); held.insert(id) }
+    private var holdWanted: [Int32: Bool] = [:]          // what the last tap on hold / resume asked for, until PJSIP has done it
+
+    func toggleHold(_ id: Int32) { setHold(id, on: !(holdWanted[id] ?? held.contains(id))) }
+
+    /// PJSIP refuses a hold or resume while the previous one is still being negotiated (two quick taps), so this tries again shortly
+    /// until it goes through, and `held` only changes once it has. Otherwise the button would say "resumed" with the call still on hold.
+    private func setHold(_ id: Int32, on: Bool, attempt: Int = 0) {
+        holdWanted[id] = on
+        guard calls.contains(where: { $0.id == id }) else { holdWanted[id] = nil; return }
+        let status = on ? pjsua_call_set_hold(id, nil) : pjsua_call_reinvite(id, UInt32(PJSUA_CALL_UNHOLD.rawValue), nil)
+        if status == 0 {
+            if on { held.insert(id) } else { held.remove(id) }
+            holdWanted[id] = nil
+        } else if attempt < 20 {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                guard let self, self.holdWanted[id] == on else { return }          // the person tapped again meanwhile: that tap decides
+                self.setHold(id, on: on, attempt: attempt + 1)
+            }
+        } else { holdWanted[id] = nil }
     }
 
     func toggleSpeaker() {
@@ -453,7 +475,23 @@ final class SIPEngine: ObservableObject {
         guard !n.isEmpty else { return false }
         let cs = CStrings()
         var dest = cs.make(n.lowercased().hasPrefix("sip") ? n : "sip:\(a.dial(n))@\(a.domain)")
-        return pjsua_call_xfer(id, &dest, nil) == 0
+        guard pjsua_call_xfer(id, &dest, nil) == 0 else { return false }
+        transferNote[id] = "Transferring to \(ContactsStore.shared.displayName(forPeer: VCard.sipAddress(n) ?? n))…"
+        return true
+    }
+
+    /// The other side's progress reports for a transfer: 1xx while it works on it, a final 2xx when it has taken over, a final error if it could not.
+    fileprivate func transferProgress(call: pjsua_call_id, code: Int, reason: String, final: Bool) {
+        guard calls.contains(where: { $0.id == call }) else { return }
+        if (200..<300).contains(code) {
+            transferNote[call] = "Transferred"
+            hangup(call)                                      // the other party is connected to the new person: this leg is done (the PBX usually ends it too)
+        } else if final || code >= 300 {
+            transferNote[call] = "Transfer failed: \(code) \(reason)"
+            Task { @MainActor [weak self] in try? await Task.sleep(nanoseconds: 8_000_000_000); self?.transferNote[call] = nil }
+        } else {
+            transferNote[call] = reason.isEmpty ? "Transferring…" : "Transferring… \(reason)"
+        }
     }
 
     // MARK: recording
@@ -522,7 +560,7 @@ final class SIPEngine: ObservableObject {
             recording.remove(call); muted.remove(call); held.remove(call)
             calls.removeAll { $0.id == call }
             CallKitManager.shared.reportEnded(call)
-            encryption[call] = nil; quality[call] = nil
+            encryption[call] = nil; quality[call] = nil; transferNote[call] = nil
             if currentCallID == call { currentCallID = calls.first?.id }
             if calls.isEmpty { speaker = false; statsTask?.cancel(); statsTask = nil }
             updateRingback()

@@ -109,8 +109,9 @@ fun accountTitle(accounts: List<CoreAccount>, id: String?) = if (accounts.size >
 /** Swipe a row to the left to delete it, like the swipe actions on iOS. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit) {
-    val state = rememberSwipeToDismissBoxState(confirmValueChange = { if (it == SwipeToDismissBoxValue.EndToStart) { onDelete(); true } else false })
+fun SwipeToDelete(onDelete: () -> Unit, snapBack: Boolean = false, content: @Composable () -> Unit) {
+    // snapBack: the row slides back and stays (a question is asked first); otherwise it is dismissed as soon as it is swiped
+    val state = rememberSwipeToDismissBoxState(confirmValueChange = { if (it == SwipeToDismissBoxValue.EndToStart) { onDelete(); !snapBack } else false })
     SwipeToDismissBox(state, enableDismissFromStartToEnd = false, backgroundContent = {
         Box(Modifier.fillMaxSize().background(L1neColors.Danger).padding(end = 24.dp), contentAlignment = Alignment.CenterEnd) {
             Icon(Icons.Filled.Delete, "Delete", tint = androidx.compose.ui.graphics.Color.White)

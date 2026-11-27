@@ -79,6 +79,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
         when (type) {
             "reg" -> accOfPJ[a]?.let { id -> setReg(id, RegistrationText.status(b, s1)) }
             "message" -> incomingText(a, s1, s2)
+            "xfer" -> transferProgress(a, b, s1, s2 == "1")
             "sent" -> sendTags.remove(a)?.let { id -> messages?.update(id, if (b in 200..299) com.livenet.l1ne.data.MsgStatus.SENT else com.livenet.l1ne.data.MsgStatus.FAILED, if (b in 200..299) null else "$b $s1") }
             "mwi" -> accOfPJ[a]?.let { id -> _mwi.value = _mwi.value + (id to b) }
             "incoming", "call" -> {
@@ -112,7 +113,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
                         val t0 = System.currentTimeMillis()
                         main.postDelayed({ if (lastNetworkEvent >= t0 - 15000) redialLater(target, 0) else callLog?.add(record) }, 2500)
                     } else callLog?.add(record)
-                    recording.value -= a
+                    recording.value -= a; setNote(a, null)
                 }
             }
         }
@@ -191,7 +192,20 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     fun hangupAll() { _calls.value.forEach { userEnded.add(it.id) }; Native.nHangupAll() }
     fun dtmf(id: Int, d: String) = Native.nDtmf(id, d)
     fun toggleMute(id: Int) { val on = id !in muted.value; Native.nMute(id, on); muted.value = if (on) muted.value + id else muted.value - id }
-    fun toggleHold(id: Int) { val on = id !in held.value; Native.nHold(id, on); held.value = if (on) held.value + id else held.value - id; telecom?.held(id, on) }
+    private val holdWanted = HashMap<Int, Boolean>()          // what the last tap on hold / resume asked for, until PJSIP has done it
+    fun toggleHold(id: Int) = setHold(id, !(holdWanted[id] ?: (id in held.value)))
+
+    /** PJSIP refuses a hold or resume while the previous one is still being negotiated (two quick taps), so this tries again shortly until it goes
+     *  through, and [held] only changes once it has. Otherwise the button would say "resumed" with the call still on hold. */
+    private fun setHold(id: Int, on: Boolean, attempt: Int = 0) {
+        holdWanted[id] = on
+        if (_calls.value.none { it.id == id }) { holdWanted.remove(id); return }
+        if (Native.nHold(id, on)) {
+            held.value = if (on) held.value + id else held.value - id; telecom?.held(id, on); holdWanted.remove(id)
+        } else if (attempt < 20) {
+            main.postDelayed({ if (holdWanted[id] == on) setHold(id, on, attempt + 1) }, 250)          // tapped again meanwhile: that tap decides
+        } else holdWanted.remove(id)
+    }
 
     enum class MessagingCheck { UNKNOWN, CHECKING, WORKING, NOT_DELIVERED }
     val messagingCheck = MutableStateFlow<Map<String, MessagingCheck>>(emptyMap())
@@ -226,6 +240,9 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     /** Seconds the call has been connected, counted from when it was first seen connected. */
     fun elapsed(id: Int): Long = connectedAt[id]?.let { (System.currentTimeMillis() - it) / 1000 } ?: 0
     val recording = MutableStateFlow(setOf<Int>())
+    /** What the call screen says about a transfer in progress, or one that failed. */
+    val transferNote = MutableStateFlow<Map<Int, String>>(emptyMap())
+    private fun setNote(id: Int, text: String?) { transferNote.value = if (text == null) transferNote.value - id else transferNote.value + (id to text) }
     fun toggleRecord(id: Int) {
         if (id in recording.value) { Native.nRecord(id, "", false); recording.value -= id; return }
         val dir = File(app.filesDir, "recordings").apply { mkdirs() }
@@ -234,7 +251,19 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     }
     fun transfer(id: Int, to: String, from: Account?): Boolean {
         val a = from ?: store.accounts.value.firstOrNull() ?: return false
-        return Native.nXfer(id, if (to.startsWith("sip:")) to else "sip:${a.dial(to)}@${a.domain}")
+        if (!Native.nXfer(id, if (to.startsWith("sip:")) to else "sip:${a.dial(to)}@${a.domain}")) return false
+        setNote(id, "Transferring to ${com.livenet.l1ne.core.PhoneFormat.pretty(to.removePrefix("sip:").substringBefore('@'))}…")
+        return true
+    }
+
+    /** The other side's progress reports for a transfer: 1xx while it works on it, a final 2xx when it has taken over, a final error if it could not. */
+    private fun transferProgress(call: Int, code: Int, reason: String, final: Boolean) {
+        if (_calls.value.none { it.id == call }) return
+        when {
+            code in 200..299 -> { setNote(call, "Transferred"); hangup(call) }          // the other party is connected to the new person: this leg is done (the PBX usually ends it too)
+            final || code >= 300 -> { setNote(call, "Transfer failed: $code $reason"); main.postDelayed({ setNote(call, null) }, 8000) }
+            else -> setNote(call, if (reason.isEmpty()) "Transferring…" else "Transferring… $reason")
+        }
     }
 
     /** Sends a text from [account] to user@domain; the result arrives as a "sent" event. */

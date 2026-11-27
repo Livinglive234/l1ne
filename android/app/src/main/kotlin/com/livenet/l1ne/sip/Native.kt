@@ -22,7 +22,7 @@ object Native {
     @JvmStatic external fun nHangupAll()
     @JvmStatic external fun nDtmf(call: Int, digits: String)
     @JvmStatic external fun nMute(call: Int, on: Boolean)
-    @JvmStatic external fun nHold(call: Int, on: Boolean)
+    @JvmStatic external fun nHold(call: Int, on: Boolean): Boolean
     @JvmStatic external fun nIpChange()
     @JvmStatic external fun nSound(on: Boolean)
     @JvmStatic external fun nSendText(acc: Int, to: String, text: String, tag: Int): Int

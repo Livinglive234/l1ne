@@ -131,6 +131,27 @@ final class WireTests: XCTestCase {
         let a = try registered(account("7100")); dial(a, "1001"); try waitFor("answered") { onlyCall?.connected == true }
         XCTAssertTrue(engine.transfer(onlyCall!.id, to: "7200", account: a.id)); try waitServer("REFER Refer-To: sip:7200@\(host)")
     }
+    func testATransferShowsItsProgressAndThenTheCallEnds() throws {
+        let a = try registered(account("7100")); dial(a, "1001"); try waitFor("answered") { onlyCall?.connected == true }
+        let id = onlyCall!.id
+        XCTAssertTrue(engine.transfer(id, to: "7200", account: a.id))
+        XCTAssertTrue(engine.transferNote[id]?.hasPrefix("Transferring") == true, "the call screen says a transfer is under way as soon as it is asked for")
+        try waitFor("the call to end once the other side has taken over") { engine.calls.isEmpty }
+    }
+    func testAQuickHoldThenResumeEndsUpResumed() throws {                // the second tap comes while the first is still being negotiated
+        let a = try registered(account("7100")); dial(a, "1001"); try waitFor("answered") { onlyCall?.connected == true }
+        let id = onlyCall!.id
+        engine.toggleHold(id); engine.toggleHold(id)
+        try waitFor("the resume to reach the server") { let l = serverLog(); return l.contains("dir=sendonly") && l.contains("dir=sendrecv") }
+        XCTAssertFalse(engine.held.contains(id), "the call is not left on hold")
+    }
+    func testAFailedTransferSaysSoAndTheCallGoesOn() throws {
+        let a = try registered(account("7100")); dial(a, "1001"); try waitFor("answered") { onlyCall?.connected == true }
+        let id = onlyCall!.id
+        XCTAssertTrue(engine.transfer(id, to: "7404", account: a.id))
+        try waitFor("the failure to be reported") { engine.transferNote[id]?.hasPrefix("Transfer failed: 404") == true }
+        XCTAssertEqual(onlyCall?.connected, true, "the call is still there")
+    }
     func testTheVoicemailButtonDialsTheVoicemailNumber() throws { let a = try registered(account("7100")); engine.callVoicemail(a.id); try waitServer("INVITE *97") }
     func testDialRulesChangeWhatIsDialled() throws { let a = try registered(account("7100") { $0.dialStripPrefix = "9" }); dial(a, "91001"); try waitServer("INVITE 1001") }
     func testAnIncomingCallRingsIsAnsweredAndHangsUp() throws {

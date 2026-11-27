@@ -235,13 +235,16 @@ private fun RecordingsScreen(onBack: () -> Unit) {
 fun AccountsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
     val app = LocalApp.current; val accounts by app.store.accounts.collectAsState(); val reg by app.engine.registration.collectAsState(); val sel by app.store.selectedId.collectAsState()
     val addAccount = LocalAddAccount.current
+    var removing by remember { mutableStateOf<com.livenet.l1ne.core.Account?>(null) }       // set by a swipe: nothing is removed until the question is answered
     BackHandler(onBack = onBack)
+    removing?.let { a -> AlertDialog({ removing = null }, containerColor = L1neColors.SheetBg, title = { Text("Remove ${a.title}?") }, text = { Text("Its chats and call history on this phone are deleted too.") },
+        confirmButton = { TextButton({ app.removeAccountCompletely(a.id); removing = null }) { Text("Remove account", color = L1neColors.Danger) } }, dismissButton = { TextButton({ removing = null }) { Text("Cancel") } }) }
     PageScaffold("Accounts", onBack) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 8.dp)) {
             Card {
                 accounts.forEach { a ->
                     val status = reg[a.id]; val ok = status == "Registered"; val chosen = ((sel ?: accounts.firstOrNull()?.id) == a.id)      // reads the watched selection, so the tick moves as soon as you switch
-                    Row(Modifier.fillMaxWidth().clickable { app.store.select(a.id) }.padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SwipeToDelete({ removing = a }, snapBack = true) { Row(Modifier.fillMaxWidth().clickable { app.store.select(a.id) }.padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(if (chosen) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked, null, tint = if (chosen) L1neColors.Brand else L1neColors.Muted); Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(a.title); Text("${a.username}@${a.domain}", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
@@ -251,7 +254,7 @@ fun AccountsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
                             }
                         }
                         IconButton({ open(Dest.Account(a.id)) }) { Icon(Icons.Filled.Info, "Details", tint = L1neColors.Brand) }
-                    }
+                    } }
                     RowDivider()
                 }
                 NavRow("Add account", icon = Icons.Filled.AddCircle) { addAccount() }
@@ -356,7 +359,7 @@ fun AccountEditorScreen(id: String?, onSubmit: ((Account, String) -> Unit)? = nu
         }
     }
     if (confirmRemove) AlertDialog({ confirmRemove = false }, containerColor = L1neColors.SheetBg, title = { Text("Remove ${a.title}?") }, text = { Text("Its chats and call history on this phone are deleted too.") },
-        confirmButton = { TextButton({ app.engine.unregister(a.id); app.messages.removeAccount(a.id); app.callLog.removeAccount(a.id); app.store.remove(a.id); confirmRemove = false; onBack() }) { Text("Remove account", color = L1neColors.Danger) } }, dismissButton = { TextButton({ confirmRemove = false }) { Text("Cancel") } })
+        confirmButton = { TextButton({ app.removeAccountCompletely(a.id); confirmRemove = false; onBack() }) { Text("Remove account", color = L1neColors.Danger) } }, dismissButton = { TextButton({ confirmRemove = false }) { Text("Cancel") } })
 }
 
 // MARK: Setup from a link or QR code

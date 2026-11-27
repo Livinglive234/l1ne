@@ -278,6 +278,7 @@ struct CallScreen: View {
                     Text(c.incoming ? "Incoming call" : c.state).font(.title3).foregroundStyle(Theme.muted)
                 }
                 if let line = securityLine(c) { Label(line.text, systemImage: line.icon).font(.footnote).foregroundStyle(line.color) }
+                if let note = engine.transferNote[c.id] { Label(note, systemImage: "arrow.turn.up.right").font(.footnote).foregroundStyle(note.hasPrefix("Transfer failed") ? Theme.danger : Theme.brand) }
                 if engine.held.contains(c.id) { Label("On hold", systemImage: "pause.circle.fill").font(.footnote).foregroundStyle(Theme.brand) }
                 if engine.recording.contains(c.id) { Label("Recording", systemImage: "record.circle").font(.footnote).foregroundStyle(Theme.danger) }
             }

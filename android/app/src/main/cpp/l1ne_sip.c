@@ -75,6 +75,11 @@ static void on_pager_status(pjsua_call_id c, const pj_str_t *to, const pj_str_t 
     char r[128]; cstr(*reason, r, sizeof r); emit("sent", (int)(intptr_t)user, (int)st, r, "");
 }
 
+/* How a transfer you asked for is going: the other side reports it as it goes (100 Trying, 180 Ringing, then a final 200 or an error). */
+static void on_xfer_status(pjsua_call_id c, int code, const pj_str_t *txt, pj_bool_t final, pj_bool_t *cont) {
+    (void)cont; char r[128]; cstr(*txt, r, sizeof r); emit("xfer", c, code, r, final ? "1" : "0");
+}
+
 static void log_cb(int level, const char *data, int len) {
     /* pjlib log writer: android log, and the in-app SIP log */
     __android_log_print(level <= 2 ? ANDROID_LOG_ERROR : ANDROID_LOG_INFO, "pjsip", "%.*s", len, data);
@@ -92,7 +97,7 @@ JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nInit(JNIEnv *env, jclas
     pj_status_t st = pjsua_create(); if (st != PJ_SUCCESS) return st;
     pjsua_config cfg; pjsua_config_default(&cfg); cfg.max_calls = 4;
     cfg.cb.on_incoming_call = on_incoming; cfg.cb.on_call_state = on_call_state; cfg.cb.on_call_media_state = on_media_state;
-    cfg.cb.on_reg_state = on_reg_state; cfg.cb.on_mwi_info = on_mwi; cfg.cb.on_pager2 = on_pager; cfg.cb.on_pager_status2 = on_pager_status;
+    cfg.cb.on_reg_state = on_reg_state; cfg.cb.on_mwi_info = on_mwi; cfg.cb.on_pager2 = on_pager; cfg.cb.on_pager_status2 = on_pager_status; cfg.cb.on_call_transfer_status = on_xfer_status;
     pjsua_logging_config lc; pjsua_logging_config_default(&lc); lc.console_level = 0; lc.level = 5; lc.cb = log_cb;
     pjsua_media_config mc; pjsua_media_config_default(&mc); mc.snd_auto_close_time = 5;
     if ((st = pjsua_init(&cfg, &lc, &mc)) != PJ_SUCCESS) return st;
@@ -165,8 +170,8 @@ JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nMute(JNIEnv *e, jclass 
     (void)e; (void)c; reg_thread(); pjsua_call_info ci; if (pjsua_call_get_info(call, &ci) != 0 || ci.conf_slot < 0) return;
     if (on) pjsua_conf_disconnect(0, ci.conf_slot); else pjsua_conf_connect(0, ci.conf_slot);
 }
-JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nHold(JNIEnv *e, jclass c, jint call, jboolean on) {
-    (void)e; (void)c; reg_thread(); if (on) pjsua_call_set_hold(call, NULL); else pjsua_call_reinvite(call, PJSUA_CALL_UNHOLD, NULL);
+JNIEXPORT jboolean JNICALL Java_com_livenet_l1ne_sip_Native_nHold(JNIEnv *e, jclass c, jint call, jboolean on) {
+    (void)e; (void)c; reg_thread(); return (on ? pjsua_call_set_hold(call, NULL) : pjsua_call_reinvite(call, PJSUA_CALL_UNHOLD, NULL)) == PJ_SUCCESS;
 }
 JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nIpChange(JNIEnv *e, jclass c) { (void)e; (void)c; reg_thread(); pjsua_ip_change_param p; pjsua_ip_change_param_default(&p); pjsua_handle_ip_change(&p); }
 JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nSound(JNIEnv *e, jclass c, jboolean on) {

@@ -7,7 +7,7 @@ instance covers every scenario:
              7104: 404 (unknown extension)   7105: 503 (server down)   7106: never answers
   INVITE     1001 answers (200 OK, SDP: first offered codec, SRTP echoed if offered)   1002: 486 Busy   1003: 183 early media, then 200
              1004: rings (180) forever   1005: 404   1006: 603 Decline   anything else: answered like 1001
-             re-INVITE (hold/resume) is answered and logged with its direction; BYE, REFER, INFO, CANCEL, MESSAGE, SUBSCRIBE are answered
+             re-INVITE (hold/resume) is answered and logged with its direction; BYE, REFER (with progress reports; a transfer to 7404 fails), INFO, CANCEL, MESSAGE, SUBSCRIBE are answered
   SUBSCRIBE  message-summary: 200, then a NOTIFY with 3 new voicemails
   STUN       UDP binding requests are answered and logged
 
@@ -147,11 +147,16 @@ async def process(text, send, host, proto):
     elif method == "CANCEL": log("CANCEL"); await send(reply(200, "OK", hs, vias))
     elif method == "INFO": log("INFO", body.strip().replace("\r\n", " ")); await send(reply(200, "OK", hs, vias))
     elif method == "REFER":
-        log("REFER Refer-To:", hs.get("refer-to")); await send(reply(202, "Accepted", hs, vias, [contact(host, proto)]))
-        frag = "SIP/2.0 200 OK\r\n"
-        await send(f"NOTIFY {uri_of(hs['contact'])} SIP/2.0\r\nVia: SIP/2.0/{proto.upper()} {host}:{args.sip_port};branch=z9hG4bK-{uuid.uuid4().hex[:10]}\r\nMax-Forwards: 70\r\n"
-                   f"From: {hs['to']};tag={TAG}\r\nTo: {hs['from']}\r\nCall-ID: {hs['call-id']}\r\nCSeq: 1 NOTIFY\r\nEvent: refer\r\nSubscription-State: terminated;reason=noresource\r\n"
-                   f"Content-Type: message/sipfrag\r\nContent-Length: {len(frag)}\r\n\r\n{frag}")
+        target = hs.get("refer-to") or ""
+        log("REFER Refer-To:", target); await send(reply(202, "Accepted", hs, vias, [contact(host, proto)]))
+        # progress reports as the transfer goes: "100 Trying", then the result (a transfer to 7404 fails with 404)
+        async def notify(cseq, frag, state):
+            await send(f"NOTIFY {uri_of(hs['contact'])} SIP/2.0\r\nVia: SIP/2.0/{proto.upper()} {host}:{args.sip_port};branch=z9hG4bK-{uuid.uuid4().hex[:10]}\r\nMax-Forwards: 70\r\n"
+                       f"From: {hs['to']};tag={TAG}\r\nTo: {hs['from']}\r\nCall-ID: {hs['call-id']}\r\nCSeq: {cseq} NOTIFY\r\nEvent: refer\r\nSubscription-State: {state}\r\n"
+                       f"Content-Type: message/sipfrag\r\nContent-Length: {len(frag)}\r\n\r\n{frag}")
+        await notify(1, "SIP/2.0 100 Trying\r\n", "active;expires=60")
+        await asyncio.sleep(0.3)
+        await notify(2, "SIP/2.0 404 Not Found\r\n" if "7404" in target else "SIP/2.0 200 OK\r\n", "terminated;reason=noresource")
     elif method == "MESSAGE":
         log("MESSAGE from phone:", user_of(hs["from"]), "->", user_of(ruri), "|", body.strip()); await send(reply(200, "OK", hs, vias))
     elif method == "SUBSCRIBE":
