@@ -216,6 +216,25 @@ class WireTest {
     @Test fun noEncryptionOffersPlainRtp() { val a = registered(account("7100", media = Media.NONE)); dial(a, "1001"); waitServer("INVITE 1001"); val l = serverLog(); assertTrue("RTP/AVP" in l); assertFalse("a=crypto" in l) }
     @Test fun sdesOffersSrtpWithKeys() { val a = registered(account("7100", media = Media.SRTP_SDES)); dial(a, "1001"); waitServer("INVITE 1001"); val l = serverLog(); assertTrue("a=crypto:" in l && "AES_CM_128_HMAC_SHA1" in l, l.lines().first { "INVITE 1001" in it }) }   // optional SRTP offers keys on plain RTP/AVP; a mandatory (RTP/SAVP) offer needs TLS
     @Test fun dtlsOffersAFingerprint() { val a = registered(account("7100", media = Media.SRTP_DTLS)); dial(a, "1001"); waitServer("INVITE 1001"); val l = serverLog(); assertTrue("UDP/TLS/RTP/SAVP" in l && "a=fingerprint" in l) }
+    // ZRTP, against tests/zrtp/zrtp_peer.c (started by the mock PBX on its media port)
+    @Test fun zrtpAgreesKeysAndBothSidesShowTheSameCode() {
+        val a = registered(account("7100", media = Media.ZRTP)); dial(a, "1001"); waitServer("INVITE 1001")
+        assertTrue("a=zrtp-hash:1.10" in serverLog(), "the offer says we speak ZRTP")
+        waitFor("ZRTP secure on our side") { engine.zrtp.value.values.firstOrNull()?.state == 1 }
+        waitServer("zrtp-peer: secure")
+        val code = engine.zrtp.value.values.first().code
+        assertEquals(4, code.length); assertTrue("zrtp-peer: sas $code" in serverLog(), "both sides show the same code ($code)\n${serverLog()}")
+    }
+    @Test fun zrtpRequiredEndsTheCallWhenThePeerHasNoZrtp() {
+        val a = registered(account("7100", media = Media.ZRTP) { it.copy(mediaMandatory = true) }); dial(a, "1007"); waitServer("INVITE 1007")
+        waitFor("the call") { engine.calls.value.isNotEmpty() }
+        waitFor("the call to be ended because ZRTP never came", 25) { engine.calls.value.isEmpty() }
+    }
+    @Test fun zrtpWhenAvailableKeepsTheCallInTheClearIfThePeerHasNoZrtp() {
+        val a = registered(account("7100", media = Media.ZRTP)); dial(a, "1007"); waitServer("INVITE 1007")
+        waitFor("ZRTP to be given up", 25) { engine.zrtp.value.values.firstOrNull()?.state == 2 }
+        assertEquals(1, engine.calls.value.size, "the call goes on")
+    }
     @Test fun aDisabledCodecIsNotOffered() {
         val all = engine.availableCodecs().map { it.id }; assertTrue(all.any { it.startsWith("PCMA/") })
         settings.codecsOff = all.filter { !it.startsWith("PCMA/") }.toSet(); main { engine.applyCodecs() }

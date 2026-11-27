@@ -101,7 +101,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
                 if (ci.active && old?.active != true && settings.autoRecord) toggleRecord(a)
                 updateAudio(); updateRingback()
                 if (ci.ended) {
-                    muted.value -= a; held.value -= a
+                    muted.value -= a; held.value -= a; zrtp.value -= a
                     val mine = old ?: ci; val byYou = a in userEnded; userEnded.remove(a)
                     val dir = when { !mine.incoming -> com.livenet.l1ne.data.Direction.OUTGOING
                         ci.connectedSecs > 0 || byYou -> com.livenet.l1ne.data.Direction.INCOMING
