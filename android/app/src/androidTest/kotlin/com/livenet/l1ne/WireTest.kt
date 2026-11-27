@@ -127,6 +127,18 @@ class WireTest {
         assertFalse(Regex("response=\"[0-9a-f]{8,}").containsMatchIn(t), "no digest response is left")
         assertFalse(t.contains("inline:") && !t.contains("inline:[removed]"), "no SRTP key is left")
     }
+    private fun shell(cmd: String): String = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(cmd).let { fd -> java.io.FileInputStream(fd.fileDescriptor).bufferedReader().readText() }
+
+    /** Android only applies the speaker / earpiece / Bluetooth choice Telecom makes when Telecom owns the call's audio mode. Setting the mode in the app made the app the owner and every route change was ignored. */
+    @Test fun theAppIsNotTheAudioModeOwnerOfACallTelecomHas() {
+        val a = registered(account("7100")); dial(a, "1001"); waitFor("answered") { onlyCall()?.active == true }
+        Thread.sleep(1000)
+        val dump = shell("dumpsys audio")
+        val owner = Regex("""AudioModeInfo: mMode=\w+, mPid=(\d+)""").find(dump) ?: Regex("""mode owner[^\n]*mPid=(\d+)""", RegexOption.IGNORE_CASE).find(dump)
+        assertNotNull(owner, "the audio dump names the audio mode owner: " + dump.lines().filter { it.contains("mode", true) || it.contains("owner", true) }.take(8))
+        assertTrue(owner!!.groupValues[1].toInt() != android.os.Process.myPid(), "the app does not own the audio mode (pid ${owner.groupValues[1]})")
+    }
+
     /** The speaker button: audio moves to the speaker through Telecom, and back to the earpiece. */
     @Test fun theSpeakerButtonSwitchesTheAudioToTheSpeakerAndBack() {
         val telecom = (InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as com.livenet.l1ne.L1neApplication).telecom

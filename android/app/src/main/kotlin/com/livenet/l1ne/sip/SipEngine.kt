@@ -87,7 +87,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
                     f.getOrNull(5)?.toIntOrNull()?.let { accOfPJ[it] })
                 val old = _calls.value.firstOrNull { it.id == a }
                 if (telecom != null) {
-                    if (a !in telecomKnown && !ci.ended && ci.incoming) { telecomKnown.add(a); telecom!!.reportIncoming(a, contactName(ci), ci.peerAddress) }
+                    if (a !in telecomKnown && !ci.ended && ci.incoming) { telecomKnown.add(a); if (!telecom!!.reportIncoming(a, contactName(ci), ci.peerAddress)) telecomKnown.remove(a) }
                     if (ci.active && old?.active != true) telecom!!.active(a)
                     if (ci.ended && a in telecomKnown) { telecomKnown.remove(a); telecom!!.ended(a, a !in userEnded) }
                 }
@@ -176,7 +176,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     private fun placed(id: Int, remote: String, redial: Redial, accountID: String, display: String, address: String): Boolean {
         _calls.value = _calls.value + CallInfo(id, remote, false, 1, 0, "Calling", 0, accountID)
         outgoingTargets[id] = redial
-        telecomKnown.add(id); telecom?.reportOutgoing(id, display, address); KeepAliveService.start(app)
+        telecomKnown.add(id); if (telecom?.reportOutgoing(id, display, address) != true) telecomKnown.remove(id); KeepAliveService.start(app)
         updateAudio(); return true
     }
 
@@ -295,7 +295,10 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
         val need = _calls.value.isNotEmpty()
         if (need == audioOn) return
         audioOn = need
-        if (need) { if (telecom?.connections?.isEmpty() != false) audio.mode = AudioManager.MODE_IN_COMMUNICATION; Native.nSound(true) } else { Native.nSound(false); if (telecom?.connections?.isEmpty() != false) { audio.mode = AudioManager.MODE_NORMAL; audio.isSpeakerphoneOn = false }; KeepAliveService.start(app) }
+        // When Telecom has the call it owns the audio mode, and only then does Android apply the speaker / earpiece / Bluetooth choice made through it:
+        // setting the mode here too (as an app that has no Telecom must) makes this app the owner, and every route change is silently ignored.
+        val telecomOwns = telecom?.connections?.isNotEmpty() == true || _calls.value.any { it.id in telecomKnown }
+        if (need) { if (!telecomOwns) audio.mode = AudioManager.MODE_IN_COMMUNICATION; Native.nSound(true) } else { Native.nSound(false); if (!telecomOwns) { audio.mode = AudioManager.MODE_NORMAL; audio.isSpeakerphoneOn = false }; KeepAliveService.start(app) }
     }
     /** Audio output: through Telecom when it owns the call (so Bluetooth and headsets work), else the plain speaker switch. */
     fun setRoute(route: Int) { if (telecom?.connections?.isNotEmpty() == true) telecom!!.setRoute(route) else audio.isSpeakerphoneOn = route == android.telecom.CallAudioState.ROUTE_SPEAKER }

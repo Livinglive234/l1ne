@@ -42,21 +42,20 @@ class CallTelecom(private val app: Context) {
         }
     }
 
-    fun reportIncoming(callId: Int, display: String, address: String) {
+    /** true when Telecom took the call. */
+    fun reportIncoming(callId: Int, display: String, address: String): Boolean =
         runCatching {
             tm.addNewIncomingCall(handle, Bundle().apply {
                 putInt(EXTRA_CALL, callId); putString(EXTRA_NAME, display)
                 putParcelable(TelecomManager.EXTRA_INCOMING_CALL_ADDRESS, Uri.fromParts("sip", address, null)) })
-        }.onFailure { android.util.Log.e("L1neTelecom", "addNewIncomingCall failed", it); CallNotifications.showIncoming(app, callId, display) }       // no Telecom? still ring from our own notification
-    }
+        }.onFailure { android.util.Log.e("L1neTelecom", "addNewIncomingCall failed", it); CallNotifications.showIncoming(app, callId, display) }.isSuccess       // no Telecom? still ring from our own notification
 
-    fun reportOutgoing(callId: Int, display: String, address: String) {
+    fun reportOutgoing(callId: Int, display: String, address: String): Boolean =
         runCatching {
             tm.placeCall(Uri.fromParts("sip", address, null), Bundle().apply {
                 putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, handle)
                 putBundle(TelecomManager.EXTRA_OUTGOING_CALL_EXTRAS, Bundle().apply { putInt(EXTRA_CALL, callId); putString(EXTRA_NAME, display) }) })
-        }
-    }
+        }.isSuccess
 
     fun active(callId: Int) { connections[callId]?.setActive(); CallNotifications.cancelIncoming(app) }
     fun held(callId: Int, on: Boolean) { connections[callId]?.let { if (on) it.setOnHold() else it.setActive() } }
