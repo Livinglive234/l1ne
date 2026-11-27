@@ -51,7 +51,7 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
     var pad by remember { mutableStateOf(false) }; var more by remember { mutableStateOf(false) }; var transfer by remember { mutableStateOf(false) }; var list by remember { mutableStateOf(false) }
     var secs by remember(call.id) { mutableStateOf(engine.elapsed(call.id)) }
     LaunchedEffect(call.id, call.active) { while (call.active) { secs = engine.elapsed(call.id); delay(500) } }
-    val name = app.contacts.name(call.number, call.peerAddress.substringAfter('@', "")) ?: call.number
+    val name = app.contacts.name(call.number, call.peerAddress.substringAfter('@', "")) ?: call.sentName
     val status = when {
         call.active -> "%d:%02d".format(secs / 60, secs % 60)
         call.incoming -> "Incoming call"
@@ -222,10 +222,10 @@ private fun TransferDialog(call: CallInfo, engine: SipEngine, onClose: () -> Uni
 
 @Composable
 private fun CallsListDialog(engine: SipEngine, onClose: () -> Unit) {
-    val calls by engine.calls.collectAsState(); val held by engine.held.collectAsState()
+    val app = LocalApp.current; val calls by engine.calls.collectAsState(); val held by engine.held.collectAsState()
     AlertDialog(onClose, containerColor = CallSheet, title = { Text("Calls", color = CallText) }, text = {
         Column { calls.forEach { c -> Row(Modifier.fillMaxWidth().clickable { engine.switchTo(c.id); onClose() }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) { Text(c.number, color = CallText); Text(if (!c.active) (if (c.incoming) "Incoming" else "Calling") else if (c.id in held) "On hold" else "Active", fontSize = 12.sp, color = CallMuted) }
+            Column(Modifier.weight(1f)) { Text(app.contacts.name(c.number, c.peerAddress.substringAfter('@', "")) ?: c.sentName, color = CallText); Text(if (!c.active) (if (c.incoming) "Incoming" else "Calling") else if (c.id in held) "On hold" else "Active", fontSize = 12.sp, color = CallMuted) }
             if (c.id == engine.currentCall?.id) Icon(Icons.Filled.CheckCircle, null, tint = CallBrand)
             IconButton({ engine.hangup(c.id) }) { Icon(Icons.Filled.CallEnd, "Hang up", tint = CallDanger) } } } } },
         confirmButton = { TextButton(onClose) { Text("Done") } })
@@ -237,7 +237,7 @@ fun CallBar(call: CallInfo, onClick: () -> Unit) {
     val app = LocalApp.current
     var secs by remember(call.id) { mutableStateOf(app.engine.elapsed(call.id)) }
     LaunchedEffect(call.id, call.active) { while (call.active) { secs = app.engine.elapsed(call.id); delay(500) } }
-    val name = app.contacts.name(call.number, call.peerAddress.substringAfter('@', "")) ?: call.number
+    val name = app.contacts.name(call.number, call.peerAddress.substringAfter('@', "")) ?: call.sentName
     Box(Modifier.fillMaxWidth().background(CallBrand).statusBarsPadding().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp), contentAlignment = Alignment.CenterStart) {
         Text("$name · ${if (call.active) "%d:%02d".format(secs / 60, secs % 60) else "calling"} — tap to return", color = Color(0xFF04120A), fontWeight = FontWeight.Medium)
     }

@@ -23,6 +23,14 @@ data class CallInfo(val id: Int, val remote: String, val incoming: Boolean, val 
     /** user@domain of the other side, for the call log */
     val peerAddress: String get() = Regex("sip:([^>;]+)").find(remote)?.groupValues?.get(1) ?: remote
     val number: String get() = Regex("sip:([^@>;]+)").find(remote)?.groupValues?.get(1) ?: remote
+    /** What the caller sent as their name (the PBX's caller ID, such as "(612) 555-0142"), else the number. */
+    val sentName: String get() = sentDisplayName(remote) ?: number
+}
+
+/** The display name part of a SIP address: "\"(612) 555-0142\" <sip:...>" -> (612) 555-0142; null when there is none. */
+fun sentDisplayName(remote: String): String? {
+    val lt = remote.indexOf('<').takeIf { it > 0 } ?: return null
+    return remote.substring(0, lt).trim().trim('"').trim().takeIf { it.isNotEmpty() }
 }
 
 /** pjsua behind the JNI bridge: accounts, registration state and calls. The Kotlin twin of SIPEngine.swift. */
@@ -48,7 +56,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
     private val telecomKnown = HashSet<Int>()
     fun displayName(id: Int): String { val c = _calls.value.firstOrNull { it.id == id } ?: return "Call"; return contactName(c) }
     var contactResolver: ((String, String) -> String?)? = null
-    private fun contactName(c: CallInfo) = contactResolver?.invoke(c.number, c.peerAddress.substringAfter('@', "")) ?: c.number
+    private fun contactName(c: CallInfo) = contactResolver?.invoke(c.number, c.peerAddress.substringAfter('@', "")) ?: c.sentName
     var callLog: com.livenet.l1ne.data.CallLogStore? = null
     var messages: com.livenet.l1ne.data.MessageStore? = null
     private val userEnded = HashSet<Int>()
