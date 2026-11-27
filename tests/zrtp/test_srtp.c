@@ -46,6 +46,11 @@ int main(void) {
             if (l1srtp_protect(&t2, p, &len, sizeof p) || l1srtp_unprotect(&r2, p, &len) || len != n || memcmp(p, orig, n)) { ok = 0; printf("   broke at %u\n", i); }
         }
         CHECK(ok, "tag %d: 70000 packets across several sequence number rollovers, with extension headers and CSRCs", tag);
+        /* two streams (SSRCs) in one context keep their own replay state */
+        { l1srtp_t t3, r3; l1srtp_init(&t3, mk, ms, tag); l1srtp_init(&r3, mk, ms, tag); int good = 1;
+          for (int i = 0; i < 200; i++) { uint32_t ssrc = i % 2 ? 0x1111 : 0x2222; uint8_t q[200], o[200]; size_t m = make_packet(q, (uint16_t)(500 + i / 2), 160, ssrc, 20, 0, 0); memcpy(o, q, m); size_t l = m;
+            if (l1srtp_protect(&t3, q, &l, sizeof q) || l1srtp_unprotect(&r3, q, &l) || l != m || memcmp(q, o, m)) good = 0; }
+          CHECK(good, "tag %d: two SSRCs alternate in one context", tag); }
         /* SRTCP */
         uint8_t r[200] = { 0x81, 200, 0, 6, 0xCA, 0xFE, 0xBA, 0xBE, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24 };
         size_t rl = 28, ro = rl; uint8_t ro_copy[200]; memcpy(ro_copy, r, rl);

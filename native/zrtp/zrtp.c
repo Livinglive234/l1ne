@@ -196,6 +196,9 @@ void zrtp_start(zrtp_t *z) {
     retry_start(z, &z->hello, 50, 200, 62);                  /* 50, 100, then 200 ms: about 12 seconds in all */
 }
 
+void zrtp_set_ssrc(zrtp_t *z, uint32_t ssrc) { z->ssrc = ssrc; }
+void zrtp_hello_hash(const zrtp_t *z, uint8_t out[32]) { sha256(z->hello.m, z->hello.n, out); }
+
 int zrtp_is_zrtp(const uint8_t *p, size_t n) { return n >= 16 && p[0] == 0x10 && p[1] == 0x00 && be32(p + 4) == 0x5a525450; }
 int zrtp_is_secure(const zrtp_t *z) { return z->st == Z_SECURE; }
 int zrtp_is_failed(const zrtp_t *z) { return z->st == Z_FAILED; }

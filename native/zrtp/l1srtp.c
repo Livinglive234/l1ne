@@ -49,6 +49,8 @@ static void packet_iv(const uint8_t salt[14], uint32_t ssrc, uint64_t index, uin
 int l1srtp_protect(l1srtp_t *c, uint8_t *p, size_t *len, size_t cap) {
     int h = rtp_header_len(p, *len); if (h < 0 || *len + (size_t)c->tag_len > cap) return -1;
     uint16_t seq = (uint16_t)(p[2] << 8 | p[3]); uint32_t ssrc = (uint32_t)p[8] << 24 | p[9] << 16 | p[10] << 8 | p[11];
+    if (c->tx_started && ssrc != c->tx_ssrc) { c->tx_roc = 0; c->tx_started = 0; }                /* a different stream */
+    c->tx_ssrc = ssrc;
     if (c->tx_started && seq < c->tx_last_seq && c->tx_last_seq - seq > 0x8000) c->tx_roc++;      /* the sequence number wrapped */
     c->tx_last_seq = seq; c->tx_started = 1;
     uint64_t index = ((uint64_t)c->tx_roc << 16) | seq; uint8_t iv[16];
@@ -61,31 +63,37 @@ int l1srtp_protect(l1srtp_t *c, uint8_t *p, size_t *len, size_t cap) {
 }
 
 /* RFC 3711 appendix A: the packet index from the 16-bit sequence number and the rollover counter we hold. */
-static uint32_t guess_roc(const l1srtp_t *c, uint16_t seq) {
-    if (!c->rx_started) return c->rx_roc;
-    if (c->rx_s_l < 32768) return (seq - c->rx_s_l > 32768) ? c->rx_roc - 1 : c->rx_roc;
-    return (c->rx_s_l - 32768 > seq) ? c->rx_roc + 1 : c->rx_roc;
+typedef struct { int used; uint32_t ssrc, roc; uint16_t s_l; int started; uint64_t window; } rx_stream;
+
+static uint32_t guess_roc(const rx_stream *s, uint16_t seq) {
+    if (!s->started) return s->roc;
+    if (s->s_l < 32768) return (seq - s->s_l > 32768) ? s->roc - 1 : s->roc;
+    return (s->s_l - 32768 > seq) ? s->roc + 1 : s->roc;
 }
 
 int l1srtp_unprotect(l1srtp_t *c, uint8_t *p, size_t *len) {
     size_t t = (size_t)c->tag_len; if (*len < 12 + t) return -1;
     size_t n = *len - t; int h = rtp_header_len(p, n); if (h < 0) return -1;
     uint16_t seq = (uint16_t)(p[2] << 8 | p[3]); uint32_t ssrc = (uint32_t)p[8] << 24 | p[9] << 16 | p[10] << 8 | p[11];
-    if (c->rx_ssrc_set && ssrc != c->rx_ssrc) return -1;                                          /* one stream per context */
-    uint32_t roc = guess_roc(c, seq); uint64_t index = ((uint64_t)roc << 16) | seq;
-    uint64_t top = ((uint64_t)c->rx_roc << 16) | c->rx_s_l;
-    if (c->rx_started && index <= top && top - index >= 64) return -2;                           /* too old */
-    if (c->rx_started && index <= top && (c->rx_window >> (top - index)) & 1) return -3;          /* replayed */
+    /* the state of this SSRC (a new one is only kept once a packet from it has authenticated) */
+    rx_stream fresh = { .used = 1, .ssrc = ssrc }, *s = NULL; unsigned slot = 0;
+    for (unsigned i = 0; i < 4; i++) if (c->rx[i].used && c->rx[i].ssrc == ssrc) { s = (rx_stream *)&c->rx[i]; slot = i; break; }
+    int is_new = s == NULL; if (is_new) { s = &fresh; slot = c->rx_next; }
+    uint32_t roc = guess_roc(s, seq); uint64_t index = ((uint64_t)roc << 16) | seq;
+    uint64_t top = ((uint64_t)s->roc << 16) | s->s_l;
+    if (s->started && index <= top && top - index >= 64) return -2;                              /* too old */
+    if (s->started && index <= top && (s->window >> (top - index)) & 1) return -3;               /* replayed */
     uint8_t rocb[4] = { roc >> 24, roc >> 16, roc >> 8, roc }, tag[20];
     hmac_sha1(c->auth_key, 20, p, n, rocb, 4, tag);
     if (CRYPTO_memcmp(tag, p + n, t) != 0) return -4;
     uint8_t iv[16]; packet_iv(c->salt, ssrc, index, iv);
     ctr(c->enc_key, iv, p + h, p + h, n - (size_t)h);
-    if (!c->rx_started || index > top) {                                                          /* moves the window */
-        uint64_t shift = c->rx_started ? index - top : 0;
-        c->rx_window = shift >= 64 ? 0 : c->rx_window << shift; c->rx_window |= 1; c->rx_roc = roc; c->rx_s_l = seq; c->rx_started = 1;
-    } else c->rx_window |= 1ull << (top - index);
-    c->rx_ssrc = ssrc; c->rx_ssrc_set = 1;
+    if (is_new) { c->rx_next = (c->rx_next + 1) % 4; }
+    rx_stream *d = (rx_stream *)&c->rx[slot]; if (is_new) *d = fresh; s = d;
+    if (!s->started || index > top) {                                                             /* moves the window */
+        uint64_t shift = s->started ? index - top : 0;
+        s->window = shift >= 64 ? 0 : s->window << shift; s->window |= 1; s->roc = roc; s->s_l = seq; s->started = 1;
+    } else s->window |= 1ull << (top - index);
     *len = n; return 0;
 }
 

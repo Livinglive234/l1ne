@@ -64,6 +64,11 @@ void zrtp_free(zrtp_t *z);
 /* Starts sending Hello messages. Call once the media path can carry packets. */
 void zrtp_start(zrtp_t *z);
 
+/* The SSRC of our RTP stream, once it is known (it is put into the header of every ZRTP packet). */
+void zrtp_set_ssrc(zrtp_t *z, uint32_t ssrc);
+/* SHA-256 of our Hello message: what goes into the a=zrtp-hash SDP attribute (section 8.1). */
+void zrtp_hello_hash(const zrtp_t *z, uint8_t out[32]);
+
 /* True and consumed when the packet is a ZRTP packet (first byte 0x10 and the 'ZRTP' cookie). */
 int zrtp_is_zrtp(const uint8_t *pkt, size_t len);
 int zrtp_recv(zrtp_t *z, const uint8_t *pkt, size_t len);

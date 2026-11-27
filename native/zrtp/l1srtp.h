@@ -13,10 +13,10 @@ typedef struct {
     uint8_t enc_key[16], salt[14], auth_key[20];             /* SRTP session keys */
     uint8_t rtcp_enc_key[16], rtcp_salt[14], rtcp_auth_key[20];
     int tag_len;                                             /* SRTP tag: 4 or 10; SRTCP always uses 10 */
-    /* sending */
-    uint32_t tx_roc; uint16_t tx_last_seq; int tx_started; uint32_t srtcp_index;
-    /* receiving */
-    uint32_t rx_roc; uint16_t rx_s_l; int rx_started; uint64_t rx_window; uint32_t rx_ssrc; int rx_ssrc_set;
+    /* sending: one stream (a new SSRC starts again with rollover counter 0) */
+    uint32_t tx_ssrc, tx_roc; uint16_t tx_last_seq; int tx_started; uint32_t srtcp_index;
+    /* receiving: replay state per SSRC, for up to 4 streams */
+    struct { int used; uint32_t ssrc, roc; uint16_t s_l; int started; uint64_t window; } rx[4]; unsigned rx_next;
     uint32_t rx_rtcp_max; int rx_rtcp_started; uint64_t rx_rtcp_window;
 } l1srtp_t;
 
