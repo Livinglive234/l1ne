@@ -28,6 +28,9 @@ object Provisioning {
 
         val notes = ArrayList<String>()
         val accounts = ArrayList<Parsed>()
+        // L1ne's own settings, which Linphone ignores: a default for every account in the file in <section name="l1ne"><entry name="outbound_prefix">9</entry></section>,
+        // and one account's own value (an empty one means none) as <entry name="l1ne_outbound_prefix">9</entry> inside its proxy_N section.
+        val defaultPrefix = cleanPrefix(sections["l1ne"]?.get("outbound_prefix") ?: "")
         val proxies = sections.keys.filter { it.startsWith("proxy_") }.sortedBy { idx(it) }
         val auths = sections.filterKeys { it.startsWith("auth_info_") }.values.toList()
 
@@ -35,7 +38,8 @@ object Provisioning {
             val e = sections.getValue(name)
             val ident = parseIdentity(e["reg_identity"] ?: "") ?: continue
             if (e["reg_sendregister"] == "0") continue
-            var a = Account(username = ident.user, domain = ident.domain, label = ident.domain, displayName = ident.display)
+            var a = Account(username = ident.user, domain = ident.domain, label = ident.domain, displayName = ident.display,
+                outboundPrefix = e["l1ne_outbound_prefix"]?.let { cleanPrefix(it) } ?: defaultPrefix)       // this account's own entry, else the file's default
             val proxy = parseProxy(e["reg_proxy"] ?: e["reg_route"] ?: "")
             if (proxy != null) {
                 a = a.copy(
@@ -62,13 +66,12 @@ object Provisioning {
         }
 
         val contacts = sections["misc"]?.get("contacts-vcard-list")?.takeIf { it.isNotEmpty() }
-        // L1ne's own section (Linphone ignores it): <section name="l1ne"><entry name="outbound_prefix">9</entry></section>
-        sections["l1ne"]?.get("outbound_prefix")?.takeIf { it.isNotEmpty() && it.length <= 4 && it.all { c -> c in "0123456789*#" } }?.let { p ->
-            for (i in accounts.indices) accounts[i] = accounts[i].copy(account = accounts[i].account.copy(outboundPrefix = p))
-        }
         if (accounts.isEmpty()) throw Failure("The file has no usable SIP account.")
         return Result(accounts, contacts, notes)
     }
+
+    /** An outside-line prefix as it may appear in a setup file: up to 4 of 0-9 * #. Anything else means none. */
+    fun cleanPrefix(p: String): String = if (p.length <= 4 && p.all { it in "0123456789*#" }) p else ""
 
     private fun idx(s: String) = s.substringAfterLast('_').toIntOrNull() ?: 0
 

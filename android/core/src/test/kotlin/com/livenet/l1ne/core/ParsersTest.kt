@@ -26,7 +26,12 @@ class ParsersTest {
         val xml = File(dir, "linphone-provision.xml").readText().replace("</config>", "<section name=\"l1ne\"><entry name=\"outbound_prefix\">9</entry></section></config>")
         val r = Provisioning.parse(xml.toByteArray())
         assertEquals("9", r.accounts[0].account.outboundPrefix)
-        assertEquals("9", r.accounts[1].account.outboundPrefix)                                  // every account in the file
+        assertEquals("9", r.accounts[1].account.outboundPrefix)                                  // the l1ne section is the default for every account in the file
+        val base = File(dir, "linphone-provision.xml").readText(); val sendRegister = "<entry name=\"reg_sendregister\" overwrite=\"true\">1</entry>"
+        val own = Provisioning.parse(base.replace(sendRegister, sendRegister + "<entry name=\"l1ne_outbound_prefix\">9</entry>").toByteArray())
+        assertEquals("9", own.accounts[0].account.outboundPrefix); assertEquals("", own.accounts[1].account.outboundPrefix)   // one account's own section: that account only
+        val none = Provisioning.parse(xml.replace(sendRegister, sendRegister + "<entry name=\"l1ne_outbound_prefix\"></entry>").toByteArray())
+        assertEquals("", none.accounts[0].account.outboundPrefix); assertEquals("9", none.accounts[1].account.outboundPrefix)   // an empty own entry beats the default
         val bad = Provisioning.parse(xml.replace(">9<", ">9x<").toByteArray())
         assertEquals("", bad.accounts[0].account.outboundPrefix)                                  // digits, * and # only
         assertEquals("", Provisioning.parse(File(dir, "linphone-provision.xml").readBytes()).accounts[0].account.outboundPrefix)   // a plain Linphone file sets nothing

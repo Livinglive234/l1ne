@@ -47,7 +47,12 @@ check(ob2.dial("6125550142") == "96125550142" && ob2.dial("+44207123456789") == 
 check(ob.withoutOutboundPrefix("96125550142@pbx.example.com") == "6125550142@pbx.example.com" && ob.withoutOutboundPrefix("7001@pbx.example.com") == "7001@pbx.example.com" && ob.withoutOutboundPrefix("9125550142@pbx.example.com") == "9125550142@pbx.example.com", "history keeps the number without the prefix")
 let xmlPrefix = (try! String(contentsOf: dir.appendingPathComponent("linphone-provision.xml"), encoding: .utf8)).replacingOccurrences(of: "</config>", with: "<section name=\"l1ne\"><entry name=\"outbound_prefix\">9</entry></section></config>")
 let rp = try! Provisioning.parse(xml: Data(xmlPrefix.utf8))
-check(rp.accounts.allSatisfy { $0.account.outboundPrefix == "9" }, "the l1ne section sets the prefix on every account in the file")
+check(rp.accounts.allSatisfy { $0.account.outboundPrefix == "9" }, "the l1ne section is the default prefix for every account in the file")
+let perAccount = (try! String(contentsOf: dir.appendingPathComponent("linphone-provision.xml"), encoding: .utf8)).replacingOccurrences(of: "<entry name=\"reg_sendregister\" overwrite=\"true\">1</entry>", with: "<entry name=\"reg_sendregister\" overwrite=\"true\">1</entry><entry name=\"l1ne_outbound_prefix\">9</entry>")
+let rpa = try! Provisioning.parse(xml: Data(perAccount.utf8))
+check(rpa.accounts[0].account.outboundPrefix == "9" && rpa.accounts[1].account.outboundPrefix == "", "a prefix inside one account's own section is set on that account only")
+let overridden = try! Provisioning.parse(xml: Data(xmlPrefix.replacingOccurrences(of: "<entry name=\"reg_sendregister\" overwrite=\"true\">1</entry>", with: "<entry name=\"reg_sendregister\" overwrite=\"true\">1</entry><entry name=\"l1ne_outbound_prefix\"></entry>").utf8))
+check(overridden.accounts[0].account.outboundPrefix == "" && overridden.accounts[1].account.outboundPrefix == "9", "an account's own empty entry beats the file's default, which still covers the others")
 check((try! Provisioning.parse(xml: Data(xmlPrefix.replacingOccurrences(of: ">9<", with: ">9x<").utf8))).accounts[0].account.outboundPrefix == "", "only digits, * and # are accepted")
 
 // provisioning

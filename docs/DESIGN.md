@@ -50,7 +50,8 @@ a `linphone-config:https://…` or `l1ne-config:https://…` link, or a pasted U
 | `sip/media_encryption` (`none`/`srtp`/`dtls`/`zrtp`) | media (ZRTP becomes SRTP with a note) |
 | `sip/media_encryption_mandatory` | mandatory switch |
 | `misc/contacts-vcard-list` | optional contact sync source (on by default when present) |
-| `l1ne/outbound_prefix` | L1ne's own section (Linphone ignores it): the outside-line prefix for every account in the file, for example `9`. Up to 4 characters from `0-9 * #`. Put in front of numbers with 10 digits (or 1 and 10 digits) only; extensions like 7001 and codes like *97 dial as they are, and the call history keeps the number without it. Example: `<section name="l1ne"><entry name="outbound_prefix">9</entry></section>` |
+| `proxy_N/l1ne_outbound_prefix` | L1ne's own entry (Linphone ignores it), set per account inside that account's `proxy_N` section: its outside-line prefix, for example `9`. Up to 4 characters from `0-9 * #`; an empty value means none, which also overrides the file default below. Put in front of numbers with 10 digits (or 1 and 10 digits) only; extensions like 7001 and codes like *97 dial as they are, and the call history keeps the number without it. Example: `<entry name="l1ne_outbound_prefix">9</entry>` |
+| `l1ne/outbound_prefix` | L1ne's own section: a default prefix for every account in the file that has no `l1ne_outbound_prefix` of its own. Same rules. Example: `<section name="l1ne"><entry name="outbound_prefix">9</entry></section>` |
 | `ha1` only | account added without a secret |
 
 The review screen shows each account with its own switch; nothing is forced. Fixtures: `tests/fixtures/linphone-provision.xml`.

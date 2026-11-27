@@ -65,6 +65,9 @@ enum Provisioning {
         let s = reader.sections
 
         var result = Result()
+        // L1ne's own settings, which Linphone ignores: a default for every account in the file in <section name="l1ne"><entry name="outbound_prefix">9</entry></section>,
+        // and one account's own value (an empty one means none) as <entry name="l1ne_outbound_prefix">9</entry> inside its proxy_N section.
+        let defaultPrefix = cleanPrefix(s["l1ne"]?["outbound_prefix"] ?? "")
         let proxies = s.keys.filter { $0.hasPrefix("proxy_") }.sorted { idx($0) < idx($1) }
         let auths = s.keys.filter { $0.hasPrefix("auth_info_") }.map { s[$0]! }
 
@@ -78,6 +81,7 @@ enum Provisioning {
             a.domain = ident.domain
             a.label = ident.domain            // named after the SIP address's domain; rename it in the editor
             a.displayName = ident.display
+            a.outboundPrefix = e["l1ne_outbound_prefix"].map(cleanPrefix) ?? defaultPrefix       // this account's own entry, else the file's default
             if let ex = Int(e["reg_expires"] ?? ""), ex >= 60 { a.expires = ex }
             if let vm = e["voicemail_uri"] ?? e["mwi_uri"], !vm.isEmpty { a.voicemailURI = vm }
             if let proxy = parseProxy(e["reg_proxy"] ?? e["reg_route"] ?? "") {
@@ -113,13 +117,12 @@ enum Provisioning {
         }
 
         if let c = s["misc"]?["contacts-vcard-list"], !c.isEmpty { result.contactsURL = c }
-        // L1ne's own section (Linphone ignores it): <section name="l1ne"><entry name="outbound_prefix">9</entry></section>
-        if let p = s["l1ne"]?["outbound_prefix"], p.count <= 4, p.allSatisfy({ "0123456789*#".contains($0) }), !p.isEmpty {
-            for i in result.accounts.indices { result.accounts[i].account.outboundPrefix = p }
-        }
         guard !result.accounts.isEmpty else { throw Failure.nothingUsable }
         return result
     }
+
+    /// An outside-line prefix as it may appear in a setup file: up to 4 of 0-9 * #. Anything else means none.
+    static func cleanPrefix(_ p: String) -> String { p.count <= 4 && p.allSatisfy({ "0123456789*#".contains($0) }) ? p : "" }
 
     private static func idx(_ s: String) -> Int { Int(s.split(separator: "_").last ?? "") ?? 0 }
 
