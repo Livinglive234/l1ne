@@ -186,7 +186,7 @@ fun AccountsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 8.dp)) {
             Card {
                 accounts.forEach { a ->
-                    val status = reg[a.id]; val ok = status == "Registered"; val chosen = (app.store.selected?.id == a.id)
+                    val status = reg[a.id]; val ok = status == "Registered"; val chosen = ((sel ?: accounts.firstOrNull()?.id) == a.id)      // reads the watched selection, so the tick moves as soon as you switch
                     Row(Modifier.fillMaxWidth().clickable { app.store.select(a.id) }.padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(if (chosen) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked, null, tint = if (chosen) L1neColors.Brand else L1neColors.Muted); Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
