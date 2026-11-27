@@ -38,7 +38,14 @@ fun SettingsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
     val contacts by app.contacts.contacts.collectAsState()
     val keepAlive by s.keepAliveF.collectAsState()
     val ctxPm = LocalContext.current
-    val batteryOk = ctxPm.getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(ctxPm.packageName)
+    // These two are changed on Android's own settings pages, so they are read again every time this page comes back into view.
+    var shownAgain by remember { mutableIntStateOf(0) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val o = androidx.lifecycle.LifecycleEventObserver { _, e -> if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) shownAgain++ }
+        lifecycleOwner.lifecycle.addObserver(o); onDispose { lifecycleOwner.lifecycle.removeObserver(o) }
+    }
+    val batteryOk = remember(shownAgain) { ctxPm.getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(ctxPm.packageName) }
     var confirmRemove by remember { mutableStateOf(false) }; var applying by remember { mutableStateOf(false) }; var showRecordings by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
     val recordings = remember(showRecordings) { File(ctx.filesDir, "recordings").listFiles { f -> f.extension == "wav" }?.size ?: 0 }
@@ -63,8 +70,8 @@ fun SettingsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
             Card {
                 SwitchRow("Stay connected in the background", keepAlive, subtitle = "Shows a small notification so calls can ring when L1ne is closed") { s.keepAlive = it; if (it) com.livenet.l1ne.sip.KeepAliveService.start(ctx) else com.livenet.l1ne.sip.KeepAliveService.stop(ctx) }; RowDivider()
                 if (android.os.Build.VERSION.SDK_INT >= 34) {
-                    val nm = ctxPm.getSystemService(android.app.NotificationManager::class.java)
-                    NavRow("Show calls on the lock screen", if (nm.canUseFullScreenIntent()) "On" else "Off") {
+                    val lockScreenOk = remember(shownAgain) { ctxPm.getSystemService(android.app.NotificationManager::class.java).canUseFullScreenIntent() }
+                    NavRow("Show calls on the lock screen", if (lockScreenOk) "On" else "Off") {
                         ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, android.net.Uri.parse("package:${ctx.packageName}"))) }
                     RowDivider()
                 }

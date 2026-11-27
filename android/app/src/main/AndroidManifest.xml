@@ -12,6 +12,7 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <!-- Deliberately absent: READ_CONTACTS. L1ne keeps its own address book. -->
@@ -37,7 +38,7 @@
             <intent-filter><action android:name="android.telecom.ConnectionService" /></intent-filter>
         </service>
         <receiver android:name=".sip.CallActionReceiver" android:exported="false" />
-        <activity android:name=".MainActivity" android:showWhenLocked="true" android:turnScreenOn="true" android:launchMode="singleTask" android:exported="true" android:windowSoftInputMode="adjustResize"
+        <activity android:name=".MainActivity" android:launchMode="singleTask" android:exported="true" android:windowSoftInputMode="adjustResize"
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboard|keyboardHidden|density">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

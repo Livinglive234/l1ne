@@ -102,19 +102,16 @@ class L1neConnectionService : ConnectionService() {
 }
 
 object CallNotifications {
-    // "_v2": a channel's sound and vibration can't be changed once it exists, and the first one had neither, so incoming calls moved to a new one.
-    private const val INCOMING = "l1ne_incoming_v2"; const val SERVICE = "l1ne_service"; private const val ID_INCOMING = 4001
-    private val RING_PATTERN = longArrayOf(0, 900, 700, 900, 700)
+    // The channel itself is silent: L1ne rings and vibrates by itself (see Ringer), the way a phone call does. A channel's settings can't be
+    // changed once it exists, so each change of mind gets a new id and the old ones are deleted.
+    private const val INCOMING = "l1ne_incoming_v3"; const val SERVICE = "l1ne_service"; private const val ID_INCOMING = 4001
 
     fun channels(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java)
-        nm.deleteNotificationChannel("l1ne_incoming")
+        nm.deleteNotificationChannel("l1ne_incoming"); nm.deleteNotificationChannel("l1ne_incoming_v2")
         nm.createNotificationChannel(NotificationChannel(INCOMING, "Incoming calls", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "Rings and vibrates when someone calls you"; lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-            // the phone's ringtone, played as a ringtone (so the ringer volume and Do Not Disturb apply), with the vibration
-            setSound(android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE),
-                android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
-            enableVibration(true); vibrationPattern = RING_PATTERN; setBypassDnd(false)
+            description = "Shows the incoming call (the ringing itself is L1ne's own)"; lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            setSound(null, null); enableVibration(false)
         })
         nm.createNotificationChannel(NotificationChannel(SERVICE, "Connection", NotificationManager.IMPORTANCE_LOW).apply { description = "Keeps L1ne signed in so calls can reach you" })
     }
@@ -128,11 +125,11 @@ object CallNotifications {
         val person = androidx.core.app.Person.Builder().setName(name).setImportant(true).apply { runCatching { setIcon(callerAvatar(name)) } }.build()
         val n = androidx.core.app.NotificationCompat.Builder(ctx, INCOMING).setSmallIcon(R.drawable.ic_stat_l1ne).setCategory(Notification.CATEGORY_CALL).setOngoing(true)
             .setPriority(androidx.core.app.NotificationCompat.PRIORITY_MAX).setVisibility(androidx.core.app.NotificationCompat.VISIBILITY_PUBLIC)
-            .setTimeoutAfter(60_000).setOnlyAlertOnce(false)
+            .setTimeoutAfter(60_000).setOnlyAlertOnce(true)
             .setFullScreenIntent(open, true).setContentIntent(open)
             .setStyle(androidx.core.app.NotificationCompat.CallStyle.forIncomingCall(person, action(ctx, "decline", callId), action(ctx, "answer", callId))).build()
-        n.flags = n.flags or Notification.FLAG_INSISTENT          // keep ringing and vibrating until the call is answered, declined or gone
         runCatching { NotificationManagerCompat.from(ctx).notify(ID_INCOMING, n) }
+        Ringer.start(ctx)
     }
     /** The round picture on the incoming-call banner: the caller's initials, or a plain person for a number, in L1ne's dark green.
      *  Without one, Samsung draws its own default avatar (a purple-blue circle) behind the app badge. */
@@ -153,7 +150,7 @@ object CallNotifications {
         }
         return androidx.core.graphics.drawable.IconCompat.createWithBitmap(bmp)
     }
-    fun cancelIncoming(ctx: Context) = NotificationManagerCompat.from(ctx).cancel(ID_INCOMING)
+    fun cancelIncoming(ctx: Context) { Ringer.stop(); NotificationManagerCompat.from(ctx).cancel(ID_INCOMING) }
 
     /** (androidx's CallStyle, not the framework's: android.app.Notification.CallStyle only exists from Android 12 and crashed every call on older phones.)
      *  The persistent notification of the service: "Connected" while idle, the call and a Hang up button during one. */
@@ -176,5 +173,57 @@ class CallActionReceiver : BroadcastReceiver() {
             "decline", "hangup" -> app.engine.hangup(id)
         }
         CallNotifications.cancelIncoming(ctx)
+    }
+}
+
+/**
+ * Rings and vibrates for an incoming call until it is answered, declined, ends, or a minute has passed. Android doesn't ring a call that an app
+ * manages itself, and a notification's own sound was not reliable on every phone, so L1ne plays the phone's ringtone and vibrates itself.
+ * It follows the phone's settings: silent mode is silent, vibrate mode only vibrates, the ringer volume applies, and Do Not Disturb
+ * that blocks everything (None, Alarms only) keeps it quiet.
+ */
+object Ringer {
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private var player: android.media.MediaPlayer? = null
+    private var vibrator: android.os.Vibrator? = null
+    private var ringing = false
+    val isRinging: Boolean get() = ringing
+    private val timeout = Runnable { stop() }
+
+    fun start(ctx: Context) {
+        if (ringing) return
+        val app = ctx.applicationContext
+        val am = app.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        val nm = app.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val filter = nm.currentInterruptionFilter
+        if (filter == NotificationManager.INTERRUPTION_FILTER_NONE || filter == NotificationManager.INTERRUPTION_FILTER_ALARMS) return
+        val mode = am.ringerMode
+        if (mode == android.media.AudioManager.RINGER_MODE_SILENT) return
+        val sound = mode == android.media.AudioManager.RINGER_MODE_NORMAL && am.getStreamVolume(android.media.AudioManager.STREAM_RING) > 0
+        // in normal mode the phone's own "vibrate while ringing" switch decides (on when it can't be read); in vibrate mode it always vibrates
+        val vibrate = mode == android.media.AudioManager.RINGER_MODE_VIBRATE ||
+            runCatching { android.provider.Settings.System.getInt(app.contentResolver, "vibrate_when_ringing", 1) == 1 }.getOrDefault(true)
+        ringing = true
+        val attrs = android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+        if (sound) runCatching {
+            val uri = android.media.RingtoneManager.getActualDefaultRingtoneUri(app, android.media.RingtoneManager.TYPE_RINGTONE)
+                ?: android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE)
+            player = android.media.MediaPlayer().apply { setAudioAttributes(attrs); setDataSource(app, uri); isLooping = true; prepare(); start() }
+        }.onFailure { android.util.Log.e("L1neRinger", "ringtone failed", it) }
+        if (vibrate) runCatching {
+            val v = if (android.os.Build.VERSION.SDK_INT >= 31) (app.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager).defaultVibrator
+                    else @Suppress("DEPRECATION") (app.getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator)
+            vibrator = v
+            @Suppress("DEPRECATION") v.vibrate(android.os.VibrationEffect.createWaveform(longArrayOf(0, 1000, 1000), 0), attrs)      // buzz, pause, repeat
+        }.onFailure { android.util.Log.e("L1neRinger", "vibration failed", it) }
+        main.postDelayed(timeout, 60_000)
+    }
+
+    fun stop() {
+        if (!ringing) return
+        ringing = false; main.removeCallbacks(timeout)
+        runCatching { player?.run { if (isPlaying) stop(); release() } }; player = null
+        runCatching { vibrator?.cancel() }; vibrator = null
     }
 }

@@ -119,7 +119,9 @@ class WireTest {
     @Test fun anIncomingCallRingsIsAnsweredAndHangsUp() {
         registered(account("7100")); http("/invite?user=7100")
         waitFor("incoming call") { onlyCall()?.incoming == true }
+        waitFor("the phone rings") { com.livenet.l1ne.sip.Ringer.isRinging }          // ringtone and vibration start with the incoming call
         main { engine.answer(onlyCall()!!.id) }; waitFor("answered") { onlyCall()?.active == true }; waitServer("ACK to phone")
+        waitFor("the ringing stops once it is answered") { !com.livenet.l1ne.sip.Ringer.isRinging }
         main { engine.hangup(onlyCall()!!.id) }; waitServer("BYE"); waitFor("call gone") { engine.calls.value.isEmpty() }
     }
 

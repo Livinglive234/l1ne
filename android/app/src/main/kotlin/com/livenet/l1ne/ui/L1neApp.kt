@@ -68,6 +68,14 @@ private fun MainTabs() {
     }
     fun back() { if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex) }
     var minimized by remember { mutableStateOf(false) }
+    // On the lock screen only the call itself is shown: it can't be minimized to the app behind it, and locking the phone closes the app behind it.
+    val lockCtx = androidx.compose.ui.platform.LocalContext.current
+    fun locked() = (lockCtx.getSystemService(android.content.Context.KEYGUARD_SERVICE) as android.app.KeyguardManager).isKeyguardLocked
+    androidx.compose.runtime.DisposableEffect(lockCtx) {
+        val r = object : android.content.BroadcastReceiver() { override fun onReceive(c: android.content.Context?, i: android.content.Intent?) { minimized = false } }
+        lockCtx.registerReceiver(r, android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_OFF))
+        onDispose { runCatching { lockCtx.unregisterReceiver(r) } }
+    }
     val pendingDial by app.pendingDial.collectAsState()
     LaunchedEffect(pendingDial) { if (pendingDial != null) { tab = Tab.Keypad; stack.clear(); if (app.engine.currentCall != null) minimized = true } }
     val currentId by app.engine.currentId.collectAsState()
@@ -160,7 +168,7 @@ private fun MainTabs() {
     }
     }
     }
-    live?.let { CallScreen(it, app.engine, minimized, { m -> minimized = m }, ::open) }
+    live?.let { CallScreen(it, app.engine, minimized, { m -> minimized = m && !locked() }, { d -> if (!locked()) open(d) }) }
 }
 
 /** Round profile picture: the initials of the selected account, or a person glyph until an account exists. */
