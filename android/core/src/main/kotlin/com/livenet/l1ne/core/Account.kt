@@ -5,7 +5,7 @@ import java.util.UUID
 enum class Transport(val wire: String) { TLS("tls"), TCP("tcp"), UDP("udp");
     companion object { fun of(s: String) = entries.firstOrNull { it.wire == s.lowercase() } }
 }
-enum class Media(val wire: String) { SRTP_SDES("srtp-sdes"), SRTP_DTLS("srtp-dtls"), NONE("none") }
+enum class Media(val wire: String) { SRTP_SDES("srtp-sdes"), SRTP_DTLS("srtp-dtls"), ZRTP("zrtp"), NONE("none") }
 
 /** One SIP identity on one PBX. Same fields as the iOS app; the secret is kept apart (Keystore). */
 data class Account(

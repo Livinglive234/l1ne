@@ -22,6 +22,8 @@ object Native {
     @JvmStatic external fun nHangupAll()
     @JvmStatic external fun nDtmf(call: Int, digits: String)
     @JvmStatic external fun nMute(call: Int, on: Boolean)
+    @JvmStatic external fun nZrtpCache(path: String)                 // the file with this install's ZID and the secrets kept from earlier calls; call before nInit
+    @JvmStatic external fun nZrtpVerified(call: Int, on: Boolean)    // the user compared the code (true), or it did not match (false)
     @JvmStatic external fun nHold(call: Int, on: Boolean): Boolean
     @JvmStatic external fun nIpChange()
     @JvmStatic external fun nSound(on: Boolean)

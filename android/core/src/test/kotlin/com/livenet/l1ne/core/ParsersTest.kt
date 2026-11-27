@@ -69,6 +69,6 @@ class ParsersTest {
         val d = parse("<entry name=\"media_encryption\">dtls</entry><entry name=\"media_encryption_mandatory\">1</entry>", "<entry name=\"reg_expires\">1800</entry><entry name=\"voicemail_uri\">sip:*98@h.example</entry>").accounts.first().account
         assertEquals(Media.SRTP_DTLS, d.media); assertTrue(d.mediaMandatory); assertEquals(1800, d.expires); assertEquals("sip:*98@h.example", d.voicemailURI)
         val z = parse("<entry name=\"media_encryption\">zrtp</entry>")
-        assertEquals(Media.SRTP_SDES, z.accounts.first().account.media); assertFalse(z.accounts.first().account.mediaMandatory); assertTrue(z.notes.any { "ZRTP" in it })
+        assertEquals(Media.ZRTP, z.accounts.first().account.media); assertFalse(z.accounts.first().account.mediaMandatory); assertTrue(z.notes.none { "ZRTP" in it })
     }
 }

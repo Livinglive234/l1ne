@@ -69,6 +69,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
         if (started) return
         val ca = File(app.filesDir, "cacert.pem").also { f -> app.assets.open("cacert.pem").use { i -> f.outputStream().use { o -> i.copyTo(o) } } }
         Native.listener = { t, a, b, s1, s2 -> main.post { event(t, a, b, s1, s2) } }
+        Native.nZrtpCache(java.io.File(app.filesDir, "zrtp.cache").absolutePath)
         started = Native.nInit(ca.absolutePath, settings.allowIPv6) == 0
         if (started) { applyCodecs(); Native.nEarlyMedia(settings.acceptEarlyMedia) }
         watchNetwork(); main.postDelayed(statsLoop, 2000)
@@ -80,6 +81,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
             "reg" -> accOfPJ[a]?.let { id -> setReg(id, RegistrationText.status(b, s1)) }
             "message" -> incomingText(a, s1, s2)
             "xfer" -> transferProgress(a, b, s1, s2 == "1")
+            "zrtp" -> zrtpChanged(a, s1)
             "sent" -> sendResult(a, b, s1)
             "mwi" -> accOfPJ[a]?.let { id -> _mwi.value = _mwi.value + (id to b) }
             "incoming", "call" -> {
@@ -133,7 +135,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
         val name = a.displayName.replace("\"", "")
         val id = Native.nAddAccount(if (name.isEmpty()) "sip:${a.username}@${a.domain}" else "\"$name\" <sip:${a.username}@${a.domain}>", reg, route,
             a.authUser.ifEmpty { a.username }, password ?: store.secret(a.id),
-            when (a.media) { Media.NONE -> 0; Media.SRTP_SDES -> 1; Media.SRTP_DTLS -> 2 }, a.mediaMandatory, a.transport == Transport.TLS,
+            when (a.media) { Media.NONE -> 0; Media.SRTP_SDES -> 1; Media.SRTP_DTLS -> 2; Media.ZRTP -> 3 }, a.mediaMandatory, a.transport == Transport.TLS,
             maxOf(60, a.expires), a.mwiEnabled, settings.allowIPv6, a.stunServer, a.iceEnabled, a.turnEnabled, a.turnUser, store.turnSecret(a.id))
         if (id < 0) { setReg(a.id, "Could not add account (error ${-id})"); return }
         pjAcc[a.id] = id; accOfPJ[id] = a.id
@@ -277,7 +279,20 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     data class QualityNumbers(val lossPercent: Double, val jitterMs: Double, val roundTripMs: Double)
     val quality = MutableStateFlow<Map<Int, Int>>(emptyMap())
     val qualityNumbers = MutableStateFlow<Map<Int, QualityNumbers>>(emptyMap())
-    enum class Security { UNKNOWN, NONE, SRTP, DTLS }
+    enum class Security { UNKNOWN, NONE, SRTP, DTLS, ZRTP }
+
+    /** ZRTP of a call: state 0 negotiating, 1 secure, 2 failed; the code to read out loud; whether it differs from earlier calls with this person. */
+    data class ZrtpState(val state: Int, val code: String, val cacheMismatch: Boolean, val knownBefore: Boolean, val verified: Boolean)
+    val zrtp = MutableStateFlow<Map<Int, ZrtpState>>(emptyMap())
+    private fun zrtpChanged(call: Int, packed: String) {
+        val f = packed.split("|"); if (f.size < 6) return
+        val z = ZrtpState(f[0].toIntOrNull() ?: 0, f[1], f[2] == "1", f[3] == "1", f[4] == "1")
+        zrtp.value = zrtp.value + (call to z)
+        val acc = store.account(_calls.value.firstOrNull { it.id == call }?.accountID)
+        if (z.state == 2 && acc?.media == Media.ZRTP && acc.mediaMandatory) hangup(call)          // required, and the other side has no ZRTP (or it was refused): nothing was sent in the clear
+    }
+    /** The user compared the code with the other person: it matched (true), or it did not (false: this person's saved secret is dropped). */
+    fun zrtpVerified(call: Int, matched: Boolean) { Native.nZrtpVerified(call, matched); zrtp.value[call]?.let { zrtp.value = zrtp.value + (call to it.copy(verified = matched, cacheMismatch = false)) } }
     val encryption = MutableStateFlow<Map<Int, Security>>(emptyMap())
     private val statsLoop = object : Runnable { override fun run() { updateStats(); main.postDelayed(this, 2000) } }
     private fun updateStats() {
@@ -287,7 +302,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
             val loss = CallQuality.lossPercent(lost, pkts)
             quality.value = quality.value + (c.id to CallQuality.bars(loss, jitter, rtt)); qualityNumbers.value = qualityNumbers.value + (c.id to QualityNumbers(loss, jitter, rtt))
             val acc = store.account(c.accountID)
-            encryption.value = encryption.value + (c.id to if (f[4] == "1") (if (f[5] == "1") Security.DTLS else Security.SRTP) else if (acc?.media == Media.NONE) Security.NONE else Security.UNKNOWN)
+            encryption.value = encryption.value + (c.id to if (f.getOrNull(6) == "1") Security.ZRTP else if (f[4] == "1") (if (f[5] == "1") Security.DTLS else Security.SRTP) else if (acc?.media == Media.NONE || (acc?.media == Media.ZRTP && zrtp.value[c.id]?.state == 2)) Security.NONE else Security.UNKNOWN)
         }
     }
     fun switchTo(id: Int) { _calls.value.filter { it.id != id && it.active && it.id !in held.value }.forEach { toggleHold(it.id) }; if (id in held.value) toggleHold(id); currentId.value = id }

@@ -43,7 +43,7 @@ private val CallDanger = Color(0xFFE04646)
 @Composable
 fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimized: (Boolean) -> Unit, open: (Dest) -> Unit) {
     val app = LocalApp.current
-    val muted by engine.muted.collectAsState(); val held by engine.held.collectAsState(); val recording by engine.recording.collectAsState(); val transferNotes by engine.transferNote.collectAsState(); val consults by engine.consults.collectAsState(); val allCalls by engine.calls.collectAsState()
+    val muted by engine.muted.collectAsState(); val held by engine.held.collectAsState(); val recording by engine.recording.collectAsState(); val transferNotes by engine.transferNote.collectAsState(); val zrtpState by engine.zrtp.collectAsState(); val consults by engine.consults.collectAsState(); val allCalls by engine.calls.collectAsState()
     val quality by engine.quality.collectAsState(); val numbers by engine.qualityNumbers.collectAsState(); val enc by engine.encryption.collectAsState()
     val contacts by app.contacts.contacts.collectAsState()
     val routes by engine.routes.collectAsState()
@@ -81,6 +81,16 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
         if (live) when (enc[call.id]) {
             SipEngine.Security.SRTP -> Label(Icons.Filled.Lock, "Encrypted by SRTP", CallBrand)
             SipEngine.Security.DTLS -> Label(Icons.Filled.Lock, "Encrypted by DTLS-SRTP", CallBrand)
+            SipEngine.Security.ZRTP -> {
+                Label(Icons.Filled.Lock, "Encrypted by ZRTP", CallBrand)
+                zrtpState[call.id]?.let { z ->
+                    Text("Code: ${z.code}" + if (z.verified) "  ·  verified" else "", color = CallText, fontSize = 15.sp, modifier = Modifier.padding(top = 4.dp))
+                    if (z.cacheMismatch) Text("This is not the same secret as in earlier calls with this person. Read the code to each other; if it differs, hang up.", color = CallDanger, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 4.dp, start = 16.dp, end = 16.dp))
+                    if (!z.verified) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                        TextButton({ engine.zrtpVerified(call.id, true) }) { Text("Code matches") }
+                        TextButton({ engine.zrtpVerified(call.id, false) }) { Text("Doesn't match", color = CallDanger) } }
+                }
+            }
             SipEngine.Security.NONE -> Label(Icons.Filled.LockOpen, "Not encrypted", CallDanger)
             else -> {} }
         consults[call.id]?.let { original ->                       // an attended transfer: this call asks the new person, the caller is on hold

@@ -64,9 +64,9 @@ object Provisioning {
             val media = when (enc) {
                 "none" -> Media.NONE
                 "dtls" -> Media.SRTP_DTLS
+                "zrtp" -> Media.ZRTP
                 else -> Media.SRTP_SDES
             }
-            if (enc == "zrtp") notes.add("${ident.user}@${ident.domain} asks for ZRTP, which L1ne doesn't support; using SRTP instead.")
             val mandatory = sections["sip"]?.get("media_encryption_mandatory") ?: e["media_encryption_mandatory"] ?: "0"
             a = a.copy(media = media, mediaMandatory = mandatory == "1" || mandatory.equals("true", true))
             e["reg_expires"]?.toIntOrNull()?.takeIf { it >= 60 }?.let { a = a.copy(expires = it) }

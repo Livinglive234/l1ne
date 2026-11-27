@@ -43,6 +43,17 @@ static void send_call(pjsua_call_id id, const char *type) {
 /* A muted call must stay muted when PJSIP reports a state or media change (hold/resume, re-INVITE): the microphone is only reconnected for calls not muted. */
 static int g_muted[PJSUA_MAX_CALLS];
 static void mic_connect(pjsua_call_id call, int slot) { pjsua_conf_connect(slot, 0); if (call < 0 || call >= PJSUA_MAX_CALLS || !g_muted[call]) pjsua_conf_connect(0, slot); }
+/* ZRTP: "state|code|cacheMismatch|knownBefore|verified|failure" for a call, as it changes (see native/zrtp) */
+#include "l1ne_zrtp_tp.h"
+static char g_zrtp_path[512];
+static void zrtp_listener(void *u, int call, const l1ne_zrtp_info *i) {
+    (void)u; char s[64]; snprintf(s, sizeof s, "%d|%s|%d|%d|%d|%d", i->state, i->sas, i->cache_mismatch, i->known_before, i->verified, i->failure);
+    emit("zrtp", call, i->state, s, "");
+}
+JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nZrtpCache(JNIEnv *env, jclass c, jstring p) {
+    (void)c; const char *s = (*env)->GetStringUTFChars(env, p, NULL); strncpy(g_zrtp_path, s, sizeof g_zrtp_path - 1); (*env)->ReleaseStringUTFChars(env, p, s);
+}
+JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nZrtpVerified(JNIEnv *e, jclass c, jint call, jboolean on) { (void)e; (void)c; reg_thread(); l1ne_zrtp_call_verified(call, on ? 1 : 0); }
 static void on_incoming(pjsua_acc_id acc, pjsua_call_id call, pjsip_rx_data *rd) { (void)rd; (void)acc; if (call >= 0 && call < PJSUA_MAX_CALLS) g_muted[call] = 0; send_call(call, "incoming"); }
 static void on_call_state(pjsua_call_id call, pjsip_event *e) {
     (void)e; pjsua_call_info ci;
@@ -98,9 +109,10 @@ JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nInit(JNIEnv *env, jclas
     g_cls = (*env)->NewGlobalRef(env, cls);
     g_event = (*env)->GetStaticMethodID(env, cls, "onEvent", "(Ljava/lang/String;IILjava/lang/String;Ljava/lang/String;)V");
     pj_status_t st = pjsua_create(); if (st != PJ_SUCCESS) return st;
+    l1ne_zrtp_init(g_zrtp_path, zrtp_listener, NULL);
     pjsua_config cfg; pjsua_config_default(&cfg); cfg.max_calls = 4;
     cfg.cb.on_incoming_call = on_incoming; cfg.cb.on_call_state = on_call_state; cfg.cb.on_call_media_state = on_media_state;
-    cfg.cb.on_reg_state = on_reg_state; cfg.cb.on_mwi_info = on_mwi; cfg.cb.on_pager2 = on_pager; cfg.cb.on_pager_status2 = on_pager_status; cfg.cb.on_call_transfer_status = on_xfer_status;
+    cfg.cb.on_reg_state = on_reg_state; cfg.cb.on_mwi_info = on_mwi; cfg.cb.on_pager2 = on_pager; cfg.cb.on_pager_status2 = on_pager_status; cfg.cb.on_call_transfer_status = on_xfer_status; cfg.cb.on_create_media_transport = l1ne_zrtp_on_create_media_transport;
     pjsua_logging_config lc; pjsua_logging_config_default(&lc); lc.console_level = 0; lc.level = 5; lc.cb = log_cb;
     pjsua_media_config mc; pjsua_media_config_default(&mc); mc.snd_auto_close_time = 5;
     if ((st = pjsua_init(&cfg, &lc, &mc)) != PJ_SUCCESS) return st;
@@ -119,7 +131,7 @@ JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nInit(JNIEnv *env, jclas
     return 0;
 }
 
-/* srtp: 0 none, 1 SDES, 2 DTLS; mandatory 0/1 */
+/* srtp: 0 none, 1 SDES, 2 DTLS, 3 ZRTP; mandatory 0/1 */
 JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nAddAccount(JNIEnv *env, jclass c, jstring jid, jstring jreg, jstring jroute, jstring juser, jstring jpass,
         jint srtp, jboolean mandatory, jboolean secureSig, jint expires, jboolean mwi, jboolean ipv6, jstring jstun, jboolean ice, jboolean turn, jstring jtuser, jstring jtpass) {
     (void)c; reg_thread();
@@ -131,7 +143,7 @@ JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nAddAccount(JNIEnv *env,
     ac.reg_timeout = expires < 60 ? 60 : expires; ac.reg_retry_interval = 30; ac.mwi_enabled = mwi; ac.rtp_cfg.port = 0;
     ac.cred_count = 1; ac.cred_info[0].realm = pj_str("*"); ac.cred_info[0].scheme = pj_str("digest");
     ac.cred_info[0].username = pjdup(user); ac.cred_info[0].data_type = PJSIP_CRED_DATA_PLAIN_PASSWD; ac.cred_info[0].data = pjdup(pass);
-    if (srtp == 0) ac.use_srtp = PJMEDIA_SRTP_DISABLED;
+    if (srtp == 0 || srtp == 3) ac.use_srtp = PJMEDIA_SRTP_DISABLED;          /* ZRTP keys the media itself (native/zrtp), PJSIP's SRTP stays off */
     else { ac.use_srtp = mandatory ? PJMEDIA_SRTP_MANDATORY : PJMEDIA_SRTP_OPTIONAL; ac.srtp_secure_signaling = srtp == 1 ? (secureSig ? 1 : 0) : 0;
            ac.srtp_opt.keying_count = 1; ac.srtp_opt.keying[0] = srtp == 1 ? PJMEDIA_SRTP_KEYING_SDES : PJMEDIA_SRTP_KEYING_DTLS_SRTP; }
     ac.ipv6_sip_use = ac.ipv6_media_use = ipv6 ? PJSUA_IPV6_ENABLED_PREFER_IPV4 : PJSUA_IPV6_DISABLED;
@@ -153,6 +165,7 @@ JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nAddAccount(JNIEnv *env,
     pj_status_t st = pjsua_acc_get_count() >= PJSUA_MAX_ACC ? PJ_ETOOMANY : pjsua_acc_add(&ac, PJ_TRUE, &out);
     (*env)->ReleaseStringUTFChars(env, jid, id); (*env)->ReleaseStringUTFChars(env, jreg, reg); (*env)->ReleaseStringUTFChars(env, jroute, route);
     (*env)->ReleaseStringUTFChars(env, juser, user); (*env)->ReleaseStringUTFChars(env, jpass, pass);
+    if (st == PJ_SUCCESS) l1ne_zrtp_set_account_mode(out, srtp == 3 ? (mandatory ? 2 : 1) : 0);
     return st == PJ_SUCCESS ? out : -st;
 }
 JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nDelAccount(JNIEnv *e, jclass c, jint acc) { (void)e; (void)c; reg_thread(); pjsua_acc_del(acc); }
@@ -222,11 +235,11 @@ JNIEXPORT jboolean JNICALL Java_com_livenet_l1ne_sip_Native_nXfer(JNIEnv *env, j
 /* "lossPackets|rxPackets|rttMs|jitterMs|srtp|dtls" */
 JNIEXPORT jstring JNICALL Java_com_livenet_l1ne_sip_Native_nStats(JNIEnv *env, jclass cls, jint call) {
     (void)cls; reg_thread(); pjsua_stream_stat st; pjsua_stream_info si; char out[256]; out[0] = 0;
-    int srtp = 0, dtls = 0;
+    int srtp = 0, dtls = 0, zrtp = 0; l1ne_zrtp_info zi; if (l1ne_zrtp_call_info(call, &zi) && zi.state == 1) zrtp = 1;
     if (pjsua_call_get_stream_info(call, 0, &si) == PJ_SUCCESS && si.type == PJMEDIA_TYPE_AUDIO) {
         srtp = (si.info.aud.proto & PJMEDIA_TP_PROFILE_SRTP) != 0; dtls = (si.info.aud.proto & PJMEDIA_TP_PROTO_DTLS) != 0; }
     if (pjsua_call_get_stream_stat(call, 0, &st) == PJ_SUCCESS)
-        snprintf(out, sizeof out, "%u|%u|%u|%u|%d|%d", st.rtcp.rx.loss, st.rtcp.rx.pkt, (unsigned)(st.rtcp.rtt.last / 1000), (unsigned)(st.rtcp.rx.jitter.mean / 1000), srtp, dtls);
+        snprintf(out, sizeof out, "%u|%u|%u|%u|%d|%d|%d", st.rtcp.rx.loss, st.rtcp.rx.pkt, (unsigned)(st.rtcp.rtt.last / 1000), (unsigned)(st.rtcp.rx.jitter.mean / 1000), srtp || zrtp, dtls, zrtp);
     return (*env)->NewStringUTF(env, out);
 }
 JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nEarlyMedia(JNIEnv *e, jclass c, jboolean on) { (void)e; (void)c; g_accept_early = on; }
