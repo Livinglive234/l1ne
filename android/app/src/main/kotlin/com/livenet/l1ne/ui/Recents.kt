@@ -31,10 +31,10 @@ fun RecentsScreen(open: (Dest) -> Unit) {
     var search by remember { mutableStateOf("") }
     var menu by remember { mutableStateOf(false) }
     var confirm by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf<CallRecord?>(null) }
 
-    fun nameOf(r: CallRecord): String { val p = r.peer.split("@"); return app.contacts.name(p[0], p.getOrNull(1)) ?: com.livenet.l1ne.core.PhoneFormat.pretty(p[0]) }
-    val shown = records.filter { (!missedOnly || it.direction == Direction.MISSED) && (search.isEmpty() || nameOf(it).contains(search, true) || it.peer.contains(search, true)) }
+    fun nameOf(r: CallRecord): String = app.contacts.nameOrNumber(r.peer)
+    // `contacts` (collected above) is what makes the names refresh; the list is only rebuilt when something it depends on changes
+    val shown = remember(records, contacts, search, missedOnly) { records.filter { (!missedOnly || it.direction == Direction.MISSED) && (search.isEmpty() || nameOf(it).contains(search, true) || it.peer.contains(search, true)) } }
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -51,10 +51,7 @@ fun RecentsScreen(open: (Dest) -> Unit) {
             }
         }
         if (shown.isEmpty()) {
-            Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Icon(Icons.Filled.History, null, Modifier.size(56.dp), tint = L1neColors.Muted)
-                Spacer(Modifier.height(12.dp)); Text(if (missedOnly) "No missed calls" else "No recent calls", style = MaterialTheme.typography.titleLarge)
-            }
+            EmptyState(Icons.Filled.History, if (missedOnly) "No missed calls" else "No recent calls", modifier = Modifier.fillMaxSize())
         } else LazyColumn(Modifier.fillMaxSize()) {
             items(shown, key = { it.id }) { r ->
                 SwipeToDelete({ app.callLog.delete(r.id) }) {
@@ -79,12 +76,10 @@ fun RecentsScreen(open: (Dest) -> Unit) {
     }
     if (confirm) AlertDialog({ confirm = false }, title = { Text("Delete all recent calls?") }, containerColor = L1neColors.SheetBg,
         confirmButton = { TextButton({ app.callLog.removeAll(); confirm = false }) { Text("Delete all", color = L1neColors.Danger) } }, dismissButton = { TextButton({ confirm = false }) { Text("Cancel") } })
-    deleting?.let { r -> AlertDialog({ deleting = null }, title = { Text("Delete this call?") }, containerColor = L1neColors.SheetBg,
-        confirmButton = { TextButton({ app.callLog.delete(r.id); deleting = null }) { Text("Delete", color = L1neColors.Danger) } }, dismissButton = { TextButton({ deleting = null }) { Text("Cancel") } }) }
 }
 
 fun callBack(app: com.livenet.l1ne.L1neApplication, r: CallRecord) {
-    val acc = r.accountID?.let { id -> app.store.accounts.value.firstOrNull { it.id == id } }
+    val acc = app.store.account(r.accountID)
     app.engine.call(r.peer.substringBefore('@'), acc)
 }
 

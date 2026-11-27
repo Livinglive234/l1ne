@@ -25,6 +25,8 @@ class AccountStore(context: Context) {
     private val _selectedId = MutableStateFlow(prefs.getString("selected", null))
     val selectedId: StateFlow<String?> = _selectedId
     /** The account that dials and whose initials show on the avatar. Falls back to the first account. */
+    /** The account with this id, or null (also for a null id). */
+    fun account(id: String?): Account? = _accounts.value.firstOrNull { it.id == id }
     val selected: Account? get() = _accounts.value.firstOrNull { it.id == _selectedId.value } ?: _accounts.value.firstOrNull()
     fun select(id: String) { _selectedId.value = id; prefs.edit().putString("selected", id).apply() }
 
@@ -55,8 +57,7 @@ class AccountStore(context: Context) {
         if (secret != null) putSecret(a.id, secret)
     }
 
-    fun putSecretPublic(name: String, v: String) = putSecret(name, v)
-    private fun putSecret(name: String, v: String) {
+    fun putSecret(name: String, v: String) {
         val c = Cipher.getInstance("AES/GCM/NoPadding"); c.init(Cipher.ENCRYPT_MODE, key())
         prefs.edit().putString("secret.$name", Base64.encodeToString(c.iv + c.doFinal(v.toByteArray()), Base64.NO_WRAP)).apply()
     }

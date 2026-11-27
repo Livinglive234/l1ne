@@ -29,6 +29,5 @@ class KeepAliveService : Service() {
         fun start(ctx: Context) { runCatching { ctx.startForegroundService(Intent(ctx, KeepAliveService::class.java)) } }
         fun stop(ctx: Context) { ctx.stopService(Intent(ctx, KeepAliveService::class.java)) }
         /** Refresh the notification (a call began or ended). */
-        fun refresh(ctx: Context) { start(ctx) }
     }
 }

@@ -53,15 +53,13 @@ fun WarningBanner(text: String, dismiss: (() -> Unit)? = null) {
 @Composable
 fun ConversationsScreen(open: (Dest) -> Unit) {
     val app = LocalApp.current
-    val convs by app.messages.conversations.collectAsState(); val accounts by app.store.accounts.collectAsState(); val unsupported by app.engine.messagingNote.collectAsState()
+    val convs by app.messages.conversations.collectAsState(); val accounts by app.store.accounts.collectAsState();
     Box(Modifier.fillMaxSize()) {
-        if (convs.isEmpty()) Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Icon(Icons.AutoMirrored.Filled.Chat, null, Modifier.size(56.dp), tint = L1neColors.Muted); Spacer(Modifier.height(12.dp))
-            Text("No chats", style = MaterialTheme.typography.titleLarge); Text("Texts need a server that supports SIP messages.", color = L1neColors.Muted, modifier = Modifier.padding(top = 8.dp))
-        } else LazyColumn(Modifier.fillMaxSize()) {
+        if (convs.isEmpty()) EmptyState(Icons.AutoMirrored.Filled.Chat, "No chats", "Texts need a server that supports SIP messages.")
+        else LazyColumn(Modifier.fillMaxSize()) {
             items(convs, key = { it.id }) { c ->
                 SwipeToDelete({ app.messages.delete(listOf(c.id)) }) {
-                val name = app.contacts.name(c.user, c.peer.substringAfter('@', "")) ?: com.livenet.l1ne.core.PhoneFormat.pretty(c.user)
+                val name = app.contacts.nameOrNumber(c.peer)
                 Row(Modifier.fillMaxWidth().clickable { open(Dest.Thread(c.accountID, c.peer)) }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Avatar(48.dp, initialsOf(name), L1neColors.Brand.copy(alpha = 0.14f)); Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
@@ -86,7 +84,7 @@ fun ThreadScreen(accountID: String, peer: String, open: (Dest) -> Unit, onBack: 
     val convs by app.messages.conversations.collectAsState(); val accounts by app.store.accounts.collectAsState()
     val conv = convs.firstOrNull { it.id == Conversation.key(accountID, peer) }
     val account = accounts.firstOrNull { it.id == accountID }
-    val user = peer.substringBefore('@'); val name = app.contacts.name(user, peer.substringAfter('@', "")) ?: com.livenet.l1ne.core.PhoneFormat.pretty(user)
+    val user = peer.substringBefore('@'); val name = app.contacts.nameOrNumber(peer)
     var text by remember { mutableStateOf("") }
     var dismissed by remember { mutableStateOf(false) }
     val own = MessagingWarnings.ownLine(app, peer, accountID)

@@ -19,14 +19,16 @@ object SipLog {
     private const val MAX_ENTRIES = 2500
     private const val MAX_ENTRY_CHARS = 6000
     private val entries = ArrayDeque<String>()
+    /** Goes up with every change, so a screen can tell whether anything is new without building the text (the count stops moving at the cap). */
+    @Volatile var generation = 0; private set
 
     @Synchronized fun add(raw: String) {
         if (raw.isBlank()) return
         val clean = LogRedactor.clean(raw.trimEnd()).let { if (it.length > MAX_ENTRY_CHARS) it.take(MAX_ENTRY_CHARS) + " …" else it }
-        entries.addLast(clean)
+        entries.addLast(clean); generation++
         while (entries.size > MAX_ENTRIES) entries.removeFirst()
     }
     @Synchronized fun text(lastEntries: Int = MAX_ENTRIES): String = entries.toList().takeLast(lastEntries).joinToString("\n")
     @Synchronized fun count(): Int = entries.size
-    @Synchronized fun clear() = entries.clear()
+    @Synchronized fun clear() { entries.clear(); generation++ }
 }

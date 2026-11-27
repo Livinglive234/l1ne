@@ -38,7 +38,6 @@ sealed interface Dest {
     data object AdvancedCalls : Dest
     data object SipLog : Dest
     data object ContactsSync : Dest
-    data object Voicemail : Dest
 }
 
 @Composable
@@ -100,6 +99,10 @@ fun NavRow(title: String, value: String? = null, icon: ImageVector? = null, dang
 
 @Composable fun RowDivider() = HorizontalDivider(Modifier.padding(start = 16.dp), color = L1neColors.Border)
 
+/** Who a call is with: the contact's name, else what the caller sent as their name, else the number. */
+fun com.livenet.l1ne.data.ContactsStore.nameFor(call: com.livenet.l1ne.sip.CallInfo): String =
+    name(call.number, call.peerAddress.substringAfter('@', "")) ?: call.sentName
+
 /** Names the account only when there is more than one, so a single-account phone never sees "which line" labels. */
 fun accountTitle(accounts: List<CoreAccount>, id: String?) = if (accounts.size > 1) accounts.firstOrNull { it.id == id }?.title else null
 
@@ -113,4 +116,15 @@ fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit) {
             Icon(Icons.Filled.Delete, "Delete", tint = androidx.compose.ui.graphics.Color.White)
         }
     }) { Box(Modifier.background(L1neColors.Bg)) { content() } }
+}
+
+/** The picture, title and optional line shown where a list is empty. */
+@Composable
+fun EmptyState(icon: ImageVector, title: String, body: String? = null, modifier: Modifier = Modifier.fillMaxSize().padding(32.dp)) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Icon(icon, null, Modifier.size(56.dp), tint = L1neColors.Muted)
+        Spacer(Modifier.height(12.dp))
+        Text(title, style = MaterialTheme.typography.titleLarge)
+        body?.let { Text(it, color = L1neColors.Muted, modifier = Modifier.padding(top = 8.dp)) }
+    }
 }

@@ -66,8 +66,10 @@ fun ContactsScreen(open: (Dest) -> Unit) {
         }
     }
 
-    val filtered = contacts.filter { search.isEmpty() || it.name.contains(search, true) || it.address.contains(search, true) }
-    val grouped = filtered.groupBy { it.name.firstOrNull()?.takeIf { c -> c.isLetter() }?.uppercase() ?: "#" }.toSortedMap()
+    val grouped = remember(contacts, search) {
+        contacts.filter { search.isEmpty() || it.name.contains(search, true) || it.address.contains(search, true) }
+            .groupBy { it.name.firstOrNull()?.takeIf { c -> c.isLetter() }?.uppercase() ?: "#" }.toSortedMap()
+    }
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -85,22 +87,19 @@ fun ContactsScreen(open: (Dest) -> Unit) {
                 }
             }
         }
-        if (contacts.isEmpty()) Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Icon(Icons.Filled.People, null, Modifier.size(56.dp), tint = L1neColors.Muted); Spacer(Modifier.height(12.dp))
-            Text("No contacts", style = MaterialTheme.typography.titleLarge)
-            Text("Pick contacts that have a SIP address, import a vCard, or add one by hand. L1ne never reads your phone's contacts on its own.", color = L1neColors.Muted, modifier = Modifier.padding(top = 8.dp))
-        } else LazyColumn(Modifier.fillMaxSize()) {
+        if (contacts.isEmpty()) EmptyState(Icons.Filled.People, "No contacts", "Pick contacts that have a SIP address, import a vCard, or add one by hand. L1ne never reads your phone's contacts on its own.")
+        else LazyColumn(Modifier.fillMaxSize()) {
             grouped.forEach { (letter, items) ->
                 item(key = "h$letter") { Text(letter, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), color = L1neColors.Brand, fontWeight = FontWeight.SemiBold) }
                 items(items, key = { it.id }) { c ->
                     SwipeToDelete({ app.contacts.remove(c.id) }) {
                     Row(Modifier.fillMaxWidth().clickable { open(Dest.Person(PersonTarget(c.name, c.address, c.accountID))) }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Avatar(48.dp, initialsOf(c.name).ifEmpty { "" }, L1neColors.Brand.copy(alpha = 0.14f)); Spacer(Modifier.width(14.dp))
+                        Avatar(48.dp, initialsOf(c.name), L1neColors.Brand.copy(alpha = 0.14f)); Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
                             Text(c.name, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(c.address, style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        CallCircleButton { app.engine.call(c.user, c.accountID?.let { id -> app.store.accounts.value.firstOrNull { it.id == id } } ?: app.store.selected) }
+                        CallCircleButton { app.engine.call(c.user, app.store.account(c.accountID) ?: app.store.selected) }
                     }
                     RowDivider()
                     }
@@ -197,10 +196,8 @@ private fun Action(icon: androidx.compose.ui.graphics.vector.ImageVector, label:
 fun VoicemailScreen() {
     val app = LocalApp.current; val accounts by app.store.accounts.collectAsState(); val counts by app.engine.voicemail.collectAsState()
     val list = accounts.filter { it.voicemailTarget != null }
-    if (list.isEmpty()) Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Icon(Icons.Filled.Voicemail, null, Modifier.size(56.dp), tint = L1neColors.Muted); Spacer(Modifier.height(12.dp)); Text("No voicemail", style = MaterialTheme.typography.titleLarge)
-        Text("Add an account to check its voicemail.", color = L1neColors.Muted, modifier = Modifier.padding(top = 8.dp))
-    } else LazyColumn(Modifier.fillMaxSize()) {
+    if (list.isEmpty()) EmptyState(Icons.Filled.Voicemail, "No voicemail", "Add an account to check its voicemail.")
+    else LazyColumn(Modifier.fillMaxSize()) {
         items(list, key = { it.id }) { a ->
             val n = counts[a.id] ?: 0
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {

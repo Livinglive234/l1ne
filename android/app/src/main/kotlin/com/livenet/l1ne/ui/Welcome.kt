@@ -212,8 +212,9 @@ suspend fun verifyLogin(engine: com.livenet.l1ne.sip.SipEngine, a: Account, pass
 }
 
 /** Plain words for the usual ways a first login goes wrong. */
+private val STATUS_CODE = Regex("""\b(\d{3})\b""")
 internal fun explainRegistration(status: String): String {
-    val code = Regex("""\b(\d{3})\b""").find(status)?.value?.toIntOrNull() ?: 0
+    val code = STATUS_CODE.find(status)?.value?.toIntOrNull() ?: 0
     return when (code) {
         401, 403 -> "The PBX refused that username or password. Check them and try again."
         404 -> "The PBX doesn't know that username or extension."

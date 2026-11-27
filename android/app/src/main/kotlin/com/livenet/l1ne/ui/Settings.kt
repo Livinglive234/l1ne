@@ -137,7 +137,14 @@ fun SipLogScreen(onBack: () -> Unit) {
     val ctx = LocalContext.current
     var text by remember { mutableStateOf(com.livenet.l1ne.core.SipLog.text(400)) }
     var entries by remember { mutableIntStateOf(com.livenet.l1ne.core.SipLog.count()) }
-    LaunchedEffect(Unit) { while (true) { text = com.livenet.l1ne.core.SipLog.text(400); entries = com.livenet.l1ne.core.SipLog.count(); kotlinx.coroutines.delay(1000) } }
+    var seen by remember { mutableIntStateOf(com.livenet.l1ne.core.SipLog.generation) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            val now = com.livenet.l1ne.core.SipLog.generation
+            if (now != seen) { seen = now; text = com.livenet.l1ne.core.SipLog.text(400); entries = com.livenet.l1ne.core.SipLog.count() }       // nothing is rebuilt while nothing is new
+            kotlinx.coroutines.delay(1000)
+        }
+    }
     val scroll = rememberScrollState()
     LaunchedEffect(text) { scroll.scrollTo(scroll.maxValue) }          // follow the newest lines
     PageScaffold("SIP log", onBack, actions = {
@@ -146,7 +153,7 @@ fun SipLogScreen(onBack: () -> Unit) {
             android.widget.Toast.makeText(ctx, "Copied", android.widget.Toast.LENGTH_SHORT).show() }) { Icon(Icons.Filled.ContentCopy, "Copy") }
         IconButton({ val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, com.livenet.l1ne.core.SipLog.text())
             ctx.startActivity(android.content.Intent.createChooser(send, "Share SIP log")) }) { Icon(Icons.Filled.Share, "Share") }
-        IconButton({ com.livenet.l1ne.core.SipLog.clear(); text = ""; entries = 0 }) { Icon(Icons.Filled.Delete, "Clear") }
+        IconButton({ com.livenet.l1ne.core.SipLog.clear(); text = ""; entries = 0; seen = com.livenet.l1ne.core.SipLog.generation }) { Icon(Icons.Filled.Delete, "Clear") }
     }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
             Text("Contains phone numbers and server names. Passwords and encryption keys are removed. $entries entries, kept only while L1ne is open.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -205,10 +212,8 @@ private fun RecordingsScreen(onBack: () -> Unit) {
     DisposableEffect(Unit) { onDispose { player?.release() } }
     BackHandler(onBack = onBack)
     PageScaffold("Recordings", onBack) { pad ->
-        if (files.isEmpty()) Column(Modifier.padding(pad).fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Icon(Icons.Filled.GraphicEq, null, Modifier.size(56.dp), tint = L1neColors.Muted); Spacer(Modifier.height(12.dp)); Text("No recordings", style = MaterialTheme.typography.titleLarge)
-            Text("Record a call with the Record button while you're on it, or turn on automatic recording in Settings. Check your local laws about telling people you record.", color = L1neColors.Muted, modifier = Modifier.padding(top = 8.dp))
-        } else Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState())) {
+        if (files.isEmpty()) EmptyState(Icons.Filled.GraphicEq, "No recordings", "Record a call with the Record button while you're on it, or turn on automatic recording in Settings. Check your local laws about telling people you record.", Modifier.padding(pad).fillMaxSize().padding(32.dp))
+        else Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState())) {
             files.forEach { f ->
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton({ if (playing == f) { player?.stop(); player?.release(); player = null; playing = null } else { player?.release(); player = MediaPlayer().apply { setDataSource(f.path); prepare(); start(); setOnCompletionListener { playing = null } }; playing = f } }) {
@@ -264,7 +269,7 @@ private val countries = listOf("United States / Canada" to "1", "United Kingdom"
 @Composable
 fun AccountEditorScreen(id: String?, onSubmit: ((Account, String) -> Unit)? = null, onBack: () -> Unit) {
     val app = LocalApp.current; val ctx = LocalContext.current
-    val existing = id?.let { i -> app.store.accounts.value.firstOrNull { it.id == i } }
+    val existing = app.store.account(id)
     val isNew = existing == null
     var a by remember { mutableStateOf(existing ?: Account()) }
     var secret by remember { mutableStateOf("") }; var turnSecret by remember { mutableStateOf("") }
@@ -362,7 +367,6 @@ fun LinkDialog(initial: String?, autoScan: Boolean = false, onClose: () -> Unit)
     var text by remember { mutableStateOf(initial ?: "") }; var busy by remember { mutableStateOf(false) }; var scanning by remember { mutableStateOf(autoScan) }; var error by remember { mutableStateOf<String?>(null) }
     var result by remember { mutableStateOf<com.livenet.l1ne.core.Provisioning.Result?>(null) }
     var picked by remember { mutableStateOf(setOf<String>()) }; var importContacts by remember { mutableStateOf(true) }; var secrets by remember { mutableStateOf(mapOf<String, String>()) }
-    var interval by remember { mutableStateOf(com.livenet.l1ne.data.SyncInterval.ON_OPEN) }
     var checking by remember { mutableStateOf(false) }; var failures by remember { mutableStateOf(mapOf<String, String>()) }       // the PBX is being asked; why an account couldn't sign in
     fun fetch(raw: String) {
         val url = com.livenet.l1ne.core.Provisioning.configUrl(raw) ?: run { error = "That isn't an https configuration link."; return }
@@ -407,7 +411,7 @@ fun LinkDialog(initial: String?, autoScan: Boolean = false, onClose: () -> Unit)
                 for (p in chosen) { var acc = p.account; if (r.contactsUrl != null && importContacts && (!p.pushOnly || !r.hasOtherThanPushOnly)) acc = acc.copy(contactsUrl = r.contactsUrl!!)
                     app.store.save(acc, secretOf(p)); if (first == null && (!p.pushOnly || !r.hasOtherThanPushOnly)) first = acc }       // already registered by the check above
                 if (importContacts && !app.directories.directoryEnabled && r.contactsUrl != null) (first ?: app.store.selected)?.let { acc ->
-                    val link = com.livenet.l1ne.data.DirectorySource(kind = com.livenet.l1ne.data.DirKind.VCARD_LINK, name = "PBX contacts", url = r.contactsUrl!!, interval = interval, accountID = acc.id)
+                    val link = com.livenet.l1ne.data.DirectorySource(kind = com.livenet.l1ne.data.DirKind.VCARD_LINK, name = "PBX contacts", url = r.contactsUrl!!, interval = com.livenet.l1ne.data.SyncInterval.ON_OPEN, accountID = acc.id)
                     app.directories.save(link, null); scope.launch { app.dirSync.sync(link.id) } }
                 onClose()
             }

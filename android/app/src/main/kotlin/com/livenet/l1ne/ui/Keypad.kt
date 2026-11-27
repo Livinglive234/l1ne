@@ -25,12 +25,13 @@ import java.text.Normalizer
 
 /** Phone-keypad letters, so "5673" finds "Jordan". */
 object T9 {
+    private val WORD_BREAK = Regex("[^\\p{L}\\p{N}]+")
     private val map: Map<Char, Char> = buildMap { mapOf('2' to "abc", '3' to "def", '4' to "ghi", '5' to "jkl", '6' to "mno", '7' to "pqrs", '8' to "tuv", '9' to "wxyz").forEach { (d, ls) -> ls.forEach { put(it, d) } } }
     fun digits(text: String): String = Normalizer.normalize(text.lowercase(), Normalizer.Form.NFD).mapNotNull { c -> if (c.isDigit()) c else map[c] }.joinToString("")
     /** True when the typed digits start a word of the name, the whole name, or the extension. */
     fun matches(typed: String, name: String, address: String): Boolean {
         if (typed.isEmpty() || !typed.all { it.isDigit() }) return false
-        if (name.split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }.any { digits(it).startsWith(typed) }) return true
+        if (name.split(WORD_BREAK).filter { it.isNotEmpty() }.any { digits(it).startsWith(typed) }) return true
         if (digits(name.filter { it.isLetterOrDigit() }).startsWith(typed)) return true
         return address.substringBefore('@').startsWith(typed)
     }
@@ -49,7 +50,7 @@ fun KeypadScreen(open: (Dest) -> Unit, wide: Boolean = false) {
     LaunchedEffect(pending) { pending?.let { number = it; app.pendingDial.value = null } }
     var lineMenu by remember { mutableStateOf(false) }
     val account = app.store.selected
-    val matches = contacts.filter { T9.matches(number, it.name, it.address) }
+    val matches = remember(contacts, number) { contacts.filter { T9.matches(number, it.name, it.address) } }       // normalising every name is not done again for unrelated redraws
     val suggestions = if (wide) emptyList() else matches.take(2)       // wide: the matches are listed beside the keys instead
     val records by app.callLog.records.collectAsState()
     val keys = listOf(listOf("1" to "", "2" to "ABC", "3" to "DEF"), listOf("4" to "GHI", "5" to "JKL", "6" to "MNO"), listOf("7" to "PQRS", "8" to "TUV", "9" to "WXYZ"), listOf("*" to "", "0" to "+", "#" to ""))
@@ -129,7 +130,7 @@ fun KeypadScreen(open: (Dest) -> Unit, wide: Boolean = false) {
             item { Text(if (number.isEmpty()) "Recent calls" else "Matching contacts", Modifier.padding(horizontal = 20.dp, vertical = 12.dp), color = L1neColors.Muted, style = MaterialTheme.typography.titleSmall) }
             if (number.isEmpty()) {
                 items(records.take(20), key = { it.id }) { r ->
-                    val p = r.peer.split("@"); val name = app.contacts.name(p[0], p.getOrNull(1)) ?: com.livenet.l1ne.core.PhoneFormat.pretty(p[0])
+                    val name = app.contacts.nameOrNumber(r.peer)
                     Row(Modifier.fillMaxWidth().clickable { fill(r.peer) }.padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) { Text(name, fontWeight = FontWeight.Medium, maxLines = 1); Text(r.peer, style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted, maxLines = 1) }
                         CallCircleButton { callBack(app, r) }

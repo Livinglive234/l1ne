@@ -39,7 +39,7 @@ class DirectoryStore(context: Context, private val secrets: AccountStore) {
     private val _sources = MutableStateFlow(load()); val sources: StateFlow<List<DirectorySource>> = _sources
     val directoryEnabled get() = _sources.value.any { it.enabled && it.isDirectory }
     fun password(id: String) = secrets.secret("dir.$id")
-    fun save(s: DirectorySource, password: String?) { val l = _sources.value.toMutableList(); val i = l.indexOfFirst { it.id == s.id }; if (i >= 0) l[i] = s else l.add(s); _sources.value = l; persist(); if (password != null) secrets.putSecretPublic("dir.${s.id}", password) }
+    fun save(s: DirectorySource, password: String?) { val l = _sources.value.toMutableList(); val i = l.indexOfFirst { it.id == s.id }; if (i >= 0) l[i] = s else l.add(s); _sources.value = l; persist(); if (password != null) secrets.putSecret("dir.${s.id}", password) }
     fun update(id: String, f: (DirectorySource) -> DirectorySource) { _sources.value = _sources.value.map { if (it.id == id) f(it) else it }; persist() }
     fun remove(id: String) { _sources.value = _sources.value.filter { it.id != id }; persist() }
     private fun persist() = prefs.edit().putString("list", JSONArray(_sources.value.map { s -> JSONObject().put("id", s.id).put("kind", s.kind.name).put("name", s.name).put("enabled", s.enabled).put("interval", s.interval.name)
@@ -115,7 +115,7 @@ class DirectorySync(private val dirs: DirectoryStore, private val contacts: Cont
     }
 
     private fun ldap(s: DirectorySource, password: String): VCard.Result {
-        val domain = (s.accountID?.let { id -> accounts.accounts.value.firstOrNull { it.id == id } } ?: accounts.selected)?.domain?.lowercase() ?: ""
+        val domain = (accounts.account(s.accountID) ?: accounts.selected)?.domain?.lowercase() ?: ""
         val util = SSLUtil(); val conn = when (s.security) {
             LdapSecurity.LDAPS -> LDAPConnection(util.createSSLSocketFactory(), s.host, s.port)
             LdapSecurity.STARTTLS -> LDAPConnection(s.host, s.port).also { it.processExtendedOperation(com.unboundid.ldap.sdk.extensions.StartTLSExtendedRequest(util.createSSLContext())) }

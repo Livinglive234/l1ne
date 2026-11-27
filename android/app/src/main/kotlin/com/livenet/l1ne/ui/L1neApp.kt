@@ -162,7 +162,6 @@ private fun MainTabs() {
                 Dest.AdvancedCalls -> AdvancedCallsScreen(::back)
                 Dest.SipLog -> SipLogScreen(::back)
                 Dest.ContactsSync -> ContactsSyncScreen(::back)
-                Dest.Voicemail -> VoicemailScreen()
             }
           } }
         }

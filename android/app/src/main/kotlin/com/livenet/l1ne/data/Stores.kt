@@ -87,6 +87,12 @@ class ContactsStore(context: Context) {
     fun remove(id: String) = commit(_contacts.value.filter { it.id != id })
     fun removeAll() = commit(emptyList())
 
+    /** What to show for a "user@domain" peer: the contact's name, else the number nicely formatted. */
+    fun nameOrNumber(address: String): String {
+        val user = address.substringBefore('@')
+        return name(user, address.substringAfter('@', "").ifEmpty { null }) ?: com.livenet.l1ne.core.PhoneFormat.pretty(user)
+    }
+
     /** Who a call was with: same extension on the same server; the same extension anywhere (if only one contact has it); a number by its last ten digits. */
     fun name(rawUser: String, rawDomain: String? = null): String? {
         val user = rawUser.lowercase().removePrefix("sip:"); val domain = rawDomain?.lowercase()?.substringBefore(':')

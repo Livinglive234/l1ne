@@ -81,7 +81,7 @@ class L1neConnection(val callId: Int, private val app: L1neApplication) : Connec
     override fun onUnhold() { if (callId in engine.held.value) engine.toggleHold(callId) }
     override fun onPlayDtmfTone(c: Char) { engine.dtmf(callId, c.toString()) }
     override fun onShowIncomingCallUi() {
-        android.util.Log.i("L1neTelecom", "show incoming ui $callId"); CallNotifications.showIncoming(app, callId, app.engine.displayName(callId)) }
+        CallNotifications.showIncoming(app, callId, app.engine.displayName(callId)) }
     @Deprecated("Telecom still calls this on older Android versions")
     override fun onCallAudioStateChanged(state: CallAudioState?) { state?.let { app.telecom.routes.value = AudioRoutes(it.route, it.supportedRouteMask); app.engine.updateProximity() } }
 }
@@ -106,6 +106,7 @@ object CallNotifications {
     // changed once it exists, so each change of mind gets a new id and the old ones are deleted.
     private const val INCOMING = "l1ne_incoming_v3"; const val SERVICE = "l1ne_service"; private const val ID_INCOMING = 4001
 
+    /** Created once, when the app starts (L1neApplication), before any call or service notification can be shown. */
     fun channels(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java)
         nm.deleteNotificationChannel("l1ne_incoming"); nm.deleteNotificationChannel("l1ne_incoming_v2")
@@ -120,7 +121,6 @@ object CallNotifications {
         PendingIntent.getBroadcast(ctx, id * 10 + what.hashCode().and(7), Intent(ctx, CallActionReceiver::class.java).setAction(what).putExtra("call", id), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
     fun showIncoming(ctx: Context, callId: Int, name: String) {
-        channels(ctx)
         val open = PendingIntent.getActivity(ctx, 0, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE)
         val person = androidx.core.app.Person.Builder().setName(name).setImportant(true).apply { runCatching { setIcon(callerAvatar(name)) } }.build()
         val n = androidx.core.app.NotificationCompat.Builder(ctx, INCOMING).setSmallIcon(R.drawable.ic_stat_l1ne).setCategory(Notification.CATEGORY_CALL).setOngoing(true)
@@ -155,7 +155,6 @@ object CallNotifications {
     /** (androidx's CallStyle, not the framework's: android.app.Notification.CallStyle only exists from Android 12 and crashed every call on older phones.)
      *  The persistent notification of the service: "Connected" while idle, the call and a Hang up button during one. */
     fun service(ctx: Context, callName: String?, callId: Int?): Notification {
-        channels(ctx)
         val open = PendingIntent.getActivity(ctx, 1, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val b = androidx.core.app.NotificationCompat.Builder(ctx, SERVICE).setSmallIcon(R.drawable.ic_stat_l1ne).setContentIntent(open).setOngoing(true)
         return if (callName != null && callId != null)
