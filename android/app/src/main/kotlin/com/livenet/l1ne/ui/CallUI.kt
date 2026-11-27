@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -116,6 +117,7 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
     }
 
     if (routeMenu) ModalBottomSheet({ routeMenu = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = CallSheet) {
+            DarkSheetBars()
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             val ra = android.telecom.CallAudioState.ROUTE_EARPIECE; val rs = android.telecom.CallAudioState.ROUTE_SPEAKER; val rb = android.telecom.CallAudioState.ROUTE_BLUETOOTH; val rh = android.telecom.CallAudioState.ROUTE_WIRED_HEADSET
             if (routes.supported and ra != 0) MoreRow(Icons.Filled.PhoneInTalk, if (routes.active == ra) "Phone  ✓" else "Phone", true) { routeMenu = false; engine.setRoute(ra) }
@@ -126,6 +128,7 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
     }
     if (pad) DtmfScreen(call, engine) { pad = false }
     if (more) ModalBottomSheet({ more = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = CallSheet) {
+            DarkSheetBars()
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             MoreRow(Icons.AutoMirrored.Filled.PhoneForwarded, "Transfer…", live) { more = false; transfer = true }
             MoreRow(Icons.Filled.FiberManualRecord, if (call.id in recording) "Stop recording" else "Record call", live) { more = false; engine.toggleRecord(call.id) }
@@ -249,4 +252,20 @@ private fun cs(): Float {
     val h = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.toFloat()
     val cap = if (h > 1000f) 1.3f else 1f
     return minOf((h - 360f) / 340f, (h - 260f) / 488f).coerceIn(0.6f, cap)
+}
+
+/** The call sheets (More, audio route) open in their own window, which gets Android's default light navigation bar: a white strip under the
+ *  dark sheet. Paint that window's navigation bar the sheet's own colour and give it light icons. */
+@Composable
+private fun DarkSheetBars() {
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.SideEffect {
+        var v: android.view.View? = view; var window: android.view.Window? = null
+        while (v != null && window == null) { window = (v as? androidx.compose.ui.window.DialogWindowProvider)?.window; v = v.parent as? android.view.View }
+        window?.let { w ->
+            w.navigationBarColor = CallSheet.toArgb()
+            if (android.os.Build.VERSION.SDK_INT >= 29) w.isNavigationBarContrastEnforced = false
+            androidx.core.view.WindowCompat.getInsetsController(w, w.decorView).isAppearanceLightNavigationBars = false
+        }
+    }
 }
