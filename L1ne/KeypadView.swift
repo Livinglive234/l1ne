@@ -185,7 +185,7 @@ struct KeypadView: View {
 
     private func peerName(_ peer: String) -> String {
         let p = peer.split(separator: "@").map(String.init)
-        return contacts.name(forUser: p.first ?? peer, domain: p.count == 2 ? p[1] : nil) ?? (p.first ?? peer)
+        return contacts.name(forUser: p.first ?? peer, domain: p.count == 2 ? p[1] : nil) ?? PhoneFormat.pretty(p.first ?? peer)
     }
 
     private func dialString(address: String) -> String {

@@ -102,11 +102,20 @@ class L1neConnectionService : ConnectionService() {
 }
 
 object CallNotifications {
-    private const val INCOMING = "l1ne_incoming"; const val SERVICE = "l1ne_service"; private const val ID_INCOMING = 4001
+    // "_v2": a channel's sound and vibration can't be changed once it exists, and the first one had neither, so incoming calls moved to a new one.
+    private const val INCOMING = "l1ne_incoming_v2"; const val SERVICE = "l1ne_service"; private const val ID_INCOMING = 4001
+    private val RING_PATTERN = longArrayOf(0, 900, 700, 900, 700)
 
     fun channels(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(NotificationChannel(INCOMING, "Incoming calls", NotificationManager.IMPORTANCE_HIGH).apply { description = "Rings when someone calls you"; lockscreenVisibility = Notification.VISIBILITY_PUBLIC })
+        nm.deleteNotificationChannel("l1ne_incoming")
+        nm.createNotificationChannel(NotificationChannel(INCOMING, "Incoming calls", NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "Rings and vibrates when someone calls you"; lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            // the phone's ringtone, played as a ringtone (so the ringer volume and Do Not Disturb apply), with the vibration
+            setSound(android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE),
+                android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+            enableVibration(true); vibrationPattern = RING_PATTERN; setBypassDnd(false)
+        })
         nm.createNotificationChannel(NotificationChannel(SERVICE, "Connection", NotificationManager.IMPORTANCE_LOW).apply { description = "Keeps L1ne signed in so calls can reach you" })
     }
 
@@ -118,8 +127,11 @@ object CallNotifications {
         val open = PendingIntent.getActivity(ctx, 0, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE)
         val person = androidx.core.app.Person.Builder().setName(name).setImportant(true).apply { runCatching { setIcon(callerAvatar(name)) } }.build()
         val n = androidx.core.app.NotificationCompat.Builder(ctx, INCOMING).setSmallIcon(R.drawable.ic_stat_l1ne).setCategory(Notification.CATEGORY_CALL).setOngoing(true)
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_MAX).setVisibility(androidx.core.app.NotificationCompat.VISIBILITY_PUBLIC)
+            .setTimeoutAfter(60_000).setOnlyAlertOnce(false)
             .setFullScreenIntent(open, true).setContentIntent(open)
             .setStyle(androidx.core.app.NotificationCompat.CallStyle.forIncomingCall(person, action(ctx, "decline", callId), action(ctx, "answer", callId))).build()
+        n.flags = n.flags or Notification.FLAG_INSISTENT          // keep ringing and vibrating until the call is answered, declined or gone
         runCatching { NotificationManagerCompat.from(ctx).notify(ID_INCOMING, n) }
     }
     /** The round picture on the incoming-call banner: the caller's initials, or a plain person for a number, in L1ne's dark green.

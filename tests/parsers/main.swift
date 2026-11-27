@@ -13,6 +13,11 @@ check(v.entries.contains { $0.name == "FoldedName Person" && $0.address == "alic
 check(v.entries.contains { $0.name == "Jane Doe" && $0.address == "jane@example.org" }, "name from N when FN is missing, X-SIP, xmpp ignored")
 check(!v.entries.contains { $0.address.contains("+1612") }, "phone numbers are never imported")
 
+// phone numbers, for display
+check(PhoneFormat.pretty("6517604266") == "(651) 760-4266", "a bare US number is formatted")
+check(PhoneFormat.pretty("16517604266") == "(651) 760-4266" && PhoneFormat.pretty("+16517604266") == "(651) 760-4266", "+1 and 1 prefixes are dropped")
+check(["7001", "5550142", "(612) 354-0645", "Max Example", "+442071234567", "0123456789", "61235406451", ""].allSatisfy { PhoneFormat.pretty($0) == $0 }, "extensions, names, formatted and international numbers are left alone")
+
 // provisioning
 let r = try! Provisioning.parse(xml: try! Data(contentsOf: dir.appendingPathComponent("linphone-provision.xml")))
 check(r.accounts.count == 2, "both accounts are returned (got \(r.accounts.count))")

@@ -3,7 +3,7 @@ import SwiftUI
 @MainActor private func displayName(_ peer: String, contacts: ContactsStore) -> String {
     let p = peer.split(separator: "@").map(String.init)
     if let n = contacts.name(forUser: p.first ?? peer, domain: p.count == 2 ? p[1] : nil) { return n }
-    return p.first ?? peer
+    return PhoneFormat.pretty(p.first ?? peer)
 }
 
 struct ConversationsView: View {

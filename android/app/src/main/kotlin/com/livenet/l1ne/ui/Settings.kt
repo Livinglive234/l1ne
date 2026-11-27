@@ -62,10 +62,16 @@ fun SettingsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
             SectionHeader("Incoming calls")
             Card {
                 SwitchRow("Stay connected in the background", keepAlive, subtitle = "Shows a small notification so calls can ring when L1ne is closed") { s.keepAlive = it; if (it) com.livenet.l1ne.sip.KeepAliveService.start(ctx) else com.livenet.l1ne.sip.KeepAliveService.stop(ctx) }; RowDivider()
+                if (android.os.Build.VERSION.SDK_INT >= 34) {
+                    val nm = ctxPm.getSystemService(android.app.NotificationManager::class.java)
+                    NavRow("Show calls on the lock screen", if (nm.canUseFullScreenIntent()) "On" else "Off") {
+                        ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, android.net.Uri.parse("package:${ctx.packageName}"))) }
+                    RowDivider()
+                }
                 NavRow("Allow background activity", if (batteryOk) "On" else "Off", icon = Icons.Filled.BatteryChargingFull) {
                     ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, android.net.Uri.parse("package:${ctx.packageName}"))) }
             }
-            FooterText("Android pauses background apps to save battery. Turn on background activity so a call can wake L1ne when the phone has been idle.")
+            FooterText("Android pauses background apps to save battery. Turn on background activity so a call can wake L1ne when the phone has been idle. On Android 14 and later, \"Show calls on the lock screen\" must be on for an incoming call to light the screen and show Answer and Decline while the phone is locked.")
 
             SectionHeader("Network")
             Card { SwitchRow("Use only Wi-Fi networks", wifi) { s.wifiOnly = it; app.engine.registerAll() }; RowDivider(); SwitchRow("Allow IPv6", v6) { s.allowIPv6 = it } }

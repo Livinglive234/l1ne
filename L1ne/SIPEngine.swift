@@ -688,7 +688,7 @@ final class SIPEngine: ObservableObject {
             let p = addr.split(separator: "@").map(String.init)
             if let n = ContactsStore.shared.name(forUser: p[0], domain: p[1]) { return n }
         }
-        return displayName(from: remote)
+        return PhoneFormat.pretty(displayName(from: remote))
     }
 
     /// What to show while a call is being set up, instead of PJSIP's internal names ("EARLY", "CONNECTING"):
