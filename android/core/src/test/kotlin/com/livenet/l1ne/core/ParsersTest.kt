@@ -71,4 +71,10 @@ class ParsersTest {
         val z = parse("<entry name=\"media_encryption\">zrtp</entry>")
         assertEquals(Media.ZRTP, z.accounts.first().account.media); assertFalse(z.accounts.first().account.mediaMandatory); assertTrue(z.notes.none { "ZRTP" in it })
     }
+
+    @Test fun callerIdIsKeptOnlyWhenItIsAName() {
+        assertEquals("Ada Lovelace", SipAddress.callerIdName("\"Ada Lovelace\" <sip:6125550142@pbx.example.com>"))
+        assertEquals("", SipAddress.callerIdName("\"6125550142\" <sip:6125550142@pbx.example.com>")); assertEquals("", SipAddress.callerIdName("\"(612) 555-0142\" <sip:6125550142@pbx.example.com>"))
+        assertEquals("", SipAddress.callerIdName("<sip:7001@pbx.example.com>")); assertEquals("", SipAddress.callerIdName("sip:7001@pbx.example.com"))
+    }
 }

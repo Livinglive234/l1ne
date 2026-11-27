@@ -32,9 +32,12 @@ fun RecentsScreen(open: (Dest) -> Unit) {
     var menu by remember { mutableStateOf(false) }
     var confirm by remember { mutableStateOf(false) }
 
-    fun nameOf(r: CallRecord): String = app.contacts.nameOrNumber(r.peer)
+    /** A contact's name, else the name the caller sent (caller ID), else the number. The number goes underneath whenever the title is a name. */
+    fun userOf(r: CallRecord) = r.peer.substringBefore('@')
+    fun nameOf(r: CallRecord): String = app.contacts.name(userOf(r), r.peer.substringAfter('@', "")) ?: r.callerName.takeIf { it.isNotBlank() }?.let { com.livenet.l1ne.core.PhoneFormat.pretty(it) } ?: app.contacts.nameOrNumber(r.peer)
+    fun numberOf(r: CallRecord): String? = com.livenet.l1ne.core.PhoneFormat.pretty(userOf(r)).takeIf { it != nameOf(r) }
     // `contacts` (collected above) is what makes the names refresh; the list is only rebuilt when something it depends on changes
-    val shown = remember(records, contacts, search, missedOnly) { records.filter { (!missedOnly || it.direction == Direction.MISSED) && (search.isEmpty() || nameOf(it).contains(search, true) || it.peer.contains(search, true)) } }
+    val shown = remember(records, contacts, search, missedOnly) { records.filter { (!missedOnly || it.direction == Direction.MISSED) && (search.isEmpty() || nameOf(it).contains(search, true) || it.peer.contains(search, true) || it.callerName.contains(search, true)) } }
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -61,6 +64,7 @@ fun RecentsScreen(open: (Dest) -> Unit) {
                     Avatar(48.dp, initialsOf(name)); Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
                         Text(name, fontWeight = FontWeight.Medium, color = if (missed) L1neColors.Danger else L1neColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        numberOf(r)?.let { Text(it, color = L1neColors.Muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1) }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(if (r.direction == Direction.OUTGOING) Icons.AutoMirrored.Filled.CallMade else Icons.AutoMirrored.Filled.CallReceived, null, Modifier.size(13.dp), tint = L1neColors.Muted)
                             Spacer(Modifier.width(4.dp)); Text(whenText(r.date), color = L1neColors.Muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1)

@@ -41,6 +41,11 @@ check(!RingbackRule.wanted(outgoing: true, answered: true, waiting: true, accept
       && !RingbackRule.wanted(outgoing: true, answered: false, waiting: false, acceptEarlyMedia: false) && !RingbackRule.wanted(outgoing: true, answered: false, waiting: true, acceptEarlyMedia: true), "none once answered, for incoming calls, when not waiting, or when the PBX's early media is let through")
 
 
+// caller ID kept in the history
+check(PhoneFormat.callerIDName(remote: "\"Ada Lovelace\" <sip:6125550142@pbx.example.com>") == "Ada Lovelace", "a caller's name is kept")
+check(PhoneFormat.callerIDName(remote: "\"6125550142\" <sip:6125550142@pbx.example.com>") == "" && PhoneFormat.callerIDName(remote: "\"(612) 555-0142\" <sip:6125550142@pbx.example.com>") == "", "a name that is only the number again is not kept")
+check(PhoneFormat.callerIDName(remote: "<sip:7001@pbx.example.com>") == "" && PhoneFormat.callerIDName(remote: "sip:7001@pbx.example.com") == "", "no name, nothing kept")
+
 // version label
 check(VersionLabel.pretty("0.1.0-beta.9") == "0.1.0 beta 9" && VersionLabel.pretty("0.1.0-rc1") == "0.1.0 rc1" && VersionLabel.pretty("0.1.0") == "0.1.0" && VersionLabel.pretty("1.0") == "1.0", "a tag version reads naturally")
 

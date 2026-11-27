@@ -8,6 +8,7 @@ struct CallRecord: Codable, Identifiable, Equatable {
     var accountID: UUID?
     var direction: Direction
     var duration: Int             // seconds connected
+    var callerName: String?       // the name the caller sent (caller ID), kept so the history shows it with the number underneath
 }
 
 /// Call history, kept only on this phone.

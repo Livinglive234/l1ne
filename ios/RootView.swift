@@ -158,6 +158,7 @@ struct RecentsView: View {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(n).font(.body.weight(.medium))
                                         .foregroundStyle(r.direction == .missed ? Theme.danger : Theme.text).lineLimit(1)
+                                    if let num = numberUnder(r, title: n) { Text(num).font(.subheadline).foregroundStyle(Theme.muted).lineLimit(1) }
                                     HStack(spacing: 4) {
                                         Image(systemName: r.direction == .outgoing ? "arrow.up.right" : "arrow.down.left").font(.caption2.weight(.semibold))
                                         Text(whenText(r.date)).lineLimit(1)
@@ -230,7 +231,17 @@ struct RecentsView: View {
         return parts.joined(separator: " · ")
     }
 
-    private func name(_ r: CallRecord) -> String { contacts.displayName(forPeer: r.peer) }
+    /// A contact's name, else the name the caller sent (caller ID), else the number. The number goes underneath whenever the title is a name.
+    private func name(_ r: CallRecord) -> String {
+        let parts = r.peer.split(separator: "@", maxSplits: 1).map(String.init), user = parts.first ?? r.peer
+        if let c = contacts.name(forUser: user, domain: parts.count == 2 ? parts[1] : nil) { return c }
+        if let n = r.callerName, !n.isEmpty { return PhoneFormat.pretty(n) }
+        return PhoneFormat.pretty(user)
+    }
+    private func numberUnder(_ r: CallRecord, title: String) -> String? {
+        let p = PhoneFormat.pretty(r.peer.split(separator: "@", maxSplits: 1).first.map(String.init) ?? r.peer)
+        return p == title ? nil : p
+    }
 
     private func callBack(_ r: CallRecord) {
         guard let acc = store.dialAccount(r.accountID) else { return }

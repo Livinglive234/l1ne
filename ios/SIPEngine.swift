@@ -627,7 +627,8 @@ final class SIPEngine: ObservableObject {
                         return outgoing ? (accountForPJ[ci.acc_id].flatMap { AccountStore.shared.account($0) }?.withoutOutboundPrefix(p) ?? p) : p }(),
                 accountID: accountForPJ[ci.acc_id],
                 direction: outgoing ? .outgoing : (secs > 0 || byYou ? .incoming : .missed),          // declined by you is not a missed call
-                duration: secs))
+                duration: secs,
+                callerName: outgoing ? nil : PhoneFormat.callerIDName(remote: remote)))
             }
             if let rec = recorders.removeValue(forKey: call) { pjsua_recorder_destroy(rec) }
             recording.remove(call); muted.remove(call); held.remove(call)

@@ -17,6 +17,17 @@ enum PhoneFormat {
     /// Extensions (7001), codes (*97, 0) and numbers that already carry an outside-line prefix are not.
     static func isOutside(_ text: String) -> Bool { nanp(text) != nil }
 
+    /// The name a caller sent, to keep in the call history: "" when there is none, or when it is only the number again.
+    static func callerIDName(remote: String) -> String {
+        guard let lt = remote.firstIndex(of: "<"), lt != remote.startIndex else { return "" }
+        let n = remote[..<lt].trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: "\"")))
+        if n.isEmpty { return "" }
+        var user = remote[lt...]; if let r = user.range(of: "sip:") ?? user.range(of: "sips:") { user = user[r.upperBound...] }
+        let u = String(user.prefix { $0 != "@" && $0 != ">" && $0 != ";" })
+        let digits = n.filter(\.isNumber)
+        return (n.lowercased() == u.lowercased() || (!digits.isEmpty && digits == u.filter(\.isNumber))) ? "" : n
+    }
+
     /// A bare North American number as "(651) 760-4266". Anything else comes back unchanged.
     static func pretty(_ text: String) -> String {
         guard let d = nanp(text.trimmingCharacters(in: .whitespaces)) else { return text }
