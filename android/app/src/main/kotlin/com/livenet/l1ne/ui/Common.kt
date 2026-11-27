@@ -36,6 +36,7 @@ sealed interface Dest {
     data object Accounts : Dest
     data class Account(val id: String?) : Dest
     data object AdvancedCalls : Dest
+    data object SipLog : Dest
     data object ContactsSync : Dest
     data object Voicemail : Dest
 }

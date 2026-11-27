@@ -76,7 +76,14 @@ static void on_pager_status(pjsua_call_id c, const pj_str_t *to, const pj_str_t 
 }
 
 static void log_cb(int level, const char *data, int len) {
-    /* pjlib log writer: android log */ __android_log_print(level <= 2 ? ANDROID_LOG_ERROR : ANDROID_LOG_INFO, "pjsip", "%.*s", len, data); }
+    /* pjlib log writer: android log, and the in-app SIP log */
+    __android_log_print(level <= 2 ? ANDROID_LOG_ERROR : ANDROID_LOG_INFO, "pjsip", "%.*s", len, data);
+    if (len <= 0 || !g_cls) return;
+    char buf[4096]; int n = len < (int)sizeof buf - 1 ? len : (int)sizeof buf - 1;
+    for (int i = 0; i < n; i++) { unsigned char c = (unsigned char)data[i]; buf[i] = (c >= 32 && c < 127) || c == '\n' || c == '\r' || c == '\t' ? (char)c : '?'; }   /* plain ASCII only: JNI needs valid UTF-8 */
+    buf[n] = 0;
+    emit("log", level, 0, buf, "");
+}
 
 JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nInit(JNIEnv *env, jclass cls, jstring caFile, jboolean ipv6) {
     (*env)->GetJavaVM(env, &g_vm);

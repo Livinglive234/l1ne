@@ -160,6 +160,7 @@ private fun MainTabs() {
                 Dest.Accounts -> AccountsScreen(::open, ::back)
                 is Dest.Account -> AccountEditorScreen(d.id, onBack = ::back)
                 Dest.AdvancedCalls -> AdvancedCallsScreen(::back)
+                Dest.SipLog -> SipLogScreen(::back)
                 Dest.ContactsSync -> ContactsSyncScreen(::back)
                 Dest.Voicemail -> VoicemailScreen()
             }

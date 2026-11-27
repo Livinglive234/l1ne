@@ -116,6 +116,15 @@ class WireTest {
     }
     @Test fun theVoicemailButtonDialsTheVoicemailNumber() { val a = registered(account("7100")); main { engine.callVoicemail(a.id) }; waitServer("INVITE *97") }
     @Test fun dialRulesChangeWhatIsDialled() { val a = registered(account("7100") { it.copy(dialStripPrefix = "9") }); dial(a, "91001"); waitServer("INVITE 1001") }
+    @Test fun theSipLogShowsTheMessagesWithoutSecrets() {
+        com.livenet.l1ne.core.SipLog.clear()
+        val a = registered(account("7100")); dial(a, "1001"); waitServer("INVITE 1001")
+        waitFor("the log has the sign-in and the call") { val t = com.livenet.l1ne.core.SipLog.text(); t.contains("REGISTER sip:") && t.contains("INVITE sip:") }
+        val t = com.livenet.l1ne.core.SipLog.text()
+        assertTrue(t.contains("Authorization: [removed]"), "the digest header is removed")
+        assertFalse(Regex("response=\"[0-9a-f]{8,}").containsMatchIn(t), "no digest response is left")
+        assertFalse(t.contains("inline:") && !t.contains("inline:[removed]"), "no SRTP key is left")
+    }
     @Test fun anIncomingCallRingsIsAnsweredAndHangsUp() {
         registered(account("7100")); http("/invite?user=7100")
         waitFor("incoming call") { onlyCall()?.incoming == true }

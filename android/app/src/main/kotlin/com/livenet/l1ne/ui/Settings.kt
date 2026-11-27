@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -116,6 +117,10 @@ fun SettingsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
             Card { Row(Modifier.padding(16.dp)) { Icon(Icons.Filled.Lock, null, tint = L1neColors.Muted); Spacer(Modifier.width(12.dp))
                 Text("L1ne has no access to your phone's contacts. Contacts arrive only through the imports and syncs you set up.", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted) } }
 
+            SectionHeader("Help")
+            Card { NavRow("SIP log", icon = Icons.Filled.Description) { open(Dest.SipLog) } }
+            FooterText("What L1ne's phone engine sent and received recently, to find out why a call or sign-in didn't work. Passwords and encryption keys are removed.")
+
             SectionHeader("About")
             Card { Row(Modifier.padding(16.dp)) { Text("Version", Modifier.weight(1f)); Text("1.0", color = L1neColors.Muted) }; RowDivider()
                 Row(Modifier.padding(16.dp)) { Text("SIP engine", Modifier.weight(1f)); Text("PJSIP ${Native.nVersion()}", color = L1neColors.Muted) } }
@@ -124,6 +129,34 @@ fun SettingsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
     if (confirmRemove) AlertDialog({ confirmRemove = false }, containerColor = L1neColors.SheetBg, title = { Text("Remove all contacts from L1ne?") }, text = { Text("This only affects L1ne's own list, not your phone's contacts.") },
         confirmButton = { TextButton({ app.contacts.removeAll(); confirmRemove = false }) { Text("Remove all", color = L1neColors.Danger) } }, dismissButton = { TextButton({ confirmRemove = false }) { Text("Cancel") } })
     if (applying) LinkDialog(prov) { applying = false }
+}
+
+/** The last stretch of SIP messages and engine notes, to look at, copy or share. Kept in memory only; it starts empty each time L1ne opens. */
+@Composable
+fun SipLogScreen(onBack: () -> Unit) {
+    val ctx = LocalContext.current
+    var text by remember { mutableStateOf(com.livenet.l1ne.core.SipLog.text(400)) }
+    var entries by remember { mutableIntStateOf(com.livenet.l1ne.core.SipLog.count()) }
+    LaunchedEffect(Unit) { while (true) { text = com.livenet.l1ne.core.SipLog.text(400); entries = com.livenet.l1ne.core.SipLog.count(); kotlinx.coroutines.delay(1000) } }
+    val scroll = rememberScrollState()
+    LaunchedEffect(text) { scroll.scrollTo(scroll.maxValue) }          // follow the newest lines
+    PageScaffold("SIP log", onBack, actions = {
+        IconButton({ val all = com.livenet.l1ne.core.SipLog.text()
+            (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("L1ne SIP log", all))
+            android.widget.Toast.makeText(ctx, "Copied", android.widget.Toast.LENGTH_SHORT).show() }) { Icon(Icons.Filled.ContentCopy, "Copy") }
+        IconButton({ val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, com.livenet.l1ne.core.SipLog.text())
+            ctx.startActivity(android.content.Intent.createChooser(send, "Share SIP log")) }) { Icon(Icons.Filled.Share, "Share") }
+        IconButton({ com.livenet.l1ne.core.SipLog.clear(); text = ""; entries = 0 }) { Icon(Icons.Filled.Delete, "Clear") }
+    }) { pad ->
+        Column(Modifier.padding(pad).fillMaxSize()) {
+            Text("Contains phone numbers and server names. Passwords and encryption keys are removed. $entries entries, kept only while L1ne is open.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
+            if (text.isEmpty()) Text("Nothing yet. Make a call or sign in to an account, then come back.", Modifier.padding(16.dp), color = L1neColors.Muted)
+            else androidx.compose.foundation.text.selection.SelectionContainer {
+                Text(text, Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 12.dp), fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 11.sp, color = L1neColors.Text)
+            }
+        }
+    }
 }
 
 @Composable

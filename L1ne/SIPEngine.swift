@@ -123,7 +123,14 @@ final class SIPEngine: ObservableObject {
 
         var log = pjsua_logging_config()
         pjsua_logging_config_default(&log)
-        log.console_level = 3
+        log.level = 5                      // includes every SIP message sent and received
+        log.console_level = 5              // PJSIP hands the callback only what is at or below this
+        log.cb = { level, data, len in     // the in-app SIP log (Settings, Help); replaces PJSIP's own console output
+            guard let data, len > 0 else { return }
+            let line = String(decoding: UnsafeRawBufferPointer(start: data, count: Int(len)), as: UTF8.self)
+            SipLog.shared.add(line)
+            if level <= 3 { print(line, terminator: "") }          // what the Xcode console showed before
+        }
         var media = pjsua_media_config()
         pjsua_media_config_default(&media)
         media.snd_auto_close_time = 5

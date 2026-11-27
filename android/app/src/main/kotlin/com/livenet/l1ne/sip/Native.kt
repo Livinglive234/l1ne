@@ -6,7 +6,10 @@ object Native {
 
     var listener: ((type: String, a: Int, b: Int, s1: String, s2: String) -> Unit)? = null
 
-    @JvmStatic fun onEvent(type: String, a: Int, b: Int, s1: String, s2: String) { listener?.invoke(type, a, b, s1, s2) }
+    @JvmStatic fun onEvent(type: String, a: Int, b: Int, s1: String, s2: String) {
+        if (type == "log") { com.livenet.l1ne.core.SipLog.add(s1); return }          // the in-app SIP log (Settings, Help)
+        listener?.invoke(type, a, b, s1, s2)
+    }
 
     @JvmStatic external fun nInit(caFile: String?, ipv6: Boolean): Int
     @JvmStatic external fun nAddAccount(id: String, reg: String, route: String, user: String, pass: String, srtp: Int, mandatory: Boolean,

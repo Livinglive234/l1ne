@@ -74,6 +74,13 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Theme.surface)
 
+                Section {
+                    NavigationLink("SIP log") { SipLogView() }
+                } header: { Text("Help") } footer: {
+                    Text("What L1ne's phone engine sent and received recently, to find out why a call or sign-in didn't work. Passwords and encryption keys are removed.")
+                }
+                .listRowBackground(Theme.surface)
+
                 Section("About") {
                     ValueRow("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1")
                     ValueRow("SIP engine", value: "PJSIP \(SIPEngine.version)")

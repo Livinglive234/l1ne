@@ -137,6 +137,14 @@ final class WireTests: XCTestCase {
 
     // MARK: what goes on the wire
 
+    func testTheSipLogShowsTheMessagesWithoutSecrets() throws {
+        SipLog.shared.clear()
+        let a = try registered(account("7100")); dial(a, "1001"); try waitServer("INVITE 1001")
+        try waitFor("the log has the sign-in and the call") { let t = SipLog.shared.text(); return t.contains("REGISTER sip:") && t.contains("INVITE sip:") }
+        let t = SipLog.shared.text()
+        XCTAssertTrue(t.contains("Authorization: [removed]"), "the digest header is removed")
+        XCTAssertNil(t.range(of: #"response="[0-9a-f]{8,}"#, options: .regularExpression), "no digest response is left")
+    }
     func testNoEncryptionOffersPlainRtp() throws {
         let a = try registered(account("7100", media: .none)); dial(a, "1001"); try waitServer("INVITE 1001")
         let l = serverLog(); XCTAssertTrue(l.contains("RTP/AVP")); XCTAssertFalse(l.contains("a=crypto"))

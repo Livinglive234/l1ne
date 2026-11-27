@@ -21,6 +21,20 @@ check(["7001", "5550142", "(612) 354-0645", "Max Example", "+442071234567", "012
 check(PhoneFormat.isOutside("6125550142") && PhoneFormat.isOutside("16125550142") && PhoneFormat.isOutside("+16125550142"), "outside numbers are told")
 check(!["7001", "2993", "0", "*97", "96125550142", "+442071234567"].contains { PhoneFormat.isOutside($0) }, "extensions, codes and prefixed numbers are not outside numbers")
 
+// SIP log: what is removed, what is kept
+let regMsg = "REGISTER sip:pbx.example.com SIP/2.0\r\nAuthorization: Digest username=\"7001\", realm=\"asterisk\", response=\"0123456789abcdef\"\r\nCSeq: 2 REGISTER"
+let regClean = LogRedactor.clean(regMsg)
+check(!regClean.contains("0123456789abcdef") && !regClean.contains("realm") && regClean.contains("Authorization: [removed]") && regClean.contains("CSeq: 2 REGISTER"), "the digest header is removed, the rest of the message stays")
+check(LogRedactor.clean("a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:WVNfX19zZWNyZXRrZXlfX19f\na=rtpmap:0 PCMU/8000") == "a=crypto:1 AES_CM_128_HMAC_SHA1_80 inline:[removed]\na=rtpmap:0 PCMU/8000", "SRTP keys are removed")
+check(LogRedactor.clean("password=hunter2 next") == "password=[removed] next" && LogRedactor.clean("secret: abc") == "secret: [removed]" && LogRedactor.clean("cnonce=\"zzz\"") == "cnonce=\"[removed]\"", "anything that looks like a secret is removed")
+let fromLine = "From: \"(612) 354-0645\" <sip:6123540645@pbx.example.com>;tag=abc"
+check(LogRedactor.clean(fromLine) == fromLine, "ordinary lines are untouched")
+SipLog.shared.clear()
+for i in 0..<2600 { SipLog.shared.add("line \(i)") }
+check(SipLog.shared.count == 2500 && SipLog.shared.text().hasPrefix("line 100") && SipLog.shared.text().hasSuffix("line 2599"), "the log keeps the last 2500 entries")
+SipLog.shared.clear(); SipLog.shared.add("Authorization: Digest response=\"x\""); SipLog.shared.add("   ")
+check(SipLog.shared.text() == "Authorization: [removed]" && SipLog.shared.count == 1, "entries are redacted as they arrive; blank ones are skipped")
+
 // outside-line prefix
 var ob = Account(); ob.username = "7001"; ob.domain = "pbx.example.com"; ob.outboundPrefix = "9"
 check(ob.dial("6125550142") == "96125550142" && ob.dial("(612) 555-0142") == "96125550142" && ob.dial("16125550142") == "916125550142" && ob.dial("+16125550142") == "916125550142", "outside numbers get the prefix")

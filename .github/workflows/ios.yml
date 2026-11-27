@@ -67,7 +67,7 @@ jobs:
 
       - name: Parser tests
         run: |
-          swiftc -o /tmp/parsers L1ne/PhoneFormat.swift L1ne/VCard.swift L1ne/Provisioning.swift L1ne/Account.swift L1ne/SystemContacts.swift L1ne/ContactsStore.swift tests/parsers/main.swift
+          swiftc -o /tmp/parsers L1ne/PhoneFormat.swift L1ne/SipLog.swift L1ne/VCard.swift L1ne/Provisioning.swift L1ne/Account.swift L1ne/SystemContacts.swift L1ne/ContactsStore.swift tests/parsers/main.swift
           /tmp/parsers tests/fixtures
 
       - name: Generate the Xcode project
