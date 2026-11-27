@@ -17,6 +17,7 @@ final class SIPEngine: ObservableObject {
         var since: Date?
         var accountID: UUID?
         var address = ""              // user@domain of the other side
+        var waiting = false           // an outgoing call that has been placed and not answered yet: dialling or ringing
     }
 
     enum CallSecurity { case srtp, dtls, none, unknown }
@@ -577,17 +578,19 @@ final class SIPEngine: ObservableObject {
             connected: connected,
             since: connected ? (old?.since ?? Date()) : nil,
             accountID: accountForPJ[ci.acc_id],
-            address: VCard.sipAddress(Self.uriPart(remote)) ?? "")
+            address: VCard.sipAddress(Self.uriPart(remote)) ?? "",
+            waiting: ci.state == PJSIP_INV_STATE_CALLING || ci.state == PJSIP_INV_STATE_EARLY)
         if let i = calls.firstIndex(where: { $0.id == call }) { if calls[i] != entry { calls[i] = entry } } else { calls.append(entry) }      // no redraw when nothing changed
         if currentCallID == nil || !calls.contains(where: { $0.id == currentCallID }) { currentCallID = call }
         if connected { startStats(); CallKitManager.shared.reportConnected(call, outgoing: !(entry.incoming)) }
         updateRingback()
     }
 
-    /// The tone you hear while the other phone rings: L1ne's own, unless you let the PBX's early media through instead.
+    /// The tone you hear while a call you placed is going through and ringing: L1ne's own, unless you let the PBX's early media through instead.
     private func updateRingback() {
-        let ringing = calls.contains { !$0.incoming && !$0.connected && $0.state == "Ringing…" }
-        if ringing && !AppSettings.shared.acceptEarlyMedia { RingbackPlayer.shared.start(AppSettings.shared.ringbackTone) } else { RingbackPlayer.shared.stop() }
+        let early = AppSettings.shared.acceptEarlyMedia
+        let tone = calls.contains { RingbackRule.wanted(outgoing: !$0.incoming, answered: $0.connected, waiting: $0.waiting, acceptEarlyMedia: early) }
+        if tone { RingbackPlayer.shared.start(AppSettings.shared.ringbackTone) } else { RingbackPlayer.shared.stop() }
     }
 
     // MARK: call quality and encryption (read from the media stream every two seconds)

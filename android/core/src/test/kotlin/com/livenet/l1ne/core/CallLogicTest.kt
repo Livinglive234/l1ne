@@ -29,4 +29,10 @@ class CallLogicTest {
         assertEquals(4, CallQuality.bars(5.0, 20.0, 80.0)); assertEquals(1, CallQuality.bars(20.0, 200.0, 900.0))
         assertEquals(0.0, CallQuality.lossPercent(5.0, 10.0)); assertEquals(25.0, CallQuality.lossPercent(25.0, 75.0))      // too few packets to judge, then a real figure
     }
+
+    @Test fun ringbackStartsAsSoonAsACallIsPlacedAndOnlyThen() {
+        assertEquals(true, RingbackRule.wanted(outgoing = true, answered = false, waiting = true, acceptEarlyMedia = false))
+        assertEquals(false, RingbackRule.wanted(true, true, true, false)); assertEquals(false, RingbackRule.wanted(false, false, true, false))
+        assertEquals(false, RingbackRule.wanted(true, false, false, false)); assertEquals(false, RingbackRule.wanted(true, false, true, true))
+    }
 }

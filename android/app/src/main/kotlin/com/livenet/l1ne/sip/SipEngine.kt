@@ -313,8 +313,9 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     /** The tone you hear while the other phone rings: L1ne's own, unless you let the PBX's early media through instead. */
     private fun updateRingback() {
         if (!started) return
-        val ringing = _calls.value.any { !it.incoming && it.state == 3 }
-        if (ringing && !settings.acceptEarlyMedia) Ringback.start(settings.ringback) else Ringback.stop()
+        val early = settings.acceptEarlyMedia
+        val tone = _calls.value.any { com.livenet.l1ne.core.RingbackRule.wanted(!it.incoming, it.active, it.state == 1 || it.state == 3, early) }      // 1 = calling, 3 = early (ringing)
+        if (tone) Ringback.start(settings.ringback) else Ringback.stop()
     }
 
     private var audioOn = false

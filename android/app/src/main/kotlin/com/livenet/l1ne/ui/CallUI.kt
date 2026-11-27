@@ -57,7 +57,7 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
         call.active -> "%d:%02d".format(secs / 60, secs % 60)
         call.incoming -> "Incoming call"
         call.state == 3 && call.status == 180 -> "Ringing…"
-        call.state == 3 -> "Connecting…"
+        call.state == 3 -> "Calling…"                      // the other side has answered the request but is not ringing yet (or ringing without saying so)
         call.state == 4 -> "Connecting…"
         else -> "Calling…"
     }

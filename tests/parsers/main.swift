@@ -35,6 +35,11 @@ check(SipLog.shared.count == 2500 && SipLog.shared.text().hasPrefix("line 100") 
 SipLog.shared.clear(); SipLog.shared.add("Authorization: Digest response=\"x\""); SipLog.shared.add("   ")
 check(SipLog.shared.text() == "Authorization: [removed]" && SipLog.shared.count == 1, "entries are redacted as they arrive; blank ones are skipped")
 
+// ringback
+check(RingbackRule.wanted(outgoing: true, answered: false, waiting: true, acceptEarlyMedia: false), "a call that is dialling or ringing gets L1ne's ringback tone")
+check(!RingbackRule.wanted(outgoing: true, answered: true, waiting: true, acceptEarlyMedia: false) && !RingbackRule.wanted(outgoing: false, answered: false, waiting: true, acceptEarlyMedia: false)
+      && !RingbackRule.wanted(outgoing: true, answered: false, waiting: false, acceptEarlyMedia: false) && !RingbackRule.wanted(outgoing: true, answered: false, waiting: true, acceptEarlyMedia: true), "none once answered, for incoming calls, when not waiting, or when the PBX's early media is let through")
+
 // version label
 check(VersionLabel.pretty("0.1.0-beta.9") == "0.1.0 beta 9" && VersionLabel.pretty("0.1.0-rc1") == "0.1.0 rc1" && VersionLabel.pretty("0.1.0") == "0.1.0" && VersionLabel.pretty("1.0") == "1.0", "a tag version reads naturally")
 
