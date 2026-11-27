@@ -138,6 +138,38 @@ final class WireTests: XCTestCase {
         XCTAssertTrue(engine.transferNote[id]?.hasPrefix("Transferring") == true, "the call screen says a transfer is under way as soon as it is asked for")
         try waitFor("the call to end once the other side has taken over") { engine.calls.isEmpty }
     }
+    // ---- attended transfer: ask the new person first, with the caller on hold ----
+
+    private func startConsult(to number: String) throws -> (original: Int32, consult: Int32) {
+        let a = try registered(account("7100")); dial(a, "1001"); try waitFor("answered") { onlyCall?.connected == true }
+        let original = onlyCall!.id
+        XCTAssertTrue(engine.startConsult(from: original, to: number, account: a.id))
+        let consult = engine.consults.first { $0.value == original }!.key
+        XCTAssertTrue(engine.held.contains(original), "the caller is put on hold while the new person is asked")
+        return (original, consult)
+    }
+    func testAnAttendedTransferConnectsThemOnceTheNewPersonHasAnswered() throws {
+        let (original, consult) = try startConsult(to: "7200")
+        try waitFor("the new person to answer") { engine.calls.first { $0.id == consult }?.connected == true }
+        XCTAssertTrue(engine.completeTransfer(consult: consult))
+        try waitServer("Replaces=")                                                   // the caller is told to replace our call to the new person with theirs
+        try waitFor("both of our calls to end once the PBX has done it") { engine.calls.isEmpty }
+        _ = original
+    }
+    func testCancellingAnAttendedTransferGoesBackToTheCaller() throws {
+        let (original, consult) = try startConsult(to: "7200")
+        try waitFor("the new person to answer") { engine.calls.first { $0.id == consult }?.connected == true }
+        engine.cancelConsult(consult)
+        try waitFor("the call to the new person to end") { engine.calls.count == 1 }
+        try waitFor("the caller to be taken off hold") { !engine.held.contains(original) }
+        XCTAssertEqual(engine.calls.first?.id, original); XCTAssertEqual(engine.calls.first?.connected, true)
+    }
+    func testAConsultNobodyAnswersPutsYouBackWithTheCaller() throws {
+        let (original, _) = try startConsult(to: "1002")                                // 1002 is busy
+        try waitFor("the busy call to end") { engine.calls.count == 1 }
+        try waitFor("the caller to be taken off hold") { !engine.held.contains(original) }
+        XCTAssertTrue(engine.transferNote[original]?.contains("back with this caller") == true)
+    }
     func testAQuickHoldThenResumeEndsUpResumed() throws {                // the second tap comes while the first is still being negotiated
         let a = try registered(account("7100")); dial(a, "1001"); try waitFor("answered") { onlyCall?.connected == true }
         let id = onlyCall!.id

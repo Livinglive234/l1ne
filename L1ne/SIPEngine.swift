@@ -56,6 +56,8 @@ final class SIPEngine: ObservableObject {
     @Published var voicemail: [UUID: Int] = [:]
     @Published var recording: Set<Int32> = []
     @Published var transferNote: [Int32: String] = [:]          // what the call screen says about a transfer in progress, or one that failed
+    /// Attended transfers: the call placed to ask the new person (key) and the call it was placed from, which is on hold (value).
+    @Published var consults: [Int32: Int32] = [:]
     @Published var muted: Set<Int32> = []
     @Published var held: Set<Int32> = []
     @Published var speaker = false
@@ -481,15 +483,57 @@ final class SIPEngine: ObservableObject {
         return true
     }
 
+    /// Starts an attended transfer: puts `original` on hold and calls the new person. Once they answer and agree, `completeTransfer` connects the two.
+    @discardableResult
+    func startConsult(from original: Int32, to number: String, account: UUID) -> Bool {
+        guard calls.contains(where: { $0.id == original && $0.connected }), call(number, from: account), let consult = currentCallID, consult != original else { return false }
+        consults[consult] = original
+        return true
+    }
+
+    /// Connects the person on hold to the one you have just asked, and drops out. Needs the consult call to be answered.
+    @discardableResult
+    func completeTransfer(consult: Int32) -> Bool {
+        guard let original = consults[consult], calls.contains(where: { $0.id == consult && $0.connected }) else { return false }
+        guard pjsua_call_xfer_replaces(original, consult, 0, nil) == 0 else { transferNote[consult] = "Could not start the transfer"; return false }
+        transferNote[original] = "Transferring…"; transferNote[consult] = "Transferring…"
+        return true
+    }
+
+    /// Gives up on an attended transfer: ends the call to the new person and goes back to the one on hold.
+    func cancelConsult(_ consult: Int32) {
+        guard let original = consults.removeValue(forKey: consult) else { return }
+        hangup(consult)
+        setHold(original, on: false)
+    }
+
+    /// A consult call that ends by itself (nobody answered, busy) puts you back with the person who was on hold, unless the transfer went through.
+    private func consultEnded(_ call: Int32) {
+        consults = consults.filter { $0.value != call }                          // the person on hold hung up: nothing to go back to
+        guard let original = consults.removeValue(forKey: call) else { return }
+        if transferNote[call] == "Transferred" { return }
+        transferNote[original] = "That call ended: you are back with this caller"
+        setHold(original, on: false)
+        Task { @MainActor [weak self] in try? await Task.sleep(nanoseconds: 6_000_000_000); self?.transferNote[original] = nil }
+    }
+
     /// The other side's progress reports for a transfer: 1xx while it works on it, a final 2xx when it has taken over, a final error if it could not.
     fileprivate func transferProgress(call: pjsua_call_id, code: Int, reason: String, final: Bool) {
         guard calls.contains(where: { $0.id == call }) else { return }
         if (200..<300).contains(code) {
+            let consult = consults.first(where: { $0.value == call })?.key
             transferNote[call] = "Transferred"
             hangup(call)                                      // the other party is connected to the new person: this leg is done (the PBX usually ends it too)
+            if let consult { transferNote[consult] = "Transferred"; hangup(consult) }       // attended: the call to the new person too
         } else if final || code >= 300 {
-            transferNote[call] = "Transfer failed: \(code) \(reason)"
-            Task { @MainActor [weak self] in try? await Task.sleep(nanoseconds: 8_000_000_000); self?.transferNote[call] = nil }
+            let failure = "Transfer failed: \(code) \(reason)"
+            transferNote[call] = failure
+            let consult = consults.first(where: { $0.value == call })?.key
+            if let consult { transferNote[consult] = failure }
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: 8_000_000_000)
+                self?.transferNote[call] = nil; if let consult { self?.transferNote[consult] = nil }
+            }
         } else {
             transferNote[call] = reason.isEmpty ? "Transferring…" : "Transferring… \(reason)"
         }
@@ -561,7 +605,8 @@ final class SIPEngine: ObservableObject {
             recording.remove(call); muted.remove(call); held.remove(call)
             calls.removeAll { $0.id == call }
             CallKitManager.shared.reportEnded(call)
-            encryption[call] = nil; quality[call] = nil; transferNote[call] = nil
+            encryption[call] = nil; quality[call] = nil
+            consultEnded(call); transferNote[call] = nil
             if currentCallID == call { currentCallID = calls.first?.id }
             if calls.isEmpty { speaker = false; statsTask?.cancel(); statsTask = nil }
             updateRingback()

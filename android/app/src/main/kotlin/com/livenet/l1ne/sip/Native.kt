@@ -32,5 +32,6 @@ object Native {
     @JvmStatic external fun nSetCodec(id: String, priority: Int)
     @JvmStatic external fun nRecord(call: Int, path: String, on: Boolean): Boolean
     @JvmStatic external fun nXfer(call: Int, dest: String): Boolean
+    @JvmStatic external fun nXferReplaces(call: Int, dest: Int): Boolean
     @JvmStatic external fun nStats(call: Int): String
 }

@@ -16,7 +16,7 @@ what is dialled, so one running copy covers every scenario:
 | Dial `1003` | 183 early media, then answered a second later |
 | Dial `1004` | Rings forever (to test cancelling) |
 | Hold / resume | Logs the re-INVITE and its direction (`sendonly` = hold) |
-| Transfer | Logs the REFER and its Refer-To |
+| Transfer | Logs the REFER and its Refer-To (an attended transfer shows `Replaces=`), then reports progress (100 Trying, then 200 OK, or 404 for a transfer to 7404) |
 | Subscribe to message waiting | Sends a NOTIFY with 3 new voicemails |
 | Send a text | Logs it |
 | `GET /invite?user=7100` | Rings the registered phone (an incoming call) |

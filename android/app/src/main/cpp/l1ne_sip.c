@@ -207,6 +207,10 @@ JNIEXPORT jboolean JNICALL Java_com_livenet_l1ne_sip_Native_nRecord(JNIEnv *env,
     pjsua_conf_connect(ci.conf_slot, port); pjsua_conf_connect(0, port); g_rec[k] = r + 1;
     return JNI_TRUE;
 }
+/* Attended transfer: tells the person on hold (call) to replace our call to the new person (dest) with their own. */
+JNIEXPORT jboolean JNICALL Java_com_livenet_l1ne_sip_Native_nXferReplaces(JNIEnv *env, jclass c, jint call, jint dest) {
+    (void)env; (void)c; reg_thread(); return pjsua_call_xfer_replaces(call, dest, 0, NULL) == PJ_SUCCESS;
+}
 JNIEXPORT jboolean JNICALL Java_com_livenet_l1ne_sip_Native_nXfer(JNIEnv *env, jclass c, jint call, jstring jdest) {
     (void)c; reg_thread(); const char *d = (*env)->GetStringUTFChars(env, jdest, NULL); pj_str_t dest = pj_str((char *)d);
     pj_status_t st = pjsua_call_xfer(call, &dest, NULL); (*env)->ReleaseStringUTFChars(env, jdest, d); return st == PJ_SUCCESS;

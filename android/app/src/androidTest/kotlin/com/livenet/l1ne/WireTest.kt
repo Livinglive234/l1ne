@@ -130,6 +130,38 @@ class WireTest {
         waitFor("the failure to be reported") { engine.transferNote.value[id]?.startsWith("Transfer failed: 404") == true }
         assertTrue(onlyCall()?.active == true, "the call is still there")
     }
+    // ---- attended transfer: ask the new person first, with the caller on hold ----
+
+    private fun consult(to: String): Pair<Int, Int> {
+        val a = registered(account("7100")); dial(a, "1001"); waitFor("answered") { onlyCall()?.active == true }
+        val original = onlyCall()!!.id; var ok = false
+        main { ok = engine.startConsult(original, to, a) }
+        assertTrue(ok, "the consult call was placed")
+        val consult = engine.consults.value.entries.first { it.value == original }.key
+        assertTrue(original in engine.held.value, "the caller is put on hold while the new person is asked")
+        return original to consult
+    }
+    @Test fun anAttendedTransferConnectsThemOnceTheNewPersonHasAnswered() {
+        val (_, consult) = consult("7200")
+        waitFor("the new person to answer") { engine.calls.value.firstOrNull { it.id == consult }?.active == true }
+        main { assertTrue(engine.completeTransfer(consult)) }
+        waitServer("Replaces=")                                                        // the caller is told to replace our call to the new person with theirs
+        waitFor("both of our calls to end once the PBX has done it") { engine.calls.value.isEmpty() }
+    }
+    @Test fun cancellingAnAttendedTransferGoesBackToTheCaller() {
+        val (original, consult) = consult("7200")
+        waitFor("the new person to answer") { engine.calls.value.firstOrNull { it.id == consult }?.active == true }
+        main { engine.cancelConsult(consult) }
+        waitFor("the call to the new person to end") { engine.calls.value.size == 1 }
+        waitFor("the caller to be taken off hold") { original !in engine.held.value }
+        assertTrue(engine.calls.value.single().let { it.id == original && it.active })
+    }
+    @Test fun aConsultNobodyAnswersPutsYouBackWithTheCaller() {
+        val (original, _) = consult("1002")                                            // 1002 is busy
+        waitFor("the busy call to end") { engine.calls.value.size == 1 }
+        waitFor("the caller to be taken off hold") { original !in engine.held.value }
+        assertTrue(engine.transferNote.value[original]?.contains("back with this caller") == true)
+    }
     @Test fun aQuickHoldThenResumeEndsUpResumed() {                      // the second tap comes while the first is still being negotiated
         val a = registered(account("7100")); dial(a, "1001"); waitFor("answered") { onlyCall()?.active == true }
         val id = onlyCall()!!.id

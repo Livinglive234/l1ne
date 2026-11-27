@@ -278,6 +278,13 @@ struct CallScreen: View {
                     Text(c.incoming ? "Incoming call" : c.state).font(.title3).foregroundStyle(Theme.muted)
                 }
                 if let line = securityLine(c) { Label(line.text, systemImage: line.icon).font(.footnote).foregroundStyle(line.color) }
+                if let original = engine.consults[c.id] {            // an attended transfer: this call asks the new person, the caller is on hold
+                    Text("\(engine.calls.first { $0.id == original }?.remote ?? "The caller") is on hold").font(.footnote).foregroundStyle(Theme.muted)
+                    HStack(spacing: 12) {
+                        Button("Complete transfer") { engine.completeTransfer(consult: c.id) }.buttonStyle(.borderedProminent).disabled(!c.connected || engine.transferNote[c.id] != nil)
+                        Button("Cancel") { engine.cancelConsult(c.id) }.buttonStyle(.bordered).tint(Theme.danger)
+                    }
+                }
                 if let note = engine.transferNote[c.id] { Label(note, systemImage: "arrow.turn.up.right").font(.footnote).foregroundStyle(note.hasPrefix("Transfer failed") ? Theme.danger : Theme.brand) }
                 if engine.held.contains(c.id) { Label("On hold", systemImage: "pause.circle.fill").font(.footnote).foregroundStyle(Theme.brand) }
                 if engine.recording.contains(c.id) { Label("Recording", systemImage: "record.circle").font(.footnote).foregroundStyle(Theme.danger) }
@@ -555,13 +562,21 @@ struct TransferSheet: View {
     @EnvironmentObject var contacts: ContactsStore
     @Environment(\.dismiss) private var dismiss
     @State private var number = ""
+    @State private var askFirst = false
 
     var body: some View {
         AppNavStack {
             List {
                 Section {
+                    Picker("Kind", selection: $askFirst) { Text("Transfer now").tag(false); Text("Ask first").tag(true) }.pickerStyle(.segmented)
+                } footer: {
+                    Text(askFirst ? "Calls the new person with this caller on hold. Once they answer, you choose Complete transfer, or Cancel to go back to this caller."
+                                  : "Sends this caller to the new person straight away. If nobody answers there, you are not on the line any more.")
+                }
+                .listRowBackground(Theme.surface)
+                Section {
                     TextField("Extension or number", text: $number).keyboardType(.phonePad)
-                    Button("Transfer") { go(number) }.disabled(number.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button(askFirst ? "Call to ask" : "Transfer") { go(number) }.disabled(number.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 .listRowBackground(Theme.surface)
                 if !contacts.contacts.isEmpty {
@@ -580,6 +595,6 @@ struct TransferSheet: View {
 
     private func go(_ dest: String) {
         guard let acc = call.accountID ?? store.selected?.id else { return }
-        if engine.transfer(call.id, to: dest, account: acc) { dismiss() }
+        if askFirst ? engine.startConsult(from: call.id, to: dest, account: acc) : engine.transfer(call.id, to: dest, account: acc) { dismiss() }
     }
 }

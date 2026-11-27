@@ -43,7 +43,7 @@ private val CallDanger = Color(0xFFE04646)
 @Composable
 fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimized: (Boolean) -> Unit, open: (Dest) -> Unit) {
     val app = LocalApp.current
-    val muted by engine.muted.collectAsState(); val held by engine.held.collectAsState(); val recording by engine.recording.collectAsState(); val transferNotes by engine.transferNote.collectAsState()
+    val muted by engine.muted.collectAsState(); val held by engine.held.collectAsState(); val recording by engine.recording.collectAsState(); val transferNotes by engine.transferNote.collectAsState(); val consults by engine.consults.collectAsState(); val allCalls by engine.calls.collectAsState()
     val quality by engine.quality.collectAsState(); val numbers by engine.qualityNumbers.collectAsState(); val enc by engine.encryption.collectAsState()
     val contacts by app.contacts.contacts.collectAsState()
     val routes by engine.routes.collectAsState()
@@ -83,6 +83,13 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
             SipEngine.Security.DTLS -> Label(Icons.Filled.Lock, "Encrypted by DTLS-SRTP", CallBrand)
             SipEngine.Security.NONE -> Label(Icons.Filled.LockOpen, "Not encrypted", CallDanger)
             else -> {} }
+        consults[call.id]?.let { original ->                       // an attended transfer: this call asks the new person, the caller is on hold
+            Text("${allCalls.firstOrNull { it.id == original }?.let { app.contacts.nameFor(it) } ?: "The caller"} is on hold", color = CallMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 8.dp)) {
+                Button({ engine.completeTransfer(call.id) }, enabled = call.active && transferNotes[call.id] == null) { Text("Complete transfer") }
+                OutlinedButton({ engine.cancelConsult(call.id) }) { Text("Cancel", color = CallDanger) }
+            }
+        }
         transferNotes[call.id]?.let { Label(Icons.AutoMirrored.Filled.PhoneForwarded, it, if (it.startsWith("Transfer failed")) CallDanger else CallBrand) }
         if (call.id in held) Label(Icons.Filled.PauseCircle, "On hold", CallBrand)
         if (call.id in recording) Label(Icons.Filled.FiberManualRecord, "Recording", CallDanger)
@@ -214,14 +221,24 @@ private fun DtmfScreen(call: CallInfo, engine: SipEngine, onBack: () -> Unit) {
 @Composable
 private fun TransferDialog(call: CallInfo, engine: SipEngine, onClose: () -> Unit) {
     val app = LocalApp.current; val contacts by app.contacts.contacts.collectAsState(); var typed by remember { mutableStateOf("") }
-    fun go(to: String) { if (to.isNotBlank()) { engine.transfer(call.id, to.trim(), app.store.account(call.accountID)); onClose() } }
+    var askFirst by remember { mutableStateOf(false) }
+    fun go(to: String) {
+        if (to.isBlank()) return
+        val ok = if (askFirst) engine.startConsult(call.id, to.trim(), app.store.account(call.accountID)) else engine.transfer(call.id, to.trim(), app.store.account(call.accountID))
+        if (ok) onClose()
+    }
     AlertDialog(onClose, containerColor = CallSheet, title = { Text("Transfer to…", color = CallText) }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(!askFirst, { askFirst = false }, label = { Text("Transfer now") }); FilterChip(askFirst, { askFirst = true }, label = { Text("Ask first") })
+            }
+            Text(if (askFirst) "Calls the new person with this caller on hold. Once they answer, choose Complete transfer, or Cancel to go back to this caller."
+                 else "Sends this caller to the new person straight away. If nobody answers there, you are not on the line any more.", color = CallMuted, fontSize = 12.sp)
             OutlinedTextField(typed, { typed = it }, singleLine = true, label = { Text("Extension or address") })
             contacts.filter { typed.isEmpty() || it.name.contains(typed, true) || it.address.contains(typed, true) }.take(5).forEach { c ->
                 Row(Modifier.fillMaxWidth().clickable { go(c.user) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) { Avatar(32.dp, initialsOf(c.name), CallBrand.copy(alpha = 0.14f)); Spacer(Modifier.width(10.dp)); Column { Text(c.name, color = CallText); Text(c.address, fontSize = 12.sp, color = CallMuted) } } }
         } },
-        confirmButton = { TextButton({ go(typed) }, enabled = typed.isNotBlank()) { Text("Transfer") } }, dismissButton = { TextButton(onClose) { Text("Cancel") } })
+        confirmButton = { TextButton({ go(typed) }, enabled = typed.isNotBlank()) { Text(if (askFirst) "Call to ask" else "Transfer") } }, dismissButton = { TextButton(onClose) { Text("Cancel") } })
 }
 
 @Composable

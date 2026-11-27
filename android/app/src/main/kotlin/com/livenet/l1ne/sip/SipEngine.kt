@@ -113,7 +113,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
                         val t0 = System.currentTimeMillis()
                         main.postDelayed({ if (lastNetworkEvent >= t0 - 15000) redialLater(target, 0) else callLog?.add(record) }, 2500)
                     } else callLog?.add(record)
-                    recording.value -= a; setNote(a, null)
+                    recording.value -= a; consultEnded(a); setNote(a, null)
                 }
             }
         }
@@ -177,6 +177,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     private fun placed(id: Int, remote: String, redial: Redial, accountID: String, display: String, address: String): Boolean {
         _calls.value = _calls.value + CallInfo(id, remote, false, 1, 0, "Calling", 0, accountID)
         outgoingTargets[id] = redial
+        holdOthers(except = id); currentId.value = id                  // a new call puts the active one on hold and is the one shown
         telecomKnown.add(id); if (telecom?.reportOutgoing(id, display, address) != true) telecomKnown.remove(id); KeepAliveService.start(app)
         updateAudio(); return true
     }
@@ -187,7 +188,8 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
         val id = Native.nCall(pj, uri); if (id < 0) return false
         return placed(id, uri, Redial(null, uri, from.id, attempt), from.id, uri.removePrefix("sip:").substringBefore('@'), uri.removePrefix("sip:"))
     }
-    fun answer(id: Int) { if (started) Native.nAnswer(id, 200) }
+    fun answer(id: Int) { if (started) { holdOthers(except = id); currentId.value = id; Native.nAnswer(id, 200) } }
+    private fun holdOthers(except: Int) { _calls.value.filter { it.id != except && it.active && it.id !in held.value }.forEach { toggleHold(it.id) } }
     fun hangup(id: Int) { userEnded.add(id); if (started) Native.nHangup(id) }
     fun hangupAll() { _calls.value.forEach { userEnded.add(it.id) }; Native.nHangupAll() }
     fun dtmf(id: Int, d: String) = Native.nDtmf(id, d)
@@ -256,12 +258,59 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
         return true
     }
 
+    /** Attended transfers: the call placed to ask the new person (key) and the call it was placed from, which is on hold (value). */
+    val consults = MutableStateFlow<Map<Int, Int>>(emptyMap())
+
+    /** Starts an attended transfer: puts [original] on hold and calls the new person. Once they answer and agree, [completeTransfer] connects the two. */
+    fun startConsult(original: Int, to: String, from: Account?): Boolean {
+        val orig = _calls.value.firstOrNull { it.id == original && it.active } ?: return false
+        if (!call(to, from ?: store.account(orig.accountID) ?: return false)) return false
+        val consult = currentId.value?.takeIf { it != original } ?: return false
+        consults.value = consults.value + (consult to original)
+        return true
+    }
+
+    /** Connects the person on hold to the one you have just asked, and drops out. Needs the consult call to be answered. */
+    fun completeTransfer(consult: Int): Boolean {
+        val original = consults.value[consult] ?: return false
+        if (_calls.value.none { it.id == consult && it.active }) return false
+        if (!Native.nXferReplaces(original, consult)) { setNote(consult, "Could not start the transfer"); return false }
+        setNote(original, "Transferring…"); setNote(consult, "Transferring…")
+        return true
+    }
+
+    /** Gives up on an attended transfer: ends the call to the new person and goes back to the one on hold. */
+    fun cancelConsult(consult: Int) {
+        val original = consults.value[consult] ?: return
+        consults.value = consults.value - consult
+        hangup(consult); setHold(original, false)
+    }
+
+    /** A consult call that ends by itself (nobody answered, busy) puts you back with the person who was on hold, unless the transfer went through. */
+    private fun consultEnded(call: Int) {
+        consults.value = consults.value.filterValues { it != call }                 // the person on hold hung up: nothing to go back to
+        val original = consults.value[call] ?: return
+        consults.value = consults.value - call
+        if (transferNote.value[call] == "Transferred") return
+        setNote(original, "That call ended: you are back with this caller"); setHold(original, false)
+        main.postDelayed({ setNote(original, null) }, 6000)
+    }
+
     /** The other side's progress reports for a transfer: 1xx while it works on it, a final 2xx when it has taken over, a final error if it could not. */
     private fun transferProgress(call: Int, code: Int, reason: String, final: Boolean) {
         if (_calls.value.none { it.id == call }) return
         when {
-            code in 200..299 -> { setNote(call, "Transferred"); hangup(call) }          // the other party is connected to the new person: this leg is done (the PBX usually ends it too)
-            final || code >= 300 -> { setNote(call, "Transfer failed: $code $reason"); main.postDelayed({ setNote(call, null) }, 8000) }
+            code in 200..299 -> {
+                val consult = consults.value.entries.firstOrNull { it.value == call }?.key
+                setNote(call, "Transferred"); hangup(call)                                // the other party is connected to the new person: this leg is done (the PBX usually ends it too)
+                if (consult != null) { setNote(consult, "Transferred"); hangup(consult) } // attended: the call to the new person too
+            }
+            final || code >= 300 -> {
+                val consult = consults.value.entries.firstOrNull { it.value == call }?.key
+                val failure = "Transfer failed: $code $reason"
+                setNote(call, failure); if (consult != null) setNote(consult, failure)
+                main.postDelayed({ setNote(call, null); if (consult != null) setNote(consult, null) }, 8000)
+            }
             else -> setNote(call, if (reason.isEmpty()) "Transferring…" else "Transferring… $reason")
         }
     }

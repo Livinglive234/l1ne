@@ -37,7 +37,7 @@ wrong password, unknown extension or an unreachable server. You can add more acc
 
 **Calls**
 - Several accounts at once, each with its own server, transport (TLS, TCP or UDP), media encryption (SRTP or DTLS-SRTP), NAT settings, dial rules and voicemail number.
-- Hold, mute, speaker, Bluetooth and headset routing, keypad tones, blind transfer, call recording and a call-quality indicator.
+- Hold, mute, speaker, Bluetooth and headset routing, keypad tones, blind and attended transfer (transfer now, or ask the new person first with the caller on hold), call recording and a call-quality indicator.
 - Shows whether a call is encrypted. Message-waiting light and a voicemail button.
 - Local ringback tones (classic US and UK, chime, digital and pulse) while the other phone rings, because most phone systems send no ringback of their own.
 - **Quiet redial:** if a call fails right after the phone changes network (Wi-Fi to mobile), L1ne retries once without bothering you.
