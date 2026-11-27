@@ -6,7 +6,8 @@ instance covers every scenario:
   REGISTER   7100 / 7101 / ... any extension: digest login, password "secret" (a wrong password gets 403)
              7104: 404 (unknown extension)   7105: 503 (server down)   7106: never answers
   INVITE     1001 answers (200 OK, SDP: first offered codec, SRTP echoed if offered)   1002: 486 Busy   1003: 183 early media, then 200
-             1004: rings (180) forever   1005: 404   1006: 603 Decline   anything else: answered like 1001
+             1004: rings (180) forever   1005: 404   1006: 603 Decline   1007: answers with media on a port nobody listens on (a peer with no ZRTP, no RTP)
+             anything else: answered like 1001; its media goes to port 40000, where --zrtp-peer (tests/zrtp/zrtp_peer.c) speaks ZRTP when it is started
              re-INVITE (hold/resume) is answered and logged with its direction; BYE, REFER (with progress reports; a transfer to 7404 fails), INFO, CANCEL, MESSAGE, SUBSCRIBE are answered
   SUBSCRIBE  message-summary: 200, then a NOTIFY with 3 new voicemails
   STUN       UDP binding requests are answered and logged
@@ -17,14 +18,14 @@ A tiny HTTP control port lets a test see and steer it:
   GET /invite?user=7100          ring the registered phone (an incoming call)
   GET /text?user=7100&text=hi    send the registered phone a text message
 
-usage: pbx.py [--host 0.0.0.0] [--sip-port 5060] [--stun-port 3478] [--http-port 8099]
+usage: pbx.py [--host 0.0.0.0] [--sip-port 5060] [--stun-port 3478] [--http-port 8099] [--zrtp-peer /path/to/zrtp_peer]
 """
 import argparse, asyncio, hashlib, re, struct, time, uuid
 from urllib.parse import urlparse, parse_qs
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--host", default="0.0.0.0"); ap.add_argument("--sip-port", type=int, default=5060)
-ap.add_argument("--stun-port", type=int, default=3478); ap.add_argument("--http-port", type=int, default=8099)
+ap.add_argument("--stun-port", type=int, default=3478); ap.add_argument("--http-port", type=int, default=8099); ap.add_argument("--zrtp-peer", default="")
 args = ap.parse_args()
 
 LOG = []
@@ -61,7 +62,9 @@ def user_of(uri):
     m = re.search(r"sips?:([^@;>]+)", uri); return m.group(1) if m else ""
 def contact(host, proto="tcp"): return f"Contact: <sip:pbx@{host}:{args.sip_port};transport={proto}>"
 
-def sdp_answer(offer, host):
+def mport(callee): return 40001 if callee == "1007" else 40000
+
+def sdp_answer(offer, host, port=40000):
     m = re.search(r"^m=audio (\d+) (\S+) (.*)$", offer, re.M)
     proto = m.group(2) if m else "RTP/AVP"; fmts = m.group(3).split() if m else ["0"]
     fmt = fmts[0]; rtpmap = re.search(rf"^a=rtpmap:{fmt} (\S+)", offer, re.M)
@@ -69,7 +72,7 @@ def sdp_answer(offer, host):
     d = "sendrecv"
     if re.search(r"^a=sendonly", offer, re.M): d = "recvonly"
     elif re.search(r"^a=inactive", offer, re.M): d = "inactive"
-    s = f"v=0\r\no=- 1 1 IN IP4 {host}\r\ns=mock\r\nc=IN IP4 {host}\r\nt=0 0\r\nm=audio 40000 {proto} {fmt}\r\n"
+    s = f"v=0\r\no=- 1 1 IN IP4 {host}\r\ns=mock\r\nc=IN IP4 {host}\r\nt=0 0\r\nm=audio {port} {proto} {fmt}\r\n"
     if rtpmap: s += f"a=rtpmap:{fmt} {rtpmap.group(1)}\r\n"
     c = re.search(r"^a=crypto:(\d+) (\S+) inline", offer, re.M)
     if "SAVP" in proto and c: s += f"a=crypto:{c.group(1)} {c.group(2)} inline:{FIXED_KEY}\r\n"
@@ -78,7 +81,7 @@ def sdp_answer(offer, host):
 def media_summary(body):
     out = []
     for l in body.splitlines():
-        if l.startswith("m=") or l.startswith("a=rtpmap") or l.startswith("a=crypto") or l.startswith("a=fingerprint") or l.startswith("a=candidate") or l.startswith("a=ice") or l in ("a=sendonly", "a=recvonly", "a=inactive", "a=sendrecv"):
+        if l.startswith("m=") or l.startswith("a=rtpmap") or l.startswith("a=crypto") or l.startswith("a=zrtp-hash") or l.startswith("a=fingerprint") or l.startswith("a=candidate") or l.startswith("a=ice") or l in ("a=sendonly", "a=recvonly", "a=inactive", "a=sendrecv"):
             out.append(re.sub(r"inline:\S+", "inline:<key>", l))
     return " | ".join(out)
 
@@ -126,7 +129,7 @@ async def process(text, send, host, proto):
         if not first:   # re-INVITE: hold or resume
             offer_dir = next((x for x in ("sendonly", "inactive", "recvonly", "sendrecv") if f"a={x}" in body), "sendrecv")
             log("re-INVITE", f"dir={offer_dir}", "(hold)" if offer_dir in ("sendonly", "inactive") else "(resume)")
-            await send(reply(200, "OK", hs, vias, [contact(host, proto)], sdp_answer(body, host))); return
+            await send(reply(200, "OK", hs, vias, [contact(host, proto)], sdp_answer(body, host, mport(callee)))); return
         dialogs[cid] = {"callee": callee, "target": ruri}
         log("INVITE", callee, "|", media_summary(body))
         for l in body.splitlines():
@@ -137,11 +140,11 @@ async def process(text, send, host, proto):
         elif callee == "1006": log("-> 603 Decline"); await send(reply(603, "Decline", hs, vias))
         elif callee == "1004": log("-> 180 (ringing forever)"); await send(reply(180, "Ringing", hs, vias, [contact(host, proto)]))
         elif callee == "1003":
-            log("-> 183 early media"); await send(reply(183, "Session Progress", hs, vias, [contact(host, proto)], sdp_answer(body, host)))
-            await asyncio.sleep(1.2); log("-> 200 OK (after early media)"); await send(reply(200, "OK", hs, vias, [contact(host, proto)], sdp_answer(body, host)))
+            log("-> 183 early media"); await send(reply(183, "Session Progress", hs, vias, [contact(host, proto)], sdp_answer(body, host, mport(callee))))
+            await asyncio.sleep(1.2); log("-> 200 OK (after early media)"); await send(reply(200, "OK", hs, vias, [contact(host, proto)], sdp_answer(body, host, mport(callee))))
         else:
             await send(reply(180, "Ringing", hs, vias, [contact(host, proto)])); await asyncio.sleep(0.4)
-            log("-> 200 OK"); await send(reply(200, "OK", hs, vias, [contact(host, proto)], sdp_answer(body, host)))
+            log("-> 200 OK"); await send(reply(200, "OK", hs, vias, [contact(host, proto)], sdp_answer(body, host, mport(callee))))
     elif method == "ACK": log("ACK")
     elif method == "BYE": log("BYE"); dialogs.pop(hs["call-id"], None); await send(reply(200, "OK", hs, vias))
     elif method == "CANCEL": log("CANCEL"); await send(reply(200, "OK", hs, vias))
@@ -247,6 +250,11 @@ async def main():
     await loop.create_datagram_endpoint(UdpSip, local_addr=(args.host, args.sip_port))
     await loop.create_datagram_endpoint(Stun, local_addr=(args.host, args.stun_port))
     await asyncio.start_server(http, args.host, args.http_port)
+    if args.zrtp_peer:                                   # a media peer that speaks ZRTP on 40000; what it prints goes into the log
+        proc = await asyncio.create_subprocess_exec(args.zrtp_peer, "40000", stdout=asyncio.subprocess.PIPE)
+        async def pump():
+            while (line := await proc.stdout.readline()): log(line.decode().strip())
+        asyncio.create_task(pump())
     log(f"mock PBX: SIP tcp+udp {args.sip_port}, STUN udp {args.stun_port}, control http {args.http_port}")
     await asyncio.Event().wait()
 

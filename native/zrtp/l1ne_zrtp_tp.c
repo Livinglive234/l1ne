@@ -117,18 +117,17 @@ static void schedule(struct zt *t, int ms);
 
 /* Sends what the engine queued, tells the app what changed, and arms the timer; call with the lock NOT held. */
 static void flush(struct zt *t) {
-    outpkt local[MAXQ]; int n; l1ne_zrtp_info info; int notify;
+    outpkt local[MAXQ]; int n; l1ne_zrtp_info info; int notify, ms;
     pj_lock_acquire(t->lock);
+    ms = t->destroyed ? -1 : zrtp_poll(t->z);                  /* sends what is due (queued below) and may change the state */
     n = t->qn; memcpy(local, t->q, (size_t)n * sizeof local[0]); t->qn = 0; info = t->info; notify = t->notify; t->notify = 0;
-    int ms = t->destroyed ? -1 : zrtp_poll(t->z);              /* sends what is due (queued again) */
-    int n2 = t->qn; if (n + n2 <= MAXQ) { memcpy(local + n, t->q, (size_t)n2 * sizeof local[0]); n += n2; } t->qn = 0;
     pj_lock_release(t->lock);
     for (int i = 0; i < n; i++) pjmedia_transport_send_rtp(t->slave, local[i].d, local[i].n);
     if (notify && G.listener) G.listener(G.user, t->call_id, &info);
     if (!t->destroyed) schedule(t, ms);
 }
 
-static void on_timer(pj_timer_heap_t *th, pj_timer_entry *e) { (void)th; struct zt *t = e->user_data; e->id = 0; if (!t->destroyed) flush(t); }
+static void on_timer(pj_timer_heap_t *th, pj_timer_entry *e) { (void)th; struct zt *t = e->user_data; e->id = 0;  if (!t->destroyed) flush(t); }
 
 static void schedule(struct zt *t, int ms) {
     pj_timer_heap_t *th = theap(); if (!th) return;

@@ -1,5 +1,6 @@
 import XCTest
 import Darwin
+import CPJSIP
 @testable import L1ne
 
 /// L1ne's real SIP engine (PJSIP, not a stand-in) on the iPhone, against the fake PBX in `tests/mock/pbx.py`, which has to be running
@@ -214,6 +215,31 @@ final class WireTests: XCTestCase {
     func testDtlsOffersAFingerprint() throws {
         let a = try registered(account("7100", media: .srtpDTLS)); dial(a, "1001"); try waitServer("INVITE 1001")
         let l = serverLog(); XCTAssertTrue(l.contains("UDP/TLS/RTP/SAVP") && l.contains("a=fingerprint"), l)
+    }
+    // ZRTP, against tests/zrtp/zrtp_peer.c (started by the mock PBX on its media port): the keys are agreed on the media path, both sides show the same code, and SRTP flows
+    func testZrtpAgreesKeysAndMediaFlows() throws {
+        let a = try registered(account("7100", media: .zrtp)); dial(a, "1001"); try waitServer("INVITE 1001")
+        XCTAssertTrue(serverLog().contains("a=zrtp-hash:1.10"), "the offer says we speak ZRTP")
+        try waitFor("ZRTP secure on our side") { engine.calls.first.flatMap { engine.zrtp[$0.id]?.state } == 1 }
+        try waitServer("zrtp-peer: secure")
+        // the peer sends SRTP of its own (this computer's simulator has no audio device, so the app itself sends none): what arrives is read and reaches the stream
+        try waitFor("SRTP from the peer to be read by the stream") {
+            var st = pjsua_stream_stat(); guard let id = engine.calls.first?.id, pjsua_call_get_stream_stat(id, 0, &st) == 0 else { return false }
+            return st.rtcp.rx.pkt > 10 }
+        let code = engine.calls.first.flatMap { engine.zrtp[$0.id]?.code } ?? ""
+        XCTAssertEqual(code.count, 4); XCTAssertTrue(serverLog().contains("zrtp-peer: sas \(code)"), "both sides show the same code (\(code))\n\(serverLog())")
+        try waitFor("the call to be shown as ZRTP-encrypted") { engine.calls.first.map { engine.encryption[$0.id] } == .some(.zrtp) }
+    }
+    func testZrtpRequiredEndsTheCallWhenThePeerHasNoZrtp() throws {
+        let a = try registered(account("7100", media: .zrtp) { $0.mediaMandatory = true }); dial(a, "1007"); try waitServer("INVITE 1007"); try waitFor("the call") { !engine.calls.isEmpty }
+        try waitFor("the call to be ended because ZRTP never came", seconds: 25) { engine.calls.isEmpty }
+        XCTAssertTrue(serverSaw("BYE"))
+    }
+    func testZrtpWhenAvailableKeepsTheCallInTheClearIfThePeerHasNoZrtp() throws {
+        let a = try registered(account("7100", media: .zrtp)); dial(a, "1007"); try waitServer("INVITE 1007")
+        try waitFor("ZRTP to be given up", seconds: 25) { engine.calls.first.flatMap { engine.zrtp[$0.id]?.state } == 2 }
+        XCTAssertEqual(engine.calls.count, 1, "the call goes on")
+        try waitFor("the call to be shown as not encrypted") { engine.calls.first.flatMap { engine.encryption[$0.id] } == SIPEngine.CallSecurity.none }
     }
     func testADisabledCodecIsNotOffered() throws {
         let all = engine.availableCodecs().map(\.id); XCTAssertTrue(all.contains { $0.hasPrefix("PCMA/") })
