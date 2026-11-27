@@ -14,7 +14,7 @@ An **account** is one SIP identity on one server; the app holds several. Fields:
 
 ## Security
 - TLS and DTLS-SRTP use **OpenSSL** (built by `scripts/build-openssl.sh`). OpenSSL has no access to the OS trust store, so a CA bundle
-  (`L1ne/Resources/cacert.pem`, Mozilla's list) is shipped and the server certificate is verified against it. An untrusted certificate is refused
+  (`ios/Resources/cacert.pem`, Mozilla's list) is shipped and the server certificate is verified against it. An untrusted certificate is refused
   and no SIP traffic is sent.
 - Media encryption: SRTP (SDES; keys travel in the SDP, so it requires TLS) or DTLS-SRTP, optional or mandatory. SDES on UDP/TCP is warned about.
 - New accounts default to mandatory SRTP on TLS (the `RTP/SAVP` form that PBXes requiring SDES expect) and no encryption on UDP/TCP.

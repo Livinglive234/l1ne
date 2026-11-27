@@ -15,7 +15,7 @@ its own license. License texts live with each component's source (`vendor/` afte
 - Copyright The OpenSSL Project Authors. Licensed **Apache-2.0**. https://github.com/openssl/openssl
 - Built from the official release tarball, checksum verified by `scripts/fetch-deps.sh`.
 
-## Mozilla CA certificate bundle (`L1ne/Resources/cacert.pem`)
+## Mozilla CA certificate bundle (`ios/Resources/cacert.pem`)
 - Extracted from Mozilla's root store and published by the curl project (https://curl.se/docs/caextract.html). Derived from Mozilla's root store, which Mozilla and curl publish under the **Mozilla Public
   License 2.0** (check their pages for the current terms); it is data, not code, and is used so TLS server certificates can be verified.
 

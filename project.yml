@@ -16,7 +16,7 @@ targets:
     type: application
     platform: iOS
     sources:
-      - L1ne
+      - ios
       - path: native/zrtp                     # ZRTP media transport (C), compiled into the app; see native/zrtp/zrtp.h
         excludes: ["*.md"]
     dependencies:
@@ -26,14 +26,14 @@ targets:
     # register for push yet. To turn it on (paid team, PushKit work in place): uncomment the block below, run
     # scripts/gen.sh, and check the App ID has the Push Notifications capability in the developer portal.
     #   entitlements:
-    #     path: L1ne/L1ne.entitlements
+    #     path: ios/L1ne.entitlements
     #     properties:
     #       aps-environment: development    # Xcode swaps this to production for archives (TestFlight / App Store) on its own
     # Also needed then: a push proxy holding the APNs key (see the push-proxy plan), and PushKit registration in CallKitManager.
     scheme:
       testTargets: [L1neTests, L1neUITests]     # so `xcodebuild test -scheme L1ne` runs them
     info:
-      path: L1ne/Info.plist
+      path: ios/Info.plist
       properties:
         L1neVersionLabel: $(L1NE_VERSION_LABEL)
         ITSAppUsesNonExemptEncryption: false   # only standard TLS / SRTP / DTLS (PJSIP + OpenSSL) and the OS Keychain; no custom crypto. Revisit if that changes.
@@ -65,7 +65,7 @@ targets:
         EXCLUDED_ARCHS: x86_64
         OTHER_SWIFT_FLAGS: [-Xcc, -DPJ_AUTOCONF=1]     # same define the library was built with
         OTHER_CFLAGS: [-DPJ_AUTOCONF=1]
-        SWIFT_OBJC_BRIDGING_HEADER: L1ne/L1ne-Bridging-Header.h
+        SWIFT_OBJC_BRIDGING_HEADER: ios/L1ne-Bridging-Header.h
         HEADER_SEARCH_PATHS: ["$(SRCROOT)/native/zrtp", "$(SRCROOT)/vendor/openssl/ios-arm64/include"]
         OTHER_LDFLAGS: [-lc++, -framework, Network, -framework, Security, -framework, AudioToolbox,
                         -framework, CoreAudio, -framework, AVFoundation, -framework, CFNetwork,

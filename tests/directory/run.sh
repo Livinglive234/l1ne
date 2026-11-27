@@ -52,5 +52,5 @@ put alice $'BEGIN:VCARD\r\nVERSION:3.0\r\nUID:alice\r\nFN:Alice Example\r\nX-SIP
 put phone $'BEGIN:VCARD\r\nVERSION:3.0\r\nUID:phone\r\nFN:Phone Only\r\nTEL:+16125550000\r\nEND:VCARD\r\n'
 
 # --- build and run
-swiftc -o "$T/dirtests" "$ROOT/L1ne/VCard.swift" "$ROOT/L1ne/LDAP.swift" "$ROOT/L1ne/CardDAV.swift" "$ROOT/L1ne/DirectoryMapping.swift" "$ROOT/tests/directory/main.swift" 2>&1 | grep -E "error" || true
+swiftc -o "$T/dirtests" "$ROOT/ios/VCard.swift" "$ROOT/ios/LDAP.swift" "$ROOT/ios/CardDAV.swift" "$ROOT/ios/DirectoryMapping.swift" "$ROOT/tests/directory/main.swift" 2>&1 | grep -E "error" || true
 LDAP_PORT=$LDAP_PORT CARDDAV_URL="$BOOK" "$T/dirtests"

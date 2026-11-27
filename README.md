@@ -56,7 +56,7 @@ wrong password, unknown extension or an unreachable server. You can add more acc
 ## Supported phones
 
 - **iPhone and iPad: iOS 15 or later** (iPhone 6s and newer). SwiftUI itself needs iOS 13, and the Xcode used here builds nothing below iOS 15.
-  A few newer SwiftUI features have stand-ins in `L1ne/Compat.swift`, so older phones get slightly simpler versions of the same screens.
+  A few newer SwiftUI features have stand-ins in `ios/Compat.swift`, so older phones get slightly simpler versions of the same screens.
 - **Android: 8.0 (API 26) or later**, on 64-bit (`arm64-v8a`) and 32-bit (`armeabi-v7a`) ARM. Many budget phones run a 32-bit system even on a 64-bit chip.
 
 Tested so far: iPhone (current iOS) and a Samsung Galaxy (current Android), the Android 8 emulator, and small-phone, tablet and large-text sizes.
@@ -155,7 +155,7 @@ Be careful with `connectedDebugAndroidTest` on a phone you use: Android removes 
 
 | Path | What is in it |
 |---|---|
-| `L1ne/` | the iPhone app (SwiftUI) |
+| `ios/` | the iPhone app (SwiftUI) |
 | `android/core/` | shared Kotlin logic with no Android dependencies: accounts, provisioning, dial rules, parsers |
 | `android/app/` | the Android app (Compose), the PJSIP bridge in C (`src/main/cpp`) and the Telecom integration |
 | `scripts/` | dependency download and native build scripts (`lib.sh` holds the macOS/Linux/Windows differences), and the one PJSIP patch |

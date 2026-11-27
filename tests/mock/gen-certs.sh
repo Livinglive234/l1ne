@@ -11,5 +11,5 @@ openssl x509 -req -in server.csr -CA ca.pem -CAkey ca.key -CAcreateserial -days 
 openssl req -newkey rsa:2048 -nodes -keyout wild.key -out wild.csr -subj "/CN=*.test.localhost" 2>/dev/null
 printf "subjectAltName=DNS:*.test.localhost\nextendedKeyUsage=serverAuth\n" > wext.cnf
 openssl x509 -req -in wild.csr -CA ca.pem -CAkey ca.key -CAcreateserial -days 30 -extfile wext.cnf -out wild.pem 2>/dev/null
-cat "$ROOT/L1ne/Resources/cacert.pem" ca.pem > bundle-with-test-ca.pem
+cat "$ROOT/ios/Resources/cacert.pem" ca.pem > bundle-with-test-ca.pem
 echo "certs in $D"
