@@ -6,6 +6,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 
 /** Mirrors tests/parsers/main.swift and reads the same fixtures. */
@@ -60,5 +61,14 @@ class ParsersTest {
         assertNull(Provisioning.configUrl("http://a.b/c.xml"))
         assertNull(Provisioning.configUrl("sip:7201@a.b"))
         assertFailsWith<Provisioning.Failure> { Provisioning.parse("<html></html>".toByteArray()) }
+    }
+
+    @Test fun provisioningReadsEncryptionExpiryAndVoicemail() {
+        fun parse(sip: String, proxy: String = "") = Provisioning.parse(("<config><section name=\"proxy_0\"><entry name=\"reg_identity\">sip:1@h.example</entry><entry name=\"reg_proxy\">sip:h.example;transport=tls</entry>$proxy</section>" +
+            "<section name=\"auth_info_0\"><entry name=\"username\">1</entry><entry name=\"passwd\">x</entry></section><section name=\"sip\">$sip</section></config>").toByteArray())
+        val d = parse("<entry name=\"media_encryption\">dtls</entry><entry name=\"media_encryption_mandatory\">1</entry>", "<entry name=\"reg_expires\">1800</entry><entry name=\"voicemail_uri\">sip:*98@h.example</entry>").accounts.first().account
+        assertEquals(Media.SRTP_DTLS, d.media); assertTrue(d.mediaMandatory); assertEquals(1800, d.expires); assertEquals("sip:*98@h.example", d.voicemailURI)
+        val z = parse("<entry name=\"media_encryption\">zrtp</entry>")
+        assertEquals(Media.SRTP_SDES, z.accounts.first().account.media); assertFalse(z.accounts.first().account.mediaMandatory); assertTrue(z.notes.any { "ZRTP" in it })
     }
 }

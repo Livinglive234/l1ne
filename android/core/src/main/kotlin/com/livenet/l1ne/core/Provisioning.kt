@@ -61,7 +61,16 @@ object Provisioning {
             } else notes.add("No credentials for ${ident.user}@${ident.domain}; enter the secret by hand.")
 
             val enc = (sections["sip"]?.get("media_encryption") ?: sections["rtp"]?.get("media_encryption") ?: e["media_encryption"] ?: "").lowercase()
-            a = a.copy(media = if (enc == "none") Media.NONE else Media.SRTP_SDES)
+            val media = when (enc) {
+                "none" -> Media.NONE
+                "dtls" -> Media.SRTP_DTLS
+                else -> Media.SRTP_SDES
+            }
+            if (enc == "zrtp") notes.add("${ident.user}@${ident.domain} asks for ZRTP, which L1ne doesn't support; using SRTP instead.")
+            val mandatory = sections["sip"]?.get("media_encryption_mandatory") ?: e["media_encryption_mandatory"] ?: "0"
+            a = a.copy(media = media, mediaMandatory = mandatory == "1" || mandatory.equals("true", true))
+            e["reg_expires"]?.toIntOrNull()?.takeIf { it >= 60 }?.let { a = a.copy(expires = it) }
+            (e["voicemail_uri"] ?: e["mwi_uri"])?.takeIf { it.isNotEmpty() }?.let { a = a.copy(voicemailURI = it) }
             accounts.add(Parsed(a, secret))
         }
 

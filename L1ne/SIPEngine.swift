@@ -477,7 +477,7 @@ final class SIPEngine: ObservableObject {
         let n = number.trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty else { return false }
         let cs = CStrings()
-        var dest = cs.make(n.lowercased().hasPrefix("sip") ? n : "sip:\(a.dial(n))@\(a.domain)")
+        var dest = cs.make(a.dialURI(n))
         guard pjsua_call_xfer(id, &dest, nil) == 0 else { return false }
         transferNote[id] = "Transferring to \(ContactsStore.shared.displayName(forPeer: VCard.sipAddress(n) ?? n))…"
         return true

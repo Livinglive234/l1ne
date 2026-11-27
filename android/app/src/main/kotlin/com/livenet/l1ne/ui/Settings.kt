@@ -278,7 +278,7 @@ fun AccountEditorScreen(id: String?, onSubmit: ((Account, String) -> Unit)? = nu
     var secret by remember { mutableStateOf("") }; var turnSecret by remember { mutableStateOf("") }
     var server by remember { mutableStateOf(if (isNew) "" else a.domain) }
     var confirmRemove by remember { mutableStateOf(false) }
-    val reg by app.engine.registration.collectAsState(); val checks by app.engine.messagingCheck.collectAsState()
+    val reg by app.engine.registration.collectAsState(); val checks by app.engine.messagingCheck.collectAsState(); val notes by app.engine.messagingNote.collectAsState()
     BackHandler(onBack = onBack)
 
     fun field(title: String, v: String, ch: (String) -> Unit, kb: KeyboardType = KeyboardType.Text, modifier: Modifier = Modifier.fillMaxWidth()) =
@@ -337,7 +337,7 @@ fun AccountEditorScreen(id: String?, onSubmit: ((Account, String) -> Unit)? = nu
                     Row(Modifier.padding(16.dp)) { Text("Server", Modifier.weight(1f)); when (c) {
                         SipEngine.MessagingCheck.WORKING -> Text("Delivers texts", color = L1neColors.Brand)
                         SipEngine.MessagingCheck.NOT_DELIVERED -> Text("Doesn't deliver", color = androidx.compose.ui.graphics.Color(0xFFFF9500))
-                        SipEngine.MessagingCheck.CHECKING -> Text("Checking…", color = L1neColors.Muted); else -> Text("Not checked", color = L1neColors.Muted) } }; RowDivider()
+                        SipEngine.MessagingCheck.CHECKING -> Text("Checking…", color = L1neColors.Muted); else -> Text(if (notes[a.id] != null) "Not supported" else "Not checked", color = L1neColors.Muted) } }; RowDivider()
                     NavRow("Check messaging", icon = Icons.Filled.Sms) { if (reg[a.id] == "Registered" && c != SipEngine.MessagingCheck.CHECKING) app.engine.checkMessaging(a.id) } }
                 FooterText("Sends one hidden test text to this line itself and sees whether the server delivers it back. Nothing goes to anyone else and it isn't shown as a message. Some servers treat a text to an extension as a call to it, so you may hear a phone ring.")
                 SectionHeader("Voicemail")

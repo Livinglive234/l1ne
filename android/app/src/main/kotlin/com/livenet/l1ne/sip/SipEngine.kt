@@ -80,7 +80,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
             "reg" -> accOfPJ[a]?.let { id -> setReg(id, RegistrationText.status(b, s1)) }
             "message" -> incomingText(a, s1, s2)
             "xfer" -> transferProgress(a, b, s1, s2 == "1")
-            "sent" -> sendTags.remove(a)?.let { id -> messages?.update(id, if (b in 200..299) com.livenet.l1ne.data.MsgStatus.SENT else com.livenet.l1ne.data.MsgStatus.FAILED, if (b in 200..299) null else "$b $s1") }
+            "sent" -> sendResult(a, b, s1)
             "mwi" -> accOfPJ[a]?.let { id -> _mwi.value = _mwi.value + (id to b) }
             "incoming", "call" -> {
                 val f = s2.split("|")
@@ -138,6 +138,17 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
         if (id < 0) { setReg(a.id, "Could not add account (error ${-id})"); return }
         pjAcc[a.id] = id; accOfPJ[id] = a.id
         setReg(a.id, "Registering…")
+    }
+
+    /** The network changed. With "Use only Wi-Fi networks" on, accounts sign out when the phone leaves Wi-Fi (they wait for it) and sign in again when it is back;
+     *  a call in progress is never cut for that. Otherwise PJSIP just moves to the new network. */
+    private fun networkChanged() {
+        if (settings.wifiOnly && !onWifi()) {
+            if (_calls.value.none { !it.ended }) store.accounts.value.forEach { if (it.enabled) { unregister(it.id); setReg(it.id, "Waiting for Wi-Fi") } }
+            return
+        }
+        if (settings.wifiOnly) registerMissing()
+        Native.nIpChange()
     }
 
     private fun onWifi(): Boolean {
@@ -209,6 +220,36 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
         } else holdWanted.remove(id)
     }
 
+    /** Accounts whose server answered a text with "not supported" (405/501/415). Remembered across launches, and cleared as soon as a text goes through. */
+    private val msgPrefs get() = app.getSharedPreferences("messaging", Context.MODE_PRIVATE)
+    val messagingNote = MutableStateFlow<Map<String, String>>(runCatching { msgPrefs.all.mapValues { it.value.toString() } }.getOrDefault(emptyMap()))
+    private fun setMessagingNote(id: String, note: String?) {
+        messagingNote.value = if (note == null) messagingNote.value - id else messagingNote.value + (id to note)
+        runCatching { msgPrefs.edit().apply { if (note == null) remove(id) else putString(id, note) }.apply() }
+    }
+    private fun unsupportedNote(code: Int) = "This server doesn't support text messages ($code)."
+    private val probeTags = HashMap<Int, String>()                      // pjsua send tag -> account, for the test text
+
+    private fun sendResult(tag: Int, code: Int, reason: String) {
+        probeTags.remove(tag)?.let { account ->                          // the hidden test text
+            when (code) {
+                405, 501, 415 -> { setMessagingNote(account, unsupportedNote(code)); setCheck(account, MessagingCheck.UNKNOWN); probeTokens.remove(account) }
+                in 200..299 -> {}                                        // accepted: now wait to see whether it comes back
+                else -> { probeTokens.remove(account); setCheck(account, MessagingCheck.NOT_DELIVERED) }      // refused (404, 403, ...): not routed
+            }
+            return
+        }
+        val id = sendTags.remove(tag) ?: return
+        val target = messages?.accountAndPeer(id)
+        if (code in 200..299) { messages?.update(id, com.livenet.l1ne.data.MsgStatus.SENT, null); target?.let { setMessagingNote(it.first, null) }; return }
+        val note = when (code) {
+            405, 501, 415 -> unsupportedNote(code).also { n -> target?.let { setMessagingNote(it.first, n) } }
+            404, 480, 408, 503, 604 -> "Not delivered: they aren't reachable right now ($code)."
+            else -> "Not delivered ($code $reason)."
+        }
+        messages?.update(id, com.livenet.l1ne.data.MsgStatus.FAILED, note)
+    }
+
     enum class MessagingCheck { UNKNOWN, CHECKING, WORKING, NOT_DELIVERED }
     val messagingCheck = MutableStateFlow<Map<String, MessagingCheck>>(emptyMap())
     private val probeTokens = HashMap<String, String>()                 // account id -> token
@@ -217,7 +258,9 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     fun checkMessaging(accountID: String) {
         val a = store.account(accountID) ?: return; val pj = pjAcc[accountID] ?: return
         val token = "L1NE-CHECK:" + java.util.UUID.randomUUID(); probeTokens[accountID] = token; setCheck(accountID, MessagingCheck.CHECKING)
-        Native.nSendText(pj, "sip:${a.username}@${a.domain}", token, 0)
+        setMessagingNote(accountID, null)
+        val tag = nextTag++; probeTags[tag] = accountID
+        if (Native.nSendText(pj, "sip:${a.username}@${a.domain}", token, tag) != 0) { probeTags.remove(tag); probeTokens.remove(accountID); setCheck(accountID, MessagingCheck.UNKNOWN); return }
         main.postDelayed({ if (probeTokens[accountID] == token) { probeTokens.remove(accountID); setCheck(accountID, MessagingCheck.NOT_DELIVERED) } }, 8000)
     }
     data class QualityNumbers(val lossPercent: Double, val jitterMs: Double, val roundTripMs: Double)
@@ -253,8 +296,8 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     }
     fun transfer(id: Int, to: String, from: Account?): Boolean {
         val a = from ?: store.accounts.value.firstOrNull() ?: return false
-        if (!Native.nXfer(id, if (to.startsWith("sip:")) to else "sip:${a.dial(to)}@${a.domain}")) return false
-        setNote(id, "Transferring to ${com.livenet.l1ne.core.PhoneFormat.pretty(to.removePrefix("sip:").substringBefore('@'))}…")
+        if (!Native.nXfer(id, a.dialUri(to))) return false
+        setNote(id, "Transferring to ${(app.applicationContext as com.livenet.l1ne.L1neApplication).contacts.nameOrNumber(to.removePrefix("sip:"))}…")
         return true
     }
 
@@ -326,7 +369,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     }
     private fun incomingText(pjAccId: Int, from: String, text: String) {
         val accId = accOfPJ[pjAccId] ?: return
-        probeTokens.entries.firstOrNull { it.value == text }?.let { (id, _) -> probeTokens.remove(id); setCheck(id, MessagingCheck.WORKING); return }
+        probeTokens.entries.firstOrNull { it.value == text }?.let { (id, _) -> probeTokens.remove(id); setCheck(id, MessagingCheck.WORKING); setMessagingNote(id, null); return }
         val peer = Regex("sip:([^>;]+)").find(from)?.groupValues?.get(1)?.lowercase() ?: return
         messages?.add(com.livenet.l1ne.data.Message(outgoing = false, text = text, read = false), accId, peer)
     }
@@ -389,7 +432,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
         var first = true
         cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
             override fun onLost(network: Network) { lastNetworkEvent = System.currentTimeMillis() }
-            override fun onAvailable(network: Network) { if (first) { first = false; return }; lastNetworkEvent = System.currentTimeMillis(); main.post { unansweredAtChange.addAll(_calls.value.filter { !it.incoming && !it.active && !it.ended }.map { it.id }); Native.nIpChange() } }
+            override fun onAvailable(network: Network) { if (first) { first = false; return }; lastNetworkEvent = System.currentTimeMillis(); main.post { unansweredAtChange.addAll(_calls.value.filter { !it.incoming && !it.active && !it.ended }.map { it.id }); networkChanged() } }
         })
     }
 }

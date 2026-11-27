@@ -564,6 +564,16 @@ struct TransferSheet: View {
     @State private var number = ""
     @State private var askFirst = false
 
+    /// Same list as Android: the first five contacts matching what is typed (all of them while nothing is typed).
+    private var matches: [Contact] {
+        let t = number.trimmingCharacters(in: .whitespaces)
+        return Array(contacts.contacts.filter { t.isEmpty || $0.name.localizedCaseInsensitiveContains(t) || $0.address.localizedCaseInsensitiveContains(t) }.prefix(5))
+    }
+    private func initials(_ name: String) -> String {
+        let p = name.split(separator: " ").prefix(2).compactMap { $0.first }
+        return p.isEmpty ? "#" : String(p).uppercased()
+    }
+
     var body: some View {
         AppNavStack {
             List {
@@ -575,20 +585,29 @@ struct TransferSheet: View {
                 }
                 .listRowBackground(Theme.surface)
                 Section {
-                    TextField("Extension or number", text: $number).keyboardType(.phonePad)
+                    TextField("Extension or address", text: $number).plainInput()
                     Button(askFirst ? "Call to ask" : "Transfer") { go(number) }.disabled(number.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 .listRowBackground(Theme.surface)
-                if !contacts.contacts.isEmpty {
+                if !matches.isEmpty {
                     Section("Contacts") {
-                        ForEach(contacts.contacts) { c in
-                            Button { go("sip:" + c.address) } label: { Text(c.name).foregroundStyle(Theme.text) }
+                        ForEach(matches) { c in
+                            Button { go(c.address) } label: {
+                                HStack(spacing: 10) {
+                                    Text(initials(c.name)).font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.brand)
+                                        .frame(width: 32, height: 32).background(Theme.brand.opacity(0.14), in: Circle())
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(c.name).foregroundStyle(Theme.text)
+                                        Text(c.address).font(.caption).foregroundStyle(Theme.muted)
+                                    }
+                                }
+                            }
                         }
                     }
                     .listRowBackground(Theme.surface)
                 }
             }
-            .sheetPage("Transfer call")
+            .sheetPage("Transfer to…")
         }
         .sheetCard(.mediumLarge, handle: false)
     }

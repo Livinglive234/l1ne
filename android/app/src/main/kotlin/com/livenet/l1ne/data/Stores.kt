@@ -137,6 +137,8 @@ class MessageStore(context: Context) {
     }
     fun update(id: String, status: MsgStatus, failure: String? = null) =
         commit(_conversations.value.map { c -> c.copy(messages = c.messages.map { if (it.id == id) it.copy(status = status, failure = failure) else it }) })
+    /** Which account and person a message belongs to. */
+    fun accountAndPeer(messageID: String): Pair<String, String>? = _conversations.value.firstOrNull { c -> c.messages.any { it.id == messageID } }?.let { it.accountID to it.peer }
     fun remove(messageID: String) = commit(_conversations.value.map { c -> c.copy(messages = c.messages.filter { it.id != messageID }) }.filter { it.messages.isNotEmpty() })
     fun markRead(account: String, peer: String) { val k = Conversation.key(account, peer)
         if (_conversations.value.any { it.id == k && it.unread > 0 }) commit(_conversations.value.map { if (it.id == k) it.copy(messages = it.messages.map { m -> m.copy(read = true) }) else it }) }

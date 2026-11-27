@@ -99,6 +99,9 @@ fun ThreadScreen(accountID: String, peer: String, open: (Dest) -> Unit, onBack: 
         Column(Modifier.padding(pad).fillMaxSize().imePadding()) {
             if (accountTitle(accounts, accountID) != null) Text("from ${account?.titleWithUser ?: "—"}", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
             Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val note = app.engine.messagingNote.collectAsState().value[accountID]; val check = app.engine.messagingCheck.collectAsState().value[accountID]
+                if (note != null) Text(note, Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(L1neColors.Surface).padding(10.dp), color = L1neColors.Danger, style = MaterialTheme.typography.bodySmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                if (check == com.livenet.l1ne.sip.SipEngine.MessagingCheck.NOT_DELIVERED && note == null) WarningBanner("This server took a test text but didn't deliver it back to you, so messages from this line probably won't arrive. The server may need texting switched on.")
                 if (own != null) WarningBanner("${own.title} is another line in L1ne on the same server. A text between two lines in one app usually doesn't arrive, because the server can't route it between them.")
                 if (others.isNotEmpty() && !dismissed) WarningBanner("${others.joinToString(", ")} is also on this phone. If this line is signed in there too, the server may deliver texts to that app instead of L1ne.") { dismissed = true }
             }

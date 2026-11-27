@@ -100,7 +100,7 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
                 listOf(Btn(Icons.Filled.MicOff, "mute", call.id in muted, live) { engine.toggleMute(call.id) }, Btn(Icons.Filled.Dialpad, "keypad", false, live) { pad = true }, Btn(if (routes.active == android.telecom.CallAudioState.ROUTE_BLUETOOTH) Icons.Filled.Bluetooth else if (routes.active == android.telecom.CallAudioState.ROUTE_WIRED_HEADSET) Icons.Filled.Headset else Icons.AutoMirrored.Filled.VolumeUp,
                     when (routes.active) { android.telecom.CallAudioState.ROUTE_BLUETOOTH -> "bluetooth"; android.telecom.CallAudioState.ROUTE_WIRED_HEADSET -> "headset"; else -> "speaker" }, speaker, true) {
                     if (routes.bluetooth || routes.headset) routeMenu = true else engine.setSpeaker(!speaker) }),
-                listOf(Btn(Icons.Filled.Add, "add call", false, live) { setMinimized(true) }, Btn(if (call.id in held) Icons.Filled.PlayArrow else Icons.Filled.Pause, if (call.id in held) "resume" else "hold", call.id in held, live) { engine.toggleHold(call.id) }, Btn(Icons.Filled.MoreHoriz, "more", false, true) { more = true }))
+                listOf(Btn(Icons.Filled.Add, "add call", false, live) { app.pendingDial.value = ""; setMinimized(true)  /* Keypad tab, empty */ }, Btn(if (call.id in held) Icons.Filled.PlayArrow else Icons.Filled.Pause, if (call.id in held) "resume" else "hold", call.id in held, live) { engine.toggleHold(call.id) }, Btn(Icons.Filled.MoreHoriz, "more", false, true) { more = true }))
             rows.forEach { r -> Row(Modifier.fillMaxWidth().padding(bottom = 26.dp * cs()), horizontalArrangement = Arrangement.SpaceEvenly) { r.forEach { RoundBtn(it) } } }
         }
         Spacer(Modifier.weight(1f))
@@ -232,11 +232,11 @@ private fun TransferDialog(call: CallInfo, engine: SipEngine, onClose: () -> Uni
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(!askFirst, { askFirst = false }, label = { Text("Transfer now") }); FilterChip(askFirst, { askFirst = true }, label = { Text("Ask first") })
             }
-            Text(if (askFirst) "Calls the new person with this caller on hold. Once they answer, choose Complete transfer, or Cancel to go back to this caller."
+            Text(if (askFirst) "Calls the new person with this caller on hold. Once they answer, you choose Complete transfer, or Cancel to go back to this caller."
                  else "Sends this caller to the new person straight away. If nobody answers there, you are not on the line any more.", color = CallMuted, fontSize = 12.sp)
             OutlinedTextField(typed, { typed = it }, singleLine = true, label = { Text("Extension or address") })
             contacts.filter { typed.isEmpty() || it.name.contains(typed, true) || it.address.contains(typed, true) }.take(5).forEach { c ->
-                Row(Modifier.fillMaxWidth().clickable { go(c.user) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) { Avatar(32.dp, initialsOf(c.name), CallBrand.copy(alpha = 0.14f)); Spacer(Modifier.width(10.dp)); Column { Text(c.name, color = CallText); Text(c.address, fontSize = 12.sp, color = CallMuted) } } }
+                Row(Modifier.fillMaxWidth().clickable { go(c.address) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) { Avatar(32.dp, initialsOf(c.name), CallBrand.copy(alpha = 0.14f)); Spacer(Modifier.width(10.dp)); Column { Text(c.name, color = CallText); Text(c.address, fontSize = 12.sp, color = CallMuted) } } }
         } },
         confirmButton = { TextButton({ go(typed) }, enabled = typed.isNotBlank()) { Text(if (askFirst) "Call to ask" else "Transfer") } }, dismissButton = { TextButton(onClose) { Text("Cancel") } })
 }
