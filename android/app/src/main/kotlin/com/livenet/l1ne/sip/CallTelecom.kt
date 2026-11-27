@@ -204,7 +204,9 @@ object CallNotifications {
         val b = androidx.core.app.NotificationCompat.Builder(ctx, SERVICE).setSmallIcon(R.drawable.ic_stat_l1ne).setContentIntent(open).setOngoing(true)
         return if (callName != null && callId != null)
             b.setStyle(androidx.core.app.NotificationCompat.CallStyle.forOngoingCall(androidx.core.app.Person.Builder().setName(callName).build(), action(ctx, "hangup", callId))).setCategory(Notification.CATEGORY_CALL).build()
-        else b.setContentTitle("L1ne").setContentText("Connected — you can receive calls").build()
+        else b.setContentTitle("L1ne").setContentText("Connected — you can receive calls")
+            // From Android 14 the user can swipe this notification away (the service keeps running); this puts it straight back, so it stays visible while L1ne is connected.
+            .setDeleteIntent(PendingIntent.getForegroundService(ctx, 2, Intent(ctx, KeepAliveService::class.java), PendingIntent.FLAG_IMMUTABLE)).build()
     }
 }
 

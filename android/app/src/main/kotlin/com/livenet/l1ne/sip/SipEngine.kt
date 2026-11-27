@@ -157,7 +157,18 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     }
 
     private fun setReg(id: String, text: String) { _registration.value = _registration.value + (id to text) }
-    fun unregister(id: String) { pjAcc.remove(id)?.let { accOfPJ.remove(it); Native.nDelAccount(it) }; _registration.value = _registration.value - id }
+    fun unregister(id: String) { pjAcc.remove(id)?.let { val live = _calls.value.filter { c -> c.accountID == id && !c.active && !c.ended }.map { c -> c.id } /* only calls still setting up are at risk */; accOfPJ.remove(it); deleteWhenIdle(live, it) }; _registration.value = _registration.value - id }
+
+    /** PJSIP can crash if an account is deleted while one of its calls is still setting up its media (ICE). So the calls of that account are hung up
+     *  first, and the account is deleted once they are gone (or after about three seconds, whichever comes first). */
+    private fun deleteWhenIdle(calls: List<Int>, pj: Int, tries: Int = 0) {
+        val live = calls.filter { id -> _calls.value.any { it.id == id && !it.ended } }
+        if (live.isNotEmpty() && tries < 20) {
+            if (tries == 0) live.forEach { userEnded.add(it); Native.nHangup(it) }
+            main.postDelayed({ deleteWhenIdle(live, pj, tries + 1) }, 150); return
+        }
+        Native.nDelAccount(pj)
+    }
 
     fun registerAll() = store.accounts.value.forEach { register(it) }
     /** Registers the accounts that are not registered with PJSIP yet and leaves the rest alone. Starting the service or the activity must use this,

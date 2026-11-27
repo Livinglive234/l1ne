@@ -282,10 +282,10 @@ fun AccountEditorScreen(id: String?, onSubmit: ((Account, String) -> Unit)? = nu
     BackHandler(onBack = onBack)
 
     fun field(title: String, v: String, ch: (String) -> Unit, kb: KeyboardType = KeyboardType.Text, modifier: Modifier = Modifier.fillMaxWidth()) =
-        @Composable { OutlinedTextField(v, ch, modifier.padding(horizontal = 12.dp, vertical = 4.dp), singleLine = true, label = { Text(title) }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = kb, autoCorrectEnabled = false)) }
+        @Composable { OutlinedTextField(v, ch, modifier.padding(horizontal = 12.dp, vertical = 8.dp), singleLine = true, label = { Text(title) }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = kb, autoCorrectEnabled = false)) }
     @Composable fun Field(title: String, v: String, ch: (String) -> Unit, kb: KeyboardType = KeyboardType.Text) = field(title, v, ch, kb)()
-    @Composable fun Secret(title: String, v: String, ch: (String) -> Unit) = OutlinedTextField(v, ch, Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), singleLine = true, label = { Text(title) }, visualTransformation = PasswordVisualTransformation())
-    @Composable fun Transports() = Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Transport.entries.forEach { t -> FilterChip(a.transport == t, { a = a.withTransport(t) }, label = { Text(t.wire.uppercase()) }) } }
+    @Composable fun Secret(title: String, v: String, ch: (String) -> Unit) = OutlinedTextField(v, ch, Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), singleLine = true, label = { Text(title) }, visualTransformation = PasswordVisualTransformation())
+    @Composable fun Transports() = Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Transport.entries.forEach { t -> FilterChip(a.transport == t, { a = a.withTransport(t) }, label = { Text(t.wire.uppercase()) }) } }
 
     fun save() {
         val acc = if (isNew) a.finishedNew(server) else a.withServer(a.domain)
