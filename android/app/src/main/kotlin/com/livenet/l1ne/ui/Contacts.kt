@@ -176,7 +176,7 @@ fun PersonScreen(p: PersonTarget, open: (Dest) -> Unit, onBack: (() -> Unit)?) {
                 Column(Modifier.padding(16.dp)) {
                     Text("SIP address", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
                     SelectionContainer { Text(p.address) }
-                    if (accounts.size > 1 && account != null) Text("via ${account.title}", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
+                    if (accounts.size > 1 && account != null) Text("via ${account.titleWithUser}", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
                 }
             }
             if (p.address.contains("@") && !saved) TextButton({ if (app.contacts.add(p.name, p.address, p.accountID)) added = true }, enabled = !added) { Text(if (added) "Added" else "Add to contacts", color = L1neColors.Brand) }
@@ -207,7 +207,7 @@ fun VoicemailScreen() {
                 Surface(shape = androidx.compose.foundation.shape.CircleShape, color = L1neColors.Brand.copy(alpha = 0.14f), modifier = Modifier.size(48.dp)) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Filled.Voicemail, null, tint = L1neColors.Brand) } }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(if (list.size > 1) a.title else "Voicemail", fontWeight = FontWeight.Medium)
+                    Text(if (list.size > 1) a.titleWithUser else "Voicemail", fontWeight = FontWeight.Medium)
                     Text(if (n > 0) "$n new message${if (n == 1) "" else "s"}" else "No new messages", style = MaterialTheme.typography.bodySmall, color = if (n > 0) L1neColors.Brand else L1neColors.Muted)
                 }
                 CallCircleButton { app.engine.callVoicemail(a.id) }

@@ -70,9 +70,9 @@ fun KeypadScreen(open: (Dest) -> Unit, wide: Boolean = false) {
     val keySize = ((maxHeight.value - fixedH) / 5f).coerceIn(40f, if (maxHeight > 800.dp) 96f else 76f).dp
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         if (accounts.size > 1) Box(Modifier.padding(top = 4.dp)) {
-            AssistChip({ lineMenu = true }, label = { Text(account?.title ?: "Line") }, trailingIcon = { Icon(Icons.Filled.ExpandMore, null) })
+            AssistChip({ lineMenu = true }, label = { Text(account?.titleWithUser ?: "Line") }, trailingIcon = { Icon(Icons.Filled.ExpandMore, null) })
             DropdownMenu(lineMenu, { lineMenu = false }, shape = MaterialTheme.shapes.extraLarge, containerColor = L1neColors.Surface) {
-                accounts.forEach { a -> DropdownMenuItem({ Text(a.title) }, { app.store.select(a.id); lineMenu = false }, trailingIcon = { if (a.id == account?.id) Icon(Icons.Filled.Check, null) }) }
+                accounts.forEach { a -> DropdownMenuItem({ Text(a.titleWithUser) }, { app.store.select(a.id); lineMenu = false }, trailingIcon = { if (a.id == account?.id) Icon(Icons.Filled.Check, null) }) }
             }
         }
         Spacer(Modifier.weight(1f))

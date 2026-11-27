@@ -98,7 +98,7 @@ private fun DirectoryEditor(initial: DirectorySource, onClose: () -> Unit, onSav
                     SwitchRow("Use phone number as extension", s.phoneAsExtension) { s = s.copy(phoneAsExtension = it) }; if (s.phoneAsExtension) F("Phone attribute", s.phoneAttr, { s = s.copy(phoneAttr = it) }) }
             }
             Pick("Sync", s.interval.label, SyncInterval.entries.map { it.label to { s = s.copy(interval = it) } })
-            if (accounts.size > 1) Pick("PBX", accounts.firstOrNull { it.id == s.accountID }?.title ?: "First account", accounts.map { it.title to { s = s.copy(accountID = it.id) } })
+            if (accounts.size > 1) Pick("PBX", accounts.firstOrNull { it.id == s.accountID }?.titleWithUser ?: "First account", accounts.map { it.titleWithUser to { s = s.copy(accountID = it.id) } })
             testResult?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             TextButton({ testing = true; scope.launch { testResult = app.dirSync.test(s, password.ifEmpty { app.directories.password(s.id) }); testing = false } }, enabled = !testing) { Text(if (testing) "Testing…" else "Test connection") }
         } },

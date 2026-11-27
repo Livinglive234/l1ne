@@ -38,6 +38,8 @@ data class Account(
     val turnUser: String = "",
 ) {
     val title: String get() = label.ifEmpty { domain }
+    /** The name with the sign-in name after it, "pbx.example.com (7001)": tells two accounts on one server apart in menus and pickers. */
+    val titleWithUser: String get() = if (username.isEmpty()) title else "$title ($username)"
     val sipAddress: String get() = "sip:$username@$domain"
     val initials: String get() {
         val source = displayName.ifBlank { label }          // the display name first, then the label

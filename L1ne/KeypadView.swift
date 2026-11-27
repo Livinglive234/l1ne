@@ -199,12 +199,12 @@ struct KeypadView: View {
             Menu {
                 ForEach(store.accounts) { a in
                     Button { store.select(a.id) } label: {
-                        if store.selected?.id == a.id { Label(a.title, systemImage: "checkmark") } else { Text(a.title) }
+                        if store.selected?.id == a.id { Label(a.titleWithUser, systemImage: "checkmark") } else { Text(a.titleWithUser) }
                     }
                 }
             } label: {
                 HStack(spacing: 4) {
-                    Text(store.selected?.title ?? "Line").lineLimit(1)
+                    Text(store.selected?.titleWithUser ?? "Line").lineLimit(1)
                     Image(systemName: "chevron.down").font(.caption2.weight(.bold))
                 }
                 .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)

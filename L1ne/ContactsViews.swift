@@ -156,7 +156,7 @@ struct ImportURLSheet: View {
                 .listRowBackground(Theme.surface)
                 if store.accounts.count > 1 {
                     Picker("Dial with", selection: Binding(get: { account ?? store.accounts[0].id }, set: { account = $0 })) {
-                        ForEach(store.accounts) { Text($0.title).tag($0.id) }
+                        ForEach(store.accounts) { Text($0.titleWithUser).tag($0.id) }
                     }
                 }
                 if let error { Text(error).foregroundStyle(.red) }

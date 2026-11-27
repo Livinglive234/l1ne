@@ -42,7 +42,7 @@ struct ConversationsView: View {
                 }
                 Text(c.last?.text ?? "").lineLimit(2).font(.subheadline).foregroundStyle(Theme.muted)
                 if store.accounts.count > 1, let a = store.account(c.accountID) {
-                    Text("via \(a.title)").font(.caption).foregroundStyle(Theme.muted.opacity(0.8))
+                    Text("via \(a.titleWithUser)").font(.caption).foregroundStyle(Theme.muted.opacity(0.8))
                 }
             }
         }

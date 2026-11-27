@@ -99,7 +99,7 @@ fun ThreadScreen(accountID: String, peer: String, open: (Dest) -> Unit, onBack: 
         IconButton({ app.engine.call(user, account) }) { Icon(Icons.Filled.Call, "Call") }
     }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().imePadding()) {
-            if (accountTitle(accounts, accountID) != null) Text("from ${account?.title ?: "—"}", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
+            if (accountTitle(accounts, accountID) != null) Text("from ${account?.titleWithUser ?: "—"}", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
             Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (own != null) WarningBanner("${own.title} is another line in L1ne on the same server. A text between two lines in one app usually doesn't arrive, because the server can't route it between them.")
                 if (others.isNotEmpty() && !dismissed) WarningBanner("${others.joinToString(", ")} is also on this phone. If this line is signed in there too, the server may deliver texts to that app instead of L1ne.") { dismissed = true }
@@ -142,8 +142,8 @@ fun NewMessageDialog(open: (Dest) -> Unit, onClose: () -> Unit) {
     AlertDialog(onClose, containerColor = L1neColors.SheetBg, title = { Text("New message") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (accounts.size > 1) Box {
-                AssistChip({ lineMenu = true }, label = { Text("from ${from?.title ?: "—"}") }, trailingIcon = { Icon(Icons.Filled.ExpandMore, null) })
-                DropdownMenu(lineMenu, { lineMenu = false }, shape = MaterialTheme.shapes.extraLarge, containerColor = L1neColors.Surface) { accounts.forEach { a -> DropdownMenuItem({ Text(a.title) }, { from = a; lineMenu = false }) } }
+                AssistChip({ lineMenu = true }, label = { Text("from ${from?.titleWithUser ?: "—"}") }, trailingIcon = { Icon(Icons.Filled.ExpandMore, null) })
+                DropdownMenu(lineMenu, { lineMenu = false }, shape = MaterialTheme.shapes.extraLarge, containerColor = L1neColors.Surface) { accounts.forEach { a -> DropdownMenuItem({ Text(a.titleWithUser) }, { from = a; lineMenu = false }) } }
             }
             OutlinedTextField(typed, { typed = it }, label = { Text("Extension or user@server") }, singleLine = true)
             contacts.filter { typed.isEmpty() || it.name.contains(typed, true) || it.address.contains(typed, true) }.take(5).forEach { c ->

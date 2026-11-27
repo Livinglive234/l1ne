@@ -70,7 +70,7 @@ struct ContactDetailView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("SIP address").font(.footnote).foregroundStyle(Theme.muted)
                 Text(person.address).foregroundStyle(Theme.text).textSelection(.enabled)
-                if let a = account, store.accounts.count > 1 { Text("via \(a.title)").font(.footnote).foregroundStyle(Theme.muted) }
+                if let a = account, store.accounts.count > 1 { Text("via \(a.titleWithUser)").font(.footnote).foregroundStyle(Theme.muted) }
             }
             .frame(maxWidth: .infinity, alignment: .leading).padding()
             .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14)).padding(.horizontal)

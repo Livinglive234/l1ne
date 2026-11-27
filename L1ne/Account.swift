@@ -63,6 +63,8 @@ struct Account: Codable, Identifiable, Equatable {
     }
 
     var title: String { label.isEmpty ? domain : label }
+    /// The name with the sign-in name after it, "pbx.example.com (7001)": tells two accounts on one server apart in menus and pickers.
+    var titleWithUser: String { username.isEmpty ? title : "\(title) (\(username))" }
     var sipAddress: String { "sip:\(username)@\(domain)" }
 
     /// Up to two letters for the avatar: initials of the display name ("Max Example" -> ME), else of the label, else the first letters of the server name.

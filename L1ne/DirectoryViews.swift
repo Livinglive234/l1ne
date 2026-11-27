@@ -194,7 +194,7 @@ struct DirectoryEditor: View {
                 Section {
                     if store.accounts.count > 0 {
                         Picker("Dial with", selection: Binding(get: { source.accountID ?? store.selected?.id }, set: { source.accountID = $0 })) {
-                            ForEach(store.accounts) { Text($0.title).tag(Optional($0.id)) }
+                            ForEach(store.accounts) { Text($0.titleWithUser).tag(Optional($0.id)) }
                         }
                     }
                     Picker("Sync", selection: $source.interval) {
