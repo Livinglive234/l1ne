@@ -21,6 +21,7 @@ its own license. License texts live with each component's source (`vendor/` afte
 
 ## Android build
 - Kotlin, AndroidX (including CameraX), Jetpack Compose and Material: **Apache-2.0**. PJSIP and OpenSSL apply on Android exactly as above.
+- OkHttp (CardDAV requests): copyright Square, Inc., **Apache-2.0**. https://github.com/square/okhttp
 - ZXing core (QR code decoding): copyright ZXing authors, **Apache-2.0**. https://github.com/zxing/zxing
 - UnboundID LDAP SDK for Java (directory lookups): available under GPL-2.0, LGPL-2.1 or the UnboundID LDAP SDK Free Use License. https://github.com/pingidentity/ldapsdk
 

@@ -71,8 +71,10 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$camerax")
     implementation("androidx.camera:camera-view:$camerax")
     implementation("com.unboundid:unboundid-ldapsdk:7.0.1")         // LDAP directory lookup
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")           // CardDAV: sends the real REPORT / PROPFIND methods; Apache-2.0, pure Java, no Google libraries
     implementation("com.google.zxing:core:3.5.3")                  // QR decoding: small, open source, works offline, no Google libraries
     testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation(kotlin("test-junit"))
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test:rules:1.6.1")
