@@ -28,9 +28,7 @@ struct SipLogView: View {
                 }
             }
         }
-        .l1neBackground()
-        .navigationTitle("SIP log")
-        .navigationBarTitleDisplayMode(.inline)
+        .l1nePage("SIP log")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button { UIPasteboard.general.string = SipLog.shared.text() } label: { Image(systemName: "doc.on.doc") }.accessibilityLabel("Copy")

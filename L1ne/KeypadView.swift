@@ -45,8 +45,7 @@ struct KeypadView: View {
     @EnvironmentObject var contacts: ContactsStore
     @EnvironmentObject var router: AppRouter
     @EnvironmentObject var callLog: CallLogStore
-    @Environment(\.horizontalSizeClass) private var hSize
-    private var wide: Bool { hSize == .regular }       // an iPad, or the iPhone Duo opened: keypad on the left, matches and recent calls on the right
+    @Environment(\.isWide) private var wide       // an iPad, or the iPhone Duo opened: keypad on the left, matches and recent calls on the right
     @State private var number = ""
     @State private var plusTyped = false
 

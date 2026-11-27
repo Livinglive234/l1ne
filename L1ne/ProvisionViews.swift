@@ -41,10 +41,7 @@ struct ProvisionSheet: View {
                 }
                 if let error { Section { Text(error).foregroundStyle(.red) } }
             }
-            .l1neBackground()
-            .navigationTitle("Set up from a link")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .sheetPage("Set up from a link")
             .fullScreenCover(isPresented: $scanning) {
                 ZStack(alignment: .topTrailing) {
                     QRScanner { code in scanning = false; link = code; fetch(code) }.ignoresSafeArea()

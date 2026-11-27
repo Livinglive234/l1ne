@@ -67,6 +67,22 @@ final class ScreenTests: XCTestCase {
         XCTAssertTrue(exists("SIP address")); XCTAssertTrue(app.staticTexts["Bob Brandt"].exists)
     }
 
+    // MARK: Accounts
+
+    func testSwipingAnAccountAsksFirstAndThenRemovesIt() throws {
+        app.buttons["Accounts and settings"].firstMatch.tap()
+        app.buttons["Accounts"].firstMatch.tap()
+        let row = app.staticTexts["Screen test"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.swipeLeft()
+        app.buttons["Delete"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["Remove account"].waitForExistence(timeout: 5), "it asks before removing anything")
+        XCTAssertTrue(app.staticTexts["Screen test"].exists, "nothing is removed until the question is answered")
+        app.buttons["Remove account"].tap()
+        let gone = NSPredicate(format: "exists == false")
+        XCTAssertEqual(XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: gone, object: app.staticTexts["Screen test"].firstMatch)], timeout: 8), .completed, "the account is gone")
+    }
+
     // MARK: iPhone: one column
 
     func testIPhoneKeepsContactsAsOneColumnWithAPage() throws {

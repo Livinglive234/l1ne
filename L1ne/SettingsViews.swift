@@ -5,7 +5,6 @@ struct SettingsView: View {
     @EnvironmentObject var engine: SIPEngine
     @EnvironmentObject var contacts: ContactsStore
     @EnvironmentObject var settings: AppSettings
-    @Environment(\.dismiss) private var dismiss
     @State private var confirmRemove = false
     @State private var applying = false
 
@@ -86,11 +85,8 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Theme.surface)
             }
-            .l1neBackground()
-            .navigationTitle("Settings")
+            .sheetPage("Settings", close: .doneBold)
             .onAppear { recordingCount = RecordingsView.files().count }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.font(.body.weight(.semibold)) } }
             .sheet(isPresented: $applying) { ProvisionSheet(initialLink: settings.provisioningURL) }
             .confirmationDialog("Remove all contacts from L1ne?", isPresented: $confirmRemove, titleVisibility: .visible) {
                 Button("Remove all", role: .destructive) { contacts.removeAll() }
@@ -156,9 +152,7 @@ struct AdvancedCallsView: View {
             .listRowBackground(Theme.surface)
         }
         .environment(\.editMode, .constant(.active))
-        .l1neBackground()
-        .navigationTitle("Advanced calls settings")
-        .navigationBarTitleDisplayMode(.inline)
+        .l1nePage("Advanced calls settings")
         .onAppear { codecs = engine.availableCodecs() }
     }
 }
@@ -200,9 +194,7 @@ struct RecordingsView: View {
                                        description: Text("Record a call with the Record button while you're on it, or turn on automatic recording in Settings. Check your local laws about telling people you record."))
             }
         }
-        .l1neBackground()
-        .navigationTitle("Recordings")
-        .navigationBarTitleDisplayMode(.inline)
+        .l1nePage("Recordings")
         .onDisappear { player?.stop() }
     }
 

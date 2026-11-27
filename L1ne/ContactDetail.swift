@@ -26,8 +26,7 @@ struct PersonPane: View {
         if let p = person {
             AppNavStack { ContactDetailView(person: p).id(p) }
         } else {
-            EmptyState("Nobody selected", systemImage: "person.crop.circle", description: Text("Pick someone on the left."))
-                .frame(maxWidth: .infinity, maxHeight: .infinity).mainBackground()
+            NothingSelected(title: "Nobody selected", systemImage: "person.crop.circle", hint: "Pick someone on the left.")
         }
     }
 }

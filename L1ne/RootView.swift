@@ -139,17 +139,10 @@ struct RecentsView: View {
         return base.filter { name($0).localizedCaseInsensitiveContains(search) || $0.peer.localizedCaseInsensitiveContains(search) }
     }
 
-    @Environment(\.horizontalSizeClass) private var hSize
-    private var wide: Bool { hSize == .regular }       // an iPad, or the iPhone Duo opened: the list on the left, the person on the right
+    @Environment(\.isWide) private var wide
 
     var body: some View {
-        if wide {
-            HStack(spacing: 0) {
-                listStack.frame(width: 380)
-                Divider()
-                PersonPane(person: detail)
-            }
-        } else { listStack }
+        ListAndDetail { listStack } detail: { PersonPane(person: detail) }
     }
 
     private var listStack: some View {
@@ -183,7 +176,7 @@ struct RecentsView: View {
                 }
             }
             .listStyle(.plain).hideScrollBackground()
-            .navDestination(item: wide ? .constant(nil) : $detail) { ContactDetailView(person: $0) }
+            .navDestination(item: $detail, unless: wide) { ContactDetailView(person: $0) }
             .searchable(text: $search)
             .confirmationDialog("Delete all recent calls?", isPresented: $confirmClear, titleVisibility: .visible) {
                 Button("Delete all", role: .destructive) { callLog.removeAll() }
@@ -485,10 +478,7 @@ struct CallsListSheet: View {
                     .listRowBackground(Theme.surface)
                 }
             }
-            .l1neBackground()
-            .navigationTitle("Calls")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .sheetPage("Calls", close: .done)
         }
         .sheetCard(.medium, handle: false)
     }
@@ -582,10 +572,7 @@ struct TransferSheet: View {
                     .listRowBackground(Theme.surface)
                 }
             }
-            .l1neBackground()
-            .navigationTitle("Transfer call")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .sheetPage("Transfer call")
         }
         .sheetCard(.mediumLarge, handle: false)
     }

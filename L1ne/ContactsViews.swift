@@ -34,17 +34,10 @@ struct ContactsView: View {
         }
     }
 
-    @Environment(\.horizontalSizeClass) private var hSize
-    private var wide: Bool { hSize == .regular }       // an iPad, or the iPhone Duo opened: the list on the left, the person on the right
+    @Environment(\.isWide) private var wide
 
     var body: some View {
-        if wide {
-            HStack(spacing: 0) {
-                listStack.frame(width: 380)
-                Divider()
-                PersonPane(person: detail)
-            }
-        } else { listStack }
+        ListAndDetail { listStack } detail: { PersonPane(person: detail) }
     }
 
     private var listStack: some View {
@@ -83,7 +76,7 @@ struct ContactsView: View {
                 }
             }
             .listStyle(.plain).hideScrollBackground()
-            .navDestination(item: wide ? .constant(nil) : $detail) { ContactDetailView(person: $0) }
+            .navDestination(item: $detail, unless: wide) { ContactDetailView(person: $0) }
             .searchable(text: $search)
             .overlay { if contacts.contacts.isEmpty { EmptyState("No contacts", systemImage: "person.2", description: Text("Pick contacts that have a SIP address, import a vCard, or add one by hand.")) } }
             .mainBackground()
@@ -160,11 +153,8 @@ struct ImportURLSheet: View {
                 }
                 if let error { Text(error).foregroundStyle(.red) }
             }
-            .l1neBackground()
-            .navigationTitle("Import from a link")
-            .navigationBarTitleDisplayMode(.inline)
+            .sheetPage("Import from a link")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(busy ? "Fetching…" : "Fetch") { fetch() }.disabled(busy || text.isEmpty)
                 }
@@ -203,11 +193,8 @@ struct AddContactSheet: View {
                     .plainInput(.emailAddress)
                 if failed { Text("Enter a SIP address like 7201@pbx.example.com.").foregroundStyle(.red) }
             }
-            .l1neBackground()
-            .navigationTitle("Add contact")
-            .navigationBarTitleDisplayMode(.inline)
+            .sheetPage("Add contact")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         if contacts.add(name: name, address: address, account: store.selected?.id) { dismiss() } else { failed = true }

@@ -36,19 +36,15 @@ struct AccountEditor: View {
     var body: some View {
         AppNavStack {
             Group { if isNew { newAccountForm } else { editForm } }
-                .l1neBackground()
-                .navigationTitle(isNew ? "Use a SIP account" : (account.title.isEmpty ? "Account" : account.title))
-                .navigationBarTitleDisplayMode(.inline)
+                .sheetPage(isNew ? "Use a SIP account" : (account.title.isEmpty ? "Account" : account.title))
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                     ToolbarItem(placement: .confirmationAction) {
                         if !isNew { Button("Save") { save() }.disabled(account.domain.isEmpty || account.username.isEmpty) }
                     }
                 }
                 .confirmationDialog("Remove \(account.title)?", isPresented: $confirmRemove, titleVisibility: .visible) {
                     Button("Remove account", role: .destructive) {
-                        engine.unregister(account.id); MessageStore.shared.removeAccount(account.id)
-                        CallLogStore.shared.removeAccount(account.id); store.remove(account.id); dismiss()
+                        store.removeCompletely(account.id, engine: engine); dismiss()
                     }
                 } message: { Text("Its chats and call history on this phone are deleted too.") }
                 .onAppear { secret = ""; turnSecret = "" }

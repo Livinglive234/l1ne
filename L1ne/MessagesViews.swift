@@ -7,8 +7,7 @@ struct ConversationsView: View {
     @EnvironmentObject var router: AppRouter
     @State private var selected: ThreadTarget?
     @State private var composing = false
-    @Environment(\.horizontalSizeClass) private var hSize
-    private var wide: Bool { hSize == .regular }       // an iPad, or the iPhone Duo opened: the list on the left, the conversation on the right
+    @Environment(\.isWide) private var wide
 
     private func target(_ c: Conversation) -> ThreadTarget { ThreadTarget(accountID: c.accountID, peer: c.peer) }
 
@@ -56,26 +55,19 @@ struct ConversationsView: View {
     }
 
     var body: some View {
-        if wide {
-            HStack(spacing: 0) {
-                listStack.frame(width: 380)
-                Divider()
-                Group {
-                    if let t = selected {
-                        AppNavStack { ThreadView(target: t).id(t) }
-                    } else {
-                        EmptyState("No chat selected", systemImage: "bubble.left.and.bubble.right", description: Text("Pick one on the left, or start a new message."))
-                            .frame(maxWidth: .infinity, maxHeight: .infinity).mainBackground()
-                    }
-                }
+        ListAndDetail { listStack } detail: {
+            if let t = selected {
+                AppNavStack { ThreadView(target: t).id(t) }
+            } else {
+                NothingSelected(title: "No chat selected", systemImage: "bubble.left.and.bubble.right", hint: "Pick one on the left, or start a new message.")
             }
-        } else { listStack }
+        }
     }
 
     private var listStack: some View {
         AppNavStack {
             list
-            .navDestination(item: wide ? .constant(nil) : $selected) { ThreadView(target: $0) }       // a chat can be opened before it has a row (a new one, or from a contact)
+            .navDestination(item: $selected, unless: wide) { ThreadView(target: $0) }       // a chat can be opened before it has a row (a new one, or from a contact)
             .mainBackground()
             .navigationTitle("Chats")
             .task(id: router.pendingThread) {
@@ -101,7 +93,7 @@ struct ThreadView: View {
     @EnvironmentObject var store: AccountStore
     @EnvironmentObject var contacts: ContactsStore
     @EnvironmentObject var messages: MessageStore
-    @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.isWide) private var wide
     @State private var draft = ""
     @State private var info: PersonTarget?
     @State private var otherAppsDismissed = MessagingWarnings.otherAppsDismissed
@@ -159,7 +151,7 @@ struct ThreadView: View {
         .toolbar {
             // name on top, the line you are texting from underneath; tapping opens the contact page
             ToolbarItem(placement: .principal) {
-                if hSize != .regular { nameButton }       // beside the list the iPad's top tab bar sits in the middle, so the name goes in a header instead
+                if !wide { nameButton }       // beside the list the iPad's top tab bar sits in the middle, so the name goes in a header instead
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button { info = person } label: { Image(systemName: "info.circle") }
@@ -170,7 +162,7 @@ struct ThreadView: View {
         }
         .safeAreaInset(edge: .bottom) { composer }
         .safeAreaInset(edge: .top, spacing: 0) {
-            if hSize == .regular {
+            if wide {
                 HStack { Spacer(); nameButton; Spacer() }.padding(.horizontal, 16).padding(.vertical, 8).background(Theme.bg)
             }
         }
@@ -181,7 +173,7 @@ struct ThreadView: View {
     private var nameButton: some View {
         Button { info = person } label: {
             VStack(alignment: .center, spacing: 1) {
-                Text(person.name).font(hSize == .regular ? .title2 : .headline).fontWeight(hSize == .regular ? .heavy : .semibold).foregroundStyle(Theme.text).lineLimit(1)
+                Text(person.name).font(wide ? .title2 : .headline).fontWeight(wide ? .heavy : .semibold).foregroundStyle(Theme.text).lineLimit(1)
                 if store.accounts.count > 1 {
                     Text("from \(line?.title ?? "—")").font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
                 }
@@ -280,10 +272,7 @@ struct NewMessageSheet: View {
                     .listRowBackground(Theme.surface)
                 }
             }
-            .l1neBackground()
-            .navigationTitle("New message")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
+            .sheetPage("New message")
         }
     }
 

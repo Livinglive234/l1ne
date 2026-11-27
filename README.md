@@ -138,7 +138,7 @@ The NDK version is pinned in `scripts/lib.sh` and `android/app/build.gradle.kts`
 ## Tests
 - `tests/mock/pbx.py` + the wire tests: L1ne's real SIP engine against a scriptable fake PBX (login errors, busy, early media, hold, transfer, SRTP/DTLS offers, STUN, texts, voicemail),
   no real server needed: `tests/mock/run-android-wire-tests.sh` (Android) and `tests/mock/run-ios-wire-tests.sh` (iPhone, the same scenarios).
-- Screen tests: the real screens at phone and tablet widths. Android: `ScreenTest` (8, Compose UI tests). iPhone and iPad: `tests/ios/run-ui-tests.sh` (9, XCUITest on an iPhone and an iPad simulator). See [docs/TESTING.md](docs/TESTING.md).
+- Screen tests: the real screens at phone and tablet widths. Android: `ScreenTest` (Compose UI tests). iPhone and iPad: `tests/ios/run-ui-tests.sh` (XCUITest on an iPhone and an iPad simulator). See [docs/TESTING.md](docs/TESTING.md).
 - `android/core`, `android/app`: JVM unit tests (`gradle :core:test :app:testDebugUnitTest`) and instrumented tests for the stores and the engine's event handling
   (`gradle :app:connectedDebugAndroidTest`, on a device or emulator).
 - `tests/parsers`: vCard, provisioning, dial rules, account migration and contact-source rules as plain Swift, no simulator needed.

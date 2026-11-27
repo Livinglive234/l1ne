@@ -167,3 +167,70 @@ extension View {
         textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(keyboard)
     }
 }
+
+// MARK: Wide windows: the list and what is open beside each other
+
+extension EnvironmentValues {
+    /// An iPad, or the iPhone Duo opened: room for the list on the left and what is open on the right.
+    var isWide: Bool { horizontalSizeClass == .regular }
+}
+
+/// On a wide window the list and the open item sit side by side; on a phone only the list shows and the item is pushed on top of it.
+struct ListAndDetail<ListContent: View, DetailContent: View>: View {
+    @Environment(\.isWide) private var wide
+    let list: () -> ListContent
+    let detail: () -> DetailContent
+    init(@ViewBuilder list: @escaping () -> ListContent, @ViewBuilder detail: @escaping () -> DetailContent) { self.list = list; self.detail = detail }
+
+    var body: some View {
+        if wide {
+            HStack(spacing: 0) {
+                list().frame(width: 380)
+                Divider()
+                detail()
+            }
+        } else { list() }
+    }
+}
+
+/// The right-hand side of a wide window while nothing is open.
+struct NothingSelected: View {
+    let title: String, systemImage: String, hint: String
+    var body: some View {
+        EmptyState(title, systemImage: systemImage, description: Text(hint)).frame(maxWidth: .infinity, maxHeight: .infinity).mainBackground()
+    }
+}
+
+extension View {
+    /// Pushes a page for the selected item on a phone; on a wide window the item is shown beside the list instead, so nothing is pushed.
+    func navDestination<Item: Identifiable & Hashable, Destination: View>(item: Binding<Item?>, unless wide: Bool, @ViewBuilder destination: @escaping (Item) -> Destination) -> some View {
+        navDestination(item: wide ? .constant(nil) : item, destination: destination)
+    }
+}
+
+// MARK: Pages and sheets
+
+/// The button that closes a sheet: Cancel on the left, or Done (plain or bold) on the right.
+enum SheetClose { case cancel, done, doneBold }
+
+extension View {
+    /// L1ne's background and a small inline title: what every page in the app starts with.
+    func l1nePage(_ title: String) -> some View {
+        l1neBackground().navigationTitle(title).navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// A page in a sheet: the same, plus the button that closes the sheet. Other toolbar buttons (Save, Fetch) are added with `.toolbar` as usual.
+    func sheetPage(_ title: String, close: SheetClose = .cancel) -> some View {
+        l1nePage(title).toolbar { CloseItem(close: close) }
+    }
+}
+
+private struct CloseItem: ToolbarContent {
+    @Environment(\.dismiss) private var dismiss
+    let close: SheetClose
+    var body: some ToolbarContent {
+        ToolbarItem(placement: close == .cancel ? .cancellationAction : .confirmationAction) {
+            Button(close == .cancel ? "Cancel" : "Done") { dismiss() }.font(close == .doneBold ? .body.weight(.semibold) : .body)
+        }
+    }
+}

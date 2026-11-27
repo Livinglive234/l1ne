@@ -59,9 +59,7 @@ struct DirectorySourcesView: View {
             }
             .listRowBackground(Theme.surface)
         }
-        .l1neBackground()
-        .navigationTitle("Contacts sync")
-        .navigationBarTitleDisplayMode(.inline)
+        .l1nePage("Contacts sync")
         .sheet(item: $editing) { src in
             DirectoryEditor(source: src) { saved in editing = nil; if saved.enabled { activate(saved) } }
         }
@@ -211,11 +209,8 @@ struct DirectoryEditor: View {
                 }
                 .listRowBackground(Theme.surface)
             }
-            .l1neBackground()
-            .navigationTitle(isNew ? (source.kind == .vcardLink ? "Add vCard link" : "Add directory") : source.title)
-            .navigationBarTitleDisplayMode(.inline)
+            .sheetPage(isNew ? (source.kind == .vcardLink ? "Add vCard link" : "Add directory") : source.title)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         if source.accountID == nil { source.accountID = store.selected?.id }

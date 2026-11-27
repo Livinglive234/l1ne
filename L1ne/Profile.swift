@@ -57,10 +57,10 @@ struct ProfileButton: View {
 struct ProfileView: View {
     @EnvironmentObject var engine: SIPEngine
     @EnvironmentObject var store: AccountStore
-    @Environment(\.dismiss) private var dismiss
     @State private var editing: Account?
     @State private var adding = false           // "Add account" shows the welcome screen over this, so adding one feels like the first
     @State private var addSigningIn = false
+    @State private var removing: Account?       // set by a swipe: nothing is removed until the question is answered
 
     var body: some View {
         AppNavStack {
@@ -86,17 +86,15 @@ struct ProfileView: View {
                                 .buttonStyle(.plain)
                         }
                     }
-                    .onDelete { idx in
-                        for i in idx { engine.unregister(store.accounts[i].id); store.remove(store.accounts[i].id) }
-                    }
+                    .onDelete { idx in removing = idx.first.map { store.accounts[$0] } }
                     Button { adding = true } label: { Label("Add account", systemImage: "plus.circle.fill") }
                 }
                 .listRowBackground(Theme.surface)
             }
-            .l1neBackground()
-            .navigationTitle("Accounts")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.font(.body.weight(.semibold)) } }
+            .confirmationDialog("Remove \(removing?.title ?? "this account")?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible) {
+                Button("Remove account", role: .destructive) { if let a = removing { store.removeCompletely(a.id, engine: engine) }; removing = nil }
+            } message: { Text("Its chats and call history on this phone are deleted too.") }
+            .sheetPage("Accounts", close: .doneBold)
             .sheet(item: $editing) { AccountEditor(account: $0) }
             .fullScreenCover(isPresented: $adding) { WelcomeView(signingIn: $addSigningIn, onClose: { adding = false }) }
         }
