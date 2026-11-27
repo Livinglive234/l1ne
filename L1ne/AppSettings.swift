@@ -25,14 +25,14 @@ final class AppSettings: ObservableObject {
         case system, light, dark
         var id: String { rawValue }
         var label: String { rawValue.capitalized }
-        var scheme: ColorScheme? { self == .system ? nil : (self == .light ? .light : .dark) }
+        var style: UIUserInterfaceStyle { self == .system ? .unspecified : (self == .light ? .light : .dark) }
     }
     @Published var appearance: Appearance { didSet { d.set(appearance.rawValue, forKey: "set.appearance"); Self.applyAppearance() } }
 
     /// Light / Dark / System is set on the app's windows themselves. SwiftUI's own `preferredColorScheme` only reached the screen behind a
     /// sheet, so the Settings sheet (where the choice is made) kept its old look until it was closed and reopened.
     static func applyAppearance() {
-        let style: UIUserInterfaceStyle = { switch shared.appearance { case .system: return .unspecified; case .light: return .light; case .dark: return .dark } }()
+        let style = shared.appearance.style
         for scene in UIApplication.shared.connectedScenes {
             for window in (scene as? UIWindowScene)?.windows ?? [] where window.overrideUserInterfaceStyle != style { window.overrideUserInterfaceStyle = style }
         }
@@ -42,7 +42,7 @@ final class AppSettings: ObservableObject {
     @Published var callsInPhoneApp: Bool { didSet { d.set(callsInPhoneApp, forKey: "set.callsInPhone"); CallKitManager.shared.applySettings() } }
     @Published var showVoicemailTab: Bool { didSet { d.set(showVoicemailTab, forKey: "set.vmTab") } }
     @Published var showKeypadVoicemail: Bool { didSet { d.set(showKeypadVoicemail, forKey: "set.vmKeypad") } }
-    /// LATER: a notification when a new voicemail arrives. Stored but not acted on yet (see VoicemailNotifier).
+    /// LATER: a notification when a new voicemail arrives. Stored but not acted on yet (it needs push, see docs/ROADMAP.md).
     @Published var voicemailNotify: Bool { didSet { d.set(voicemailNotify, forKey: "set.vmNotify") } }
 
     init() {

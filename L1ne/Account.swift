@@ -195,6 +195,8 @@ final class AccountStore: ObservableObject {
     }
 
     func account(_ id: UUID) -> Account? { accounts.first { $0.id == id } }
+    /// The account that dials for something tied to `id` (a contact, a call, a chat): that account, or the selected one when there is none.
+    func dialAccount(_ id: UUID?) -> Account? { id.flatMap(account) ?? selected }
 
     func save(_ account: Account, secret: String?, turnSecret: String? = nil) {
         if let i = accounts.firstIndex(where: { $0.id == account.id }) { accounts[i] = account } else { accounts.append(account) }

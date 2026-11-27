@@ -5,6 +5,7 @@ import Combine
 struct SipLogView: View {
     @State private var text = SipLog.shared.text(last: 400)
     @State private var entries = SipLog.shared.count
+    @State private var seen = SipLog.shared.revision
     @State private var sharing = false
     private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -22,7 +23,7 @@ struct SipLogView: View {
                             .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).textSelection(.enabled)
                         Color.clear.frame(height: 1).id("end")
                     }
-                    .onChange(of: text) { _ in proxy.scrollTo("end", anchor: .bottom) }
+                    .onChangeCompat(of: text) { _, _ in proxy.scrollTo("end", anchor: .bottom) }
                     .onAppear { proxy.scrollTo("end", anchor: .bottom) }
                 }
             }
@@ -34,16 +35,14 @@ struct SipLogView: View {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button { UIPasteboard.general.string = SipLog.shared.text() } label: { Image(systemName: "doc.on.doc") }.accessibilityLabel("Copy")
                 Button { sharing = true } label: { Image(systemName: "square.and.arrow.up") }.accessibilityLabel("Share")
-                Button { SipLog.shared.clear(); text = ""; entries = 0 } label: { Image(systemName: "trash") }.accessibilityLabel("Clear")
+                Button { SipLog.shared.clear(); text = ""; entries = 0; seen = SipLog.shared.revision } label: { Image(systemName: "trash") }.accessibilityLabel("Clear")
             }
         }
-        .sheet(isPresented: $sharing) { ShareSheet(items: [SipLog.shared.text()]) }
-        .onReceive(tick) { _ in text = SipLog.shared.text(last: 400); entries = SipLog.shared.count }
+        .sheet(isPresented: $sharing) { ActivitySheet(items: [SipLog.shared.text()]) }
+        .onReceive(tick) { _ in
+            let now = SipLog.shared.revision
+            guard now != seen else { return }
+            seen = now; text = SipLog.shared.text(last: 400); entries = SipLog.shared.count
+        }
     }
-}
-
-private struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-    func makeUIViewController(context: Context) -> UIActivityViewController { UIActivityViewController(activityItems: items, applicationActivities: nil) }
-    func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
 }

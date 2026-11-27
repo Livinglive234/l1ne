@@ -47,14 +47,21 @@ enum Provisioning {
     }
 
     static func fetch(_ url: URL) async throws -> Result {
+        try parse(xml: try await httpsData(url, userAgent: "L1ne"))
+    }
+
+    /// One manual HTTPS GET with a 15 second limit, for the setup file and the vCard link. Nothing is kept afterwards.
+    static func httpsData(_ url: URL, userAgent: String? = nil) async throws -> Data {
         guard url.scheme?.lowercased() == "https" else { throw Failure.notHTTPS }
         let cfg = URLSessionConfiguration.ephemeral
         cfg.timeoutIntervalForRequest = 15
+        let session = URLSession(configuration: cfg)
+        defer { session.finishTasksAndInvalidate() }
         var req = URLRequest(url: url)
-        req.setValue("L1ne", forHTTPHeaderField: "User-Agent")
-        let (data, resp) = try await URLSession(configuration: cfg).data(for: req)
+        if let userAgent { req.setValue(userAgent, forHTTPHeaderField: "User-Agent") }
+        let (data, resp) = try await session.data(for: req)
         if let h = resp as? HTTPURLResponse, !(200..<300).contains(h.statusCode) { throw Failure.badStatus(h.statusCode) }
-        return try parse(xml: data)
+        return data
     }
 
     // MARK: parsing
@@ -87,11 +94,7 @@ enum Provisioning {
                 a.domain = proxy.host.isEmpty ? ident.domain : proxy.host
                 a.port = proxy.port ?? (proxy.transport == .tls ? 5061 : 5060)
                 a.transport = proxy.transport
-            } else {
-                a.port = 5061
             }
-            // keep the identity's domain when it differs from the server (From domain vs registrar)
-            if a.domain != ident.domain { a.label = a.label.isEmpty ? ident.domain : a.label }
 
             let match = auths.first { ($0["username"] ?? "") == ident.user && (($0["domain"] ?? ident.domain) == ident.domain) }
                      ?? auths.first { ($0["username"] ?? "") == ident.user }

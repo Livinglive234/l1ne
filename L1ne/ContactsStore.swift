@@ -36,18 +36,8 @@ final class ContactsStore: ObservableObject {
     @discardableResult
     func merge(_ result: VCard.Result, account: UUID?, source: String = "link") -> ImportSummary {
         var s = ImportSummary(skipped: result.skipped)
-        for e in result.entries {
-            if let i = contacts.firstIndex(where: { $0.address.lowercased() == e.address.lowercased() }) {
-                if contacts[i].imported {
-                    if contacts[i].name != e.name { contacts[i].name = e.name; s.updated += 1 } else { s.kept += 1 }
-                } else { s.kept += 1 }
-            } else {
-                contacts.append(Contact(name: e.name, address: e.address, accountID: account, imported: true, source: source))
-                s.added += 1
-            }
-        }
-        contacts.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        persist()
+        upsert(result.entries, account: account, source: source, mayRename: { $0.imported }, into: &s)
+        sortAndPersist()
         return s
     }
 
@@ -60,19 +50,32 @@ final class ContactsStore: ObservableObject {
         let before = contacts.count
         contacts.removeAll { $0.source == tag && wanted[$0.address.lowercased()] == nil }
         s.removed = before - contacts.count
-        for (addr, e) in wanted {
-            if let i = contacts.firstIndex(where: { $0.address.lowercased() == addr }) {
-                if contacts[i].source == tag {
-                    if contacts[i].name != e.name { contacts[i].name = e.name; s.updated += 1 } else { s.kept += 1 }
-                } else { s.kept += 1 }          // someone else's entry wins; the directory doesn't overwrite it
+        // someone else's entry wins; the directory doesn't overwrite it
+        upsert(Array(wanted.values), account: account, source: tag, mayRename: { $0.source == tag }, into: &s)
+        sortAndPersist()
+        return s
+    }
+
+    /// For each entry: an existing contact with that address is renamed when `mayRename` allows it and counted as kept otherwise;
+    /// a new address is added. Looked up through one dictionary, so a directory of thousands is not searched once per entry.
+    private func upsert(_ entries: [VCard.Entry], account: UUID?, source: String, mayRename: (Contact) -> Bool, into s: inout ImportSummary) {
+        var index: [String: Int] = [:]
+        for (i, c) in contacts.enumerated() where index[c.address.lowercased()] == nil { index[c.address.lowercased()] = i }
+        for e in entries {
+            let key = e.address.lowercased()
+            if let i = index[key] {
+                if mayRename(contacts[i]), contacts[i].name != e.name { contacts[i].name = e.name; s.updated += 1 } else { s.kept += 1 }
             } else {
-                contacts.append(Contact(name: e.name, address: e.address, accountID: account, imported: true, source: tag))
+                contacts.append(Contact(name: e.name, address: e.address, accountID: account, imported: true, source: source))
+                index[key] = contacts.count - 1
                 s.added += 1
             }
         }
+    }
+
+    private func sortAndPersist() {
         contacts.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         persist()
-        return s
     }
 
     /// Removes contacts that came from a vCard link (including ones saved before sources were tracked).
@@ -92,15 +95,20 @@ final class ContactsStore: ObservableObject {
     func add(name: String, address: String, account: UUID?) -> Bool {
         guard let a = VCard.sipAddress("sip:" + address.replacingOccurrences(of: "sip:", with: "")) else { return false }
         contacts.append(Contact(name: name.isEmpty ? a : name, address: a, accountID: account))
-        contacts.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        persist()
+        sortAndPersist()
         return true
     }
 
     func remove(_ ids: [UUID]) { contacts.removeAll { ids.contains($0.id) }; persist() }
     func removeAll() { contacts = []; persist() }
 
-    /// For caller display: match the user part (and domain when known).
+    /// What to show for a "user@domain" peer: the contact's name, else the number nicely formatted.
+    func displayName(forPeer peer: String) -> String {
+        let parts = peer.split(separator: "@").map(String.init)
+        let user = parts.first ?? peer
+        return name(forUser: user, domain: parts.count == 2 ? parts[1] : nil) ?? PhoneFormat.pretty(user)
+    }
+
     /// Finds who a call was with. Tries, in order: the same extension on the same server; the same extension on any server
     /// (when only one contact has it); a phone number that matches by its last ten digits (so +1 612… finds 612…).
     func name(forUser rawUser: String, domain rawDomain: String? = nil) -> String? {
@@ -127,11 +135,6 @@ final class ContactsStore: ObservableObject {
 
     /// One manual fetch. No background session, no retry loop.
     static func fetchVCard(from url: URL) async throws -> VCard.Result {
-        guard url.scheme?.lowercased() == "https" else { throw Provisioning.Failure.notHTTPS }
-        let cfg = URLSessionConfiguration.ephemeral
-        cfg.timeoutIntervalForRequest = 15
-        let (data, resp) = try await URLSession(configuration: cfg).data(from: url)
-        if let h = resp as? HTTPURLResponse, !(200..<300).contains(h.statusCode) { throw Provisioning.Failure.badStatus(h.statusCode) }
-        return VCard.parse(String(decoding: data, as: UTF8.self))
+        VCard.parse(String(decoding: try await Provisioning.httpsData(url), as: UTF8.self))
     }
 }

@@ -61,7 +61,7 @@ struct DirectorySource: Codable, Identifiable, Equatable {
     var title: String { name.isEmpty ? (kind == .ldap ? host : (URL(string: url)?.host ?? url)) : name }
     var tag: String { "dir:" + id.uuidString }
 
-    init(kind: Kind) { self.kind = kind; if kind == .ldap { port = 636 } }
+    init(kind: Kind) { self.kind = kind }
 }
 
 @MainActor
@@ -74,7 +74,6 @@ final class DirectoryStore: ObservableObject {
         if let d = UserDefaults.standard.data(forKey: key), let s = try? JSONDecoder().decode([DirectorySource].self, from: d) { sources = s }
     }
 
-    var anyEnabled: Bool { sources.contains { $0.enabled } }
     /// A real directory (LDAP or CardDAV) is on. It replaces the vCard-link pull.
     var directoryEnabled: Bool { sources.contains { $0.enabled && $0.isDirectory } }
 

@@ -41,7 +41,7 @@ struct ContactDetailView: View {
     @State private var added = false
 
     private var saved: Bool { contacts.contacts.contains { $0.address.lowercased() == person.address.lowercased() } }
-    private var account: Account? { person.accountID.flatMap { store.account($0) } ?? store.selected }
+    private var account: Account? { store.dialAccount(person.accountID) }
     private var initials: String {
         let p = person.name.split(separator: " ").prefix(2).compactMap { $0.first }
         return person.name.first?.isLetter == true ? String(p).uppercased() : ""
@@ -57,7 +57,7 @@ struct ContactDetailView: View {
             Text(person.name).font(.title.weight(.semibold)).foregroundStyle(Theme.text)
 
             HStack(spacing: 28) {
-                action("phone.fill", "call") { if let a = account { engine.call(person.address.contains("@") ? "sip:" + person.address : person.address, from: a.id) } }
+                action("phone.fill", "call") { if let a = account { engine.call(person.address, from: a.id) } }
                 if person.address.contains("@") {
                     action("message.fill", "message") {
                         guard let a = account else { return }

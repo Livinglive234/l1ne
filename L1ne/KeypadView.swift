@@ -65,9 +65,9 @@ struct KeypadView: View {
 
     private var account: Account? { store.selected }
 
-    private var suggestions: [Contact] {
-        Array(contacts.contacts.filter { T9.matches(number, name: $0.name, address: $0.address) }.prefix(2))
-    }
+    /// Contacts whose name (as letters on the keys) or extension starts with what is typed.
+    private var matches: [Contact] { contacts.contacts.filter { T9.matches(number, name: $0.name, address: $0.address) } }
+    private var suggestions: [Contact] { Array(matches.prefix(2)) }
 
     var body: some View {
         AppNavStack {
@@ -138,13 +138,12 @@ struct KeypadView: View {
 
     /// The wide layout's right side: contacts matching what is typed, or recent calls while the number is empty.
     private var sidePanel: some View {
-        let matches = number.isEmpty ? [] : contacts.contacts.filter { T9.matches(number, name: $0.name, address: $0.address) }
-        return List {
+        List {
             if number.isEmpty {
                 Section("Recent calls") {
                     ForEach(callLog.records.prefix(20)) { r in
-                        sideRow(name: peerName(r.peer), detail: r.peer, fill: dialString(address: r.peer)) {
-                            if let a = r.accountID.flatMap({ store.account($0) }) ?? account, engine.call(dialString(address: r.peer), from: a.id) { number = "" }
+                        sideRow(name: contacts.displayName(forPeer: r.peer), detail: r.peer, fill: dialString(address: r.peer)) {
+                            dial(dialString(address: r.peer), accountID: r.accountID)
                         }
                     }
                 }
@@ -152,7 +151,7 @@ struct KeypadView: View {
                 Section("Matching contacts") {
                     ForEach(matches) { c in
                         sideRow(name: c.name, detail: c.address, fill: dialString(for: c)) {
-                            if let a = c.accountID.flatMap({ store.account($0) }) ?? account, engine.call(dialString(for: c), from: a.id) { number = "" }
+                            dial(dialString(for: c), accountID: c.accountID)
                         }
                     }
                 }
@@ -183,9 +182,9 @@ struct KeypadView: View {
         .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
     }
 
-    private func peerName(_ peer: String) -> String {
-        let p = peer.split(separator: "@").map(String.init)
-        return contacts.name(forUser: p.first ?? peer, domain: p.count == 2 ? p[1] : nil) ?? PhoneFormat.pretty(p.first ?? peer)
+    /// Calls `s` from the account tied to `accountID` (or the selected one) and clears the number once the call is placed.
+    private func dial(_ s: String, accountID: UUID?) {
+        if let a = store.dialAccount(accountID), engine.call(s, from: a.id) { number = "" }
     }
 
     private func dialString(address: String) -> String {
@@ -214,9 +213,10 @@ struct KeypadView: View {
 
     /// Contacts whose name (typed on the letters of the keys) or extension matches what has been dialled so far.
     @ViewBuilder private var suggestionList: some View {
-        if !suggestions.isEmpty {
+        let list = suggestions
+        if !list.isEmpty {
             VStack(spacing: 0) {
-                ForEach(suggestions) { c in
+                ForEach(list) { c in
                     HStack(spacing: 0) {
                         Button { number = dialString(for: c) } label: {        // the name fills in the number
                             HStack(spacing: 12) {
@@ -232,13 +232,13 @@ struct KeypadView: View {
                             .padding(.leading, 14).padding(.vertical, 8).contentShape(Rectangle())
                         }.buttonStyle(.plain)
                         Button {                                                  // the phone glyph calls right away
-                            if let a = c.accountID.flatMap({ store.account($0) }) ?? account, engine.call(dialString(for: c), from: a.id) { number = "" }
+                            dial(dialString(for: c), accountID: c.accountID)
                         } label: {
                             Image(systemName: "phone.fill").font(.body).foregroundStyle(Theme.brand)
                                 .frame(width: 52, height: 44).contentShape(Rectangle())
                         }.buttonStyle(.plain)
                     }
-                    if c.id != suggestions.last?.id { Divider().overlay(Theme.border).padding(.leading, 62) }
+                    if c.id != list.last?.id { Divider().overlay(Theme.border).padding(.leading, 62) }
                 }
             }
             .background(Theme.surface, in: RoundedRectangle(cornerRadius: 16))

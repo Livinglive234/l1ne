@@ -26,7 +26,7 @@ struct AccountEditor: View {
     }
 
     private func text(_ title: String, _ binding: Binding<String>, keyboard: UIKeyboardType = .default) -> some View {
-        TextField(title, text: binding).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(keyboard)
+        TextField(title, text: binding).plainInput(keyboard)
     }
     private var transport: Binding<Account.Transport> {
         Binding(get: { account.transport }, set: { account.changeTransport(to: $0) })

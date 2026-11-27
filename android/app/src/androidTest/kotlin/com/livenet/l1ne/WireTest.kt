@@ -52,9 +52,11 @@ class WireTest {
     private val made = ArrayList<Account>()
     private fun main(block: () -> Unit) = InstrumentationRegistry.getInstrumentation().runOnMainSync(block)
 
+    /** An account for the fake PBX, not saved anywhere. */
+    private fun draft(user: String, transport: Transport = Transport.TCP, media: Media = Media.NONE, build: (Account) -> Account = { it }): Account =
+        build(Account(label = "mock $user", domain = host, username = user, media = media, mediaMandatory = false).withTransport(transport))
     private fun account(user: String, password: String = "secret", transport: Transport = Transport.TCP, media: Media = Media.NONE, build: (Account) -> Account = { it }): Account {
-        var a = Account(label = "mock $user", domain = host, username = user, media = media, mediaMandatory = false).withTransport(transport)
-        a = build(a); accounts.save(a, password); made += a; return a
+        val a = draft(user, transport, media, build); accounts.save(a, password); made += a; return a
     }
     private fun register(a: Account) { main { engine.register(a) } }
     private fun status(a: Account) = engine.registration.value[a.id].orEmpty()
@@ -163,7 +165,7 @@ class WireTest {
 
     // ---- the login check used by the QR / setup-link screen (and the Welcome form's rule): try the account, keep it only if it registers ----
 
-    private fun unsaved(user: String) = Account(label = "mock $user", domain = host, username = user, media = Media.NONE, mediaMandatory = false).withTransport(Transport.TCP)
+    private fun unsaved(user: String) = draft(user)
     private fun check(a: Account, password: String, timeoutMs: Long = 25_000): String? =
         runBlocking { withContext(Dispatchers.Main) { com.livenet.l1ne.ui.verifyLogin(engine, a, password, timeoutMs) } }
 

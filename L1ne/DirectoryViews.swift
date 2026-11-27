@@ -131,7 +131,7 @@ struct DirectoryEditor: View {
 
     private var isNew: Bool { !dirs.sources.contains { $0.id == source.id } }
     private func field(_ title: String, _ b: Binding<String>, keyboard: UIKeyboardType = .default) -> some View {
-        TextField(title, text: b).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(keyboard)
+        TextField(title, text: b).plainInput(keyboard)
     }
 
     var body: some View {

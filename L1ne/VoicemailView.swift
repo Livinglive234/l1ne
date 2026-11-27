@@ -37,13 +37,3 @@ struct VoicemailView: View {
         }
     }
 }
-
-/// LATER (skeleton): tell the user when a new voicemail arrives. A notification while the app is closed needs push
-/// (docs/ROADMAP.md, "push to the app for any server"). Until then this does nothing; the badge on the Voicemail tab
-/// and the count on the keypad button are the only signals, and only while the app is running.
-enum VoicemailNotifier {
-    @MainActor static func newVoicemail(account: UUID, count: Int) {
-        // Not implemented yet. Planned: if AppSettings.shared.voicemailNotify, post a local notification now (app
-        // running) and, once the push gateway exists, from the gateway when the app is closed.
-    }
-}

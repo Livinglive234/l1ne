@@ -68,8 +68,8 @@ struct ContactsView: View {
                                     }
                                 }.buttonStyle(.plain)
                                 CallCircleButton {
-                                    if let a = (c.accountID.flatMap { store.account($0) } ?? store.selected) {
-                                        engine.call("sip:" + c.address, from: a.id)
+                                    if let a = store.dialAccount(c.accountID) {
+                                        engine.call(c.address, from: a.id)
                                     }
                                 }
                             }
@@ -139,7 +139,6 @@ struct ImportURLSheet: View {
     @EnvironmentObject var store: AccountStore
     @EnvironmentObject var contacts: ContactsStore
     @Environment(\.dismiss) private var dismiss
-    var initialURL = ""
     var done: (String) -> Void
     @State private var text = ""
     @State private var account: UUID?
@@ -151,7 +150,7 @@ struct ImportURLSheet: View {
             Form {
                 Section {
                     TextField("https://…/contacts.vcf", text: $text)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                        .plainInput(.URL)
                 } footer: { Text("L1ne fetches this once, now. It does not check again unless you do this again.") }
                 .listRowBackground(Theme.surface)
                 if store.accounts.count > 1 {
@@ -170,7 +169,6 @@ struct ImportURLSheet: View {
                     Button(busy ? "Fetching…" : "Fetch") { fetch() }.disabled(busy || text.isEmpty)
                 }
             }
-            .onAppear { if text.isEmpty { text = initialURL } }
         }
     }
 
@@ -202,7 +200,7 @@ struct AddContactSheet: View {
             Form {
                 TextField("Name", text: $name)
                 TextField("SIP address (user@domain)", text: $address)
-                    .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.emailAddress)
+                    .plainInput(.emailAddress)
                 if failed { Text("Enter a SIP address like 7201@pbx.example.com.").foregroundStyle(.red) }
             }
             .l1neBackground()

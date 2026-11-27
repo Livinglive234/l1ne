@@ -153,15 +153,17 @@ struct RecentsView: View {
     }
 
     private var listStack: some View {
-        AppNavStack {
+        let rows = shown                                 // filtered once per redraw (the empty-state check below reuses it)
+        return AppNavStack {
             List {
-                ForEach(shown) { r in
+                ForEach(rows) { r in
+                    let n = name(r)                      // looked up once per row, not once for the button, the title and the picture
                     HStack(spacing: 14) {
-                        Button { detail = PersonTarget(name: name(r), address: r.peer, accountID: r.accountID) } label: {
+                        Button { detail = PersonTarget(name: n, address: r.peer, accountID: r.accountID) } label: {
                             HStack(spacing: 14) {
-                                avatar(r)
+                                avatar(r, name: n)
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(name(r)).font(.body.weight(.medium))
+                                    Text(n).font(.body.weight(.medium))
                                         .foregroundStyle(r.direction == .missed ? Theme.danger : Theme.text).lineLimit(1)
                                     HStack(spacing: 4) {
                                         Image(systemName: r.direction == .outgoing ? "arrow.up.right" : "arrow.down.left").font(.caption2.weight(.semibold))
@@ -187,7 +189,7 @@ struct RecentsView: View {
                 Button("Delete all", role: .destructive) { callLog.removeAll() }
             }
             .overlay {
-                if shown.isEmpty {
+                if rows.isEmpty {
                     EmptyState(missedOnly ? "No missed calls" : "No recent calls", systemImage: "clock")
                 }
             }
@@ -209,8 +211,7 @@ struct RecentsView: View {
         }
     }
 
-    private func avatar(_ r: CallRecord) -> some View {
-        let n = name(r)
+    private func avatar(_ r: CallRecord, name n: String) -> some View {
         let initials = n.first.map { $0.isLetter } == true ? String(n.split(separator: " ").prefix(2).compactMap { $0.first }).uppercased() : ""
         return ZStack {
             Circle().fill(Theme.surface)
@@ -236,15 +237,11 @@ struct RecentsView: View {
         return parts.joined(separator: " · ")
     }
 
-    private func name(_ r: CallRecord) -> String {
-        let p = r.peer.split(separator: "@").map(String.init)
-        if let n = contacts.name(forUser: p.first ?? r.peer, domain: p.count == 2 ? p[1] : nil) { return n }
-        return PhoneFormat.pretty(p.first ?? r.peer)
-    }
+    private func name(_ r: CallRecord) -> String { contacts.displayName(forPeer: r.peer) }
 
     private func callBack(_ r: CallRecord) {
-        guard let acc = r.accountID.flatMap({ store.account($0) }) ?? store.selected else { return }
-        engine.call(r.peer.contains("@") ? "sip:" + r.peer : r.peer, from: acc.id)
+        guard let acc = store.dialAccount(r.accountID) else { return }
+        engine.call(r.peer, from: acc.id)
     }
 }
 

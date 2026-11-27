@@ -5,12 +5,11 @@ struct SettingsView: View {
     @EnvironmentObject var engine: SIPEngine
     @EnvironmentObject var contacts: ContactsStore
     @EnvironmentObject var settings: AppSettings
-    @EnvironmentObject var store: AccountStore
     @Environment(\.dismiss) private var dismiss
     @State private var confirmRemove = false
     @State private var applying = false
 
-    private var recordingCount: Int { RecordingsView.files().count }
+    @State private var recordingCount = 0                 // read when the page appears (also on coming back from the recordings), not on every redraw
 
     var body: some View {
         AppNavStack {
@@ -43,7 +42,7 @@ struct SettingsView: View {
 
                 Section {
                     TextField("Remote provisioning URL", text: $settings.provisioningURL)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                        .plainInput(.URL)
                     Button("Download & apply") { applying = true }
                         .disabled(Provisioning.configURL(from: settings.provisioningURL) == nil)
                 } header: { Text("Advanced") } footer: {
@@ -89,6 +88,7 @@ struct SettingsView: View {
             }
             .l1neBackground()
             .navigationTitle("Settings")
+            .onAppear { recordingCount = RecordingsView.files().count }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.font(.body.weight(.semibold)) } }
             .sheet(isPresented: $applying) { ProvisionSheet(initialLink: settings.provisioningURL) }
@@ -206,11 +206,12 @@ struct RecordingsView: View {
         .onDisappear { player?.stop() }
     }
 
+    private static let fileDate: DateFormatter = { let f = DateFormatter(); f.dateFormat = "yyyyMMdd-HHmmss"; return f }()
+
     private func title(_ url: URL) -> String {
         let n = url.deletingPathExtension().lastPathComponent.split(separator: "-", maxSplits: 2).map(String.init)
         guard n.count == 3 else { return url.lastPathComponent }
-        let f = DateFormatter(); f.dateFormat = "yyyyMMdd-HHmmss"
-        let when = f.date(from: n[0] + "-" + n[1]).map { $0.formatted(date: .abbreviated, time: .shortened) } ?? n[0]
+        let when = Self.fileDate.date(from: n[0] + "-" + n[1]).map { $0.formatted(date: .abbreviated, time: .shortened) } ?? n[0]
         return "\(n[2]) · \(when)"
     }
 

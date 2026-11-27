@@ -44,12 +44,12 @@ struct WelcomeView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             field("Server") {
                                 TextField("pbx.example.com", text: $server)
-                                    .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                                    .plainInput(.URL)
                                     .focused($focus, equals: .server).submitLabel(.next).onSubmit { focus = .user }
                             }
                             field("Username or extension") {
                                 TextField("Username", text: $username)
-                                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                                    .plainInput()
                                     .focused($focus, equals: .user).submitLabel(.next).onSubmit { focus = .name }
                             }
                             field("Display name (optional)") {
@@ -62,7 +62,7 @@ struct WelcomeView: View {
                                     Group {
                                         if reveal { TextField("Password", text: $password) } else { SecureField("Password", text: $password) }
                                     }
-                                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                                    .plainInput()
                                     .focused($focus, equals: .pass).submitLabel(.go).onSubmit { if canLogin { login() } }
                                     Button { reveal.toggle() } label: {
                                         Image(systemName: reveal ? "eye" : "eye.slash").foregroundStyle(Theme.muted)

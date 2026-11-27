@@ -15,12 +15,10 @@ final class DirectorySync: ObservableObject {
 
     func fetch(_ s: DirectorySource, password: String) async throws -> VCard.Result {
         switch s.kind {
-        case .vcardLink:
+        case .vcardLink, .carddav:
             guard let url = URL(string: s.url.trimmingCharacters(in: .whitespaces)) else { throw CardDAV.Failure.badURL }
-            return try await ContactsStore.fetchVCard(from: url)
-        case .carddav:
-            guard let url = URL(string: s.url.trimmingCharacters(in: .whitespaces)) else { throw CardDAV.Failure.badURL }
-            return try await CardDAV.fetch(url: url, username: s.username, password: password)
+            return s.kind == .carddav ? try await CardDAV.fetch(url: url, username: s.username, password: password)
+                                      : try await ContactsStore.fetchVCard(from: url)
         case .ldap:
             let domain = s.accountID.flatMap { AccountStore.shared.account($0)?.domain } ?? AccountStore.shared.selected?.domain ?? ""
             var attrs = ["cn", "displayName", "givenName", "sn", s.nameAttr, s.sipAttr]

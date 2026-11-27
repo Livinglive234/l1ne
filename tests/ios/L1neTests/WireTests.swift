@@ -35,13 +35,18 @@ final class WireTests: XCTestCase {
 
     // MARK: helpers
 
-    private func account(_ user: String, password: String = "secret", transport: Account.Transport = .tcp, media: Account.Media = .none,
-                         _ build: (inout Account) -> Void = { _ in }) -> Account {
+    /// An account for the fake PBX, not saved anywhere.
+    private func makeAccount(_ user: String, transport: Account.Transport = .tcp, media: Account.Media = .none, _ build: (inout Account) -> Void = { _ in }) -> Account {
         var a = Account()
         a.label = "mock \(user)"; a.domain = host; a.username = user
         a.media = media; a.mediaMandatory = false
         a.changeTransport(to: transport)                  // 5060 for TCP and UDP
         build(&a)
+        return a
+    }
+    private func account(_ user: String, password: String = "secret", transport: Account.Transport = .tcp, media: Account.Media = .none,
+                         _ build: (inout Account) -> Void = { _ in }) -> Account {
+        let a = makeAccount(user, transport: transport, media: media, build)
         accounts.save(a, secret: password); made.append(a)
         return a
     }
@@ -200,9 +205,7 @@ final class WireTests: XCTestCase {
 
     // MARK: the login check the QR / setup-link screen runs before it keeps an account (and the Welcome form's rule)
 
-    private func unsaved(_ user: String) -> Account {
-        var a = Account(); a.label = "mock \(user)"; a.domain = host; a.username = user; a.media = .none; a.mediaMandatory = false; a.changeTransport(to: .tcp); return a
-    }
+    private func unsaved(_ user: String) -> Account { makeAccount(user) }
     func testLoginCheckLetsAGoodLoginThroughAndSavesNothing() async {
         let a = unsaved("7100"); let why = await LoginCheck.verify(a, secret: "secret", engine: engine)
         XCTAssertNil(why); XCTAssertFalse(accounts.accounts.contains { $0.id == a.id }, "the check must not save the account"); engine.unregister(a.id)

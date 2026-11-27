@@ -1,13 +1,6 @@
 import SwiftUI
 
-@MainActor private func displayName(_ peer: String, contacts: ContactsStore) -> String {
-    let p = peer.split(separator: "@").map(String.init)
-    if let n = contacts.name(forUser: p.first ?? peer, domain: p.count == 2 ? p[1] : nil) { return n }
-    return PhoneFormat.pretty(p.first ?? peer)
-}
-
 struct ConversationsView: View {
-    @EnvironmentObject var engine: SIPEngine
     @EnvironmentObject var store: AccountStore
     @EnvironmentObject var contacts: ContactsStore
     @EnvironmentObject var messages: MessageStore
@@ -36,7 +29,7 @@ struct ConversationsView: View {
             Circle().fill(c.unread > 0 ? Theme.brand : .clear).frame(width: 10, height: 10)
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
-                    Text(displayName(c.peer, contacts: contacts)).font(.headline).foregroundStyle(Theme.text)
+                    Text(contacts.displayName(forPeer: c.peer)).font(.headline).foregroundStyle(Theme.text)
                     Spacer()
                     if let d = c.last?.date { Text(d, format: .dateTime.hour().minute()).font(.caption).foregroundStyle(Theme.muted) }
                 }
@@ -114,7 +107,7 @@ struct ThreadView: View {
     @State private var otherAppsDismissed = MessagingWarnings.otherAppsDismissed
 
     private var line: Account? { store.account(target.accountID) }
-    private var person: PersonTarget { PersonTarget(name: displayName(target.peer, contacts: contacts), address: target.peer, accountID: target.accountID) }
+    private var person: PersonTarget { PersonTarget(name: contacts.displayName(forPeer: target.peer), address: target.peer, accountID: target.accountID) }
 
     private var conversation: Conversation? { messages.conversation(target) }
 
@@ -171,7 +164,7 @@ struct ThreadView: View {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button { info = person } label: { Image(systemName: "info.circle") }
                 Button {
-                    if let a = line ?? store.selected { engine.call(target.peer.contains("@") ? "sip:" + target.peer : target.peer, from: a.id) }
+                    if let a = line ?? store.selected { engine.call(target.peer, from: a.id) }
                 } label: { Image(systemName: "phone.fill") }
             }
         }
@@ -247,7 +240,7 @@ struct NewMessageSheet: View {
     @State private var typed = ""
     @State private var accountID: UUID?
 
-    private var account: Account? { accountID.flatMap { store.account($0) } ?? store.selected }
+    private var account: Account? { store.dialAccount(accountID) }
 
     var body: some View {
         AppNavStack {
@@ -260,7 +253,7 @@ struct NewMessageSheet: View {
                 }
                 Section {
                     TextField("Extension or user@domain", text: $typed)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.emailAddress)
+                        .plainInput(.emailAddress)
                     Button("Start") { start(typed) }.disabled(typed.trimmingCharacters(in: .whitespaces).isEmpty)
                 } footer: {
                     if let a = account, engine.messagingCheck[a.id] == .notDelivered {

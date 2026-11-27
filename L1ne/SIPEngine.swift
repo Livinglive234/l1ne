@@ -190,12 +190,11 @@ final class SIPEngine: ObservableObject {
 
         let name = account.displayName.replacingOccurrences(of: "\"", with: "")
         ac.id = cs.make(name.isEmpty ? "sip:\(account.username)@\(account.domain)" : "\"\(name)\" <sip:\(account.username)@\(account.domain)>")
-        ac.reg_uri = cs.make(account.registrarURI.isEmpty
-            ? "sip:\(account.domain):\(account.port);transport=\(account.transport.rawValue)" : account.registrarURI)
+        let registrar = account.registrarURI.isEmpty ? "sip:\(account.domain):\(account.port);transport=\(account.transport.rawValue)" : account.registrarURI
+        ac.reg_uri = cs.make(registrar)
         // Send everything (calls, texts, the voicemail subscription) through the server over the account's own
         // transport. Without a route PJSIP would resolve the domain and use plain UDP 5060, which a TLS-only PBX never sees.
-        var route = account.outboundProxy.isEmpty ? (account.registrarURI.isEmpty
-            ? "sip:\(account.domain):\(account.port);transport=\(account.transport.rawValue)" : account.registrarURI) : account.outboundProxy
+        var route = account.outboundProxy.isEmpty ? registrar : account.outboundProxy
         if !route.contains(";lr") { route += ";lr" }
         ac.proxy_cnt = 1
         ac.proxy.0 = cs.make(route)
@@ -237,16 +236,15 @@ final class SIPEngine: ObservableObject {
             var srv = cs.make(account.stunServer)
             _ = pjsua_update_stun_servers(1, &srv, 0)
         }
+        var mc = pjsua_media_config(); pjsua_media_config_default(&mc)
         if account.iceEnabled {
             ac.ice_cfg_use = PJSUA_ICE_CONFIG_USE_CUSTOM
-            var mc = pjsua_media_config(); pjsua_media_config_default(&mc)
             pjsua_ice_config_from_media_config(cfgPool, &ac.ice_cfg, &mc)
             ac.ice_cfg.enable_ice = 1
         }
         if account.turnEnabled, !account.stunServer.isEmpty {
             ac.turn_cfg_use = PJSUA_TURN_CONFIG_USE_CUSTOM
-            var mc2 = pjsua_media_config(); pjsua_media_config_default(&mc2)
-            pjsua_turn_config_from_media_config(cfgPool, &ac.turn_cfg, &mc2)
+            pjsua_turn_config_from_media_config(cfgPool, &ac.turn_cfg, &mc)
             ac.turn_cfg.enable_turn = 1
             ac.turn_cfg.turn_server = cs.make(account.stunServer)
             ac.turn_cfg.turn_auth_cred.type = PJ_STUN_AUTH_CRED_STATIC
@@ -325,7 +323,6 @@ final class SIPEngine: ObservableObject {
         guard let id = accountForPJ[acc] else { return }
         let old = voicemail[id] ?? 0
         voicemail[id] = new
-        if new > old { VoicemailNotifier.newVoicemail(account: id, count: new) }
     }
 
     // MARK: codecs
@@ -377,7 +374,7 @@ final class SIPEngine: ObservableObject {
         var setting = pjsua_call_setting()
         pjsua_call_setting_default(&setting)
         setting.txt_cnt = 0                       // audio only: no real-time-text stream in the offer
-        for c in calls where c.connected && !held.contains(c.id) { toggleHold(c.id) }     // a new call puts the active one on hold
+        holdOthers()                              // a new call puts the active one on hold
         let st = pjsua_call_make_call(acc, &u, &setting, nil, nil, &callID)
         let ok = st == 0
         if ok {
@@ -398,14 +395,19 @@ final class SIPEngine: ObservableObject {
     func answer(_ id: Int32) {
         guard calls.first(where: { $0.id == id })?.connected != true else { return }
         configureAudioSession()
-        for c in calls where c.id != id && c.connected && !held.contains(c.id) { toggleHold(c.id) }
+        holdOthers(except: id)
         currentCallID = id
         pjsua_call_answer(id, 200, nil, nil)
     }
 
+    /// Puts every connected call on hold, except `id` (none excepted for a call that does not exist yet).
+    private func holdOthers(except id: Int32? = nil) {
+        for c in calls where c.id != id && c.connected && !held.contains(c.id) { toggleHold(c.id) }
+    }
+
     /// Makes one call the live one and puts the others on hold.
     func switchTo(_ id: Int32) {
-        for c in calls where c.id != id && c.connected && !held.contains(c.id) { toggleHold(c.id) }
+        holdOthers(except: id)
         if held.contains(id) { toggleHold(id) }
         currentCallID = id
     }
@@ -495,7 +497,7 @@ final class SIPEngine: ObservableObject {
             let secs = Int(ci.connect_duration.sec)
             let outgoing = ci.role == PJSIP_ROLE_UAC
             let remote = str(ci.remote_info)
-            let inner = remote.firstIndex(of: "<").map { String(remote[$0...]).trimmingCharacters(in: CharacterSet(charactersIn: "<>")) } ?? remote
+            let inner = Self.uriPart(remote)
             // a call that was still ringing when the network changed and wasn't ended by you: try it once more, quietly
             let target = outgoingTargets.removeValue(forKey: call)
             let byYou = userEnded.remove(call) != nil
@@ -525,19 +527,17 @@ final class SIPEngine: ObservableObject {
         }
         let connected = ci.state == PJSIP_INV_STATE_CONFIRMED
         let old = calls.first { $0.id == call }
+        let remote = str(ci.remote_info)
         let entry = CallInfo(
             id: call,
-            remote: Self.callerName(from: str(ci.remote_info)),
+            remote: Self.callerName(from: remote),
             state: Self.friendlyState(ci),
             incoming: incoming ?? (old?.incoming ?? false),
             connected: connected,
             since: connected ? (old?.since ?? Date()) : nil,
             accountID: accountForPJ[ci.acc_id],
-            address: {
-                let r = str(ci.remote_info)
-                return VCard.sipAddress(r.firstIndex(of: "<").map { String(r[$0...]).trimmingCharacters(in: CharacterSet(charactersIn: "<>")) } ?? r) ?? ""
-            }())
-        if let i = calls.firstIndex(where: { $0.id == call }) { calls[i] = entry } else { calls.append(entry) }
+            address: VCard.sipAddress(Self.uriPart(remote)) ?? "")
+        if let i = calls.firstIndex(where: { $0.id == call }) { if calls[i] != entry { calls[i] = entry } } else { calls.append(entry) }      // no redraw when nothing changed
         if currentCallID == nil || !calls.contains(where: { $0.id == currentCallID }) { currentCallID = call }
         if connected { startStats(); CallKitManager.shared.reportConnected(call, outgoing: !(entry.incoming)) }
         updateRingback()
@@ -638,11 +638,13 @@ final class SIPEngine: ObservableObject {
         return true
     }
 
+    private static func unsupportedNote(_ code: Int) -> String { "This server doesn't support text messages (\(code))." }
+
     private func sendResult(tag: Int, code: Int, reason: String, acc: pjsua_acc_id) {
         if let account = probeTags.removeValue(forKey: tag) {              // the hidden test text
             switch code {
             case 405, 501, 415:
-                messagingNote[account] = "This server doesn't support text messages (\(code))."
+                messagingNote[account] = Self.unsupportedNote(code)
                 messagingCheck[account] = .unknown
             case 200..<300: break                                        // accepted: now wait to see whether it comes back
             default: messagingCheck[account] = .notDelivered             // refused (404, 403, ...): not routed
@@ -658,7 +660,7 @@ final class SIPEngine: ObservableObject {
         let note: String
         switch code {
         case 405, 501, 415: // the server has no text routing: say so for the whole account
-            note = "This server doesn't support text messages (\(code))."
+            note = Self.unsupportedNote(code)
             messagingNote[target.accountID] = note
         case 404, 480, 408, 503, 604: note = "Not delivered: they aren't reachable right now (\(code))."
         default: note = "Not delivered (\(code) \(reason))."
@@ -675,7 +677,7 @@ final class SIPEngine: ObservableObject {
             }
             return                                                       // never shown as a message
         }
-        let inner = from.firstIndex(of: "<").map { String(from[$0...]).trimmingCharacters(in: CharacterSet(charactersIn: "<>")) } ?? from
+        let inner = Self.uriPart(from)
         guard let peer = VCard.sipAddress(inner.components(separatedBy: ">").first ?? inner) else { return }
         MessageStore.shared.add(Message(outgoing: false, text: text, status: .sent, read: false), to: ThreadTarget(accountID: account, peer: peer))
     }
@@ -690,9 +692,14 @@ final class SIPEngine: ObservableObject {
         return text.isEmpty ? "error \(status)" : text
     }
 
+    /// The address part of `"Name" <sip:user@host>`: what follows the first "<", without the brackets (the whole text when there is none).
+    static func uriPart(_ remote: String) -> String {
+        remote.firstIndex(of: "<").map { String(remote[$0...]).trimmingCharacters(in: CharacterSet(charactersIn: "<>")) } ?? remote
+    }
+
     /// A name from L1ne's own contacts when the address matches, otherwise what the caller sent.
     static func callerName(from remote: String) -> String {
-        if let addr = VCard.sipAddress(remote.firstIndex(of: "<").map { String(remote[$0...]).trimmingCharacters(in: CharacterSet(charactersIn: "<>")) } ?? remote) {
+        if let addr = VCard.sipAddress(uriPart(remote)) {
             let p = addr.split(separator: "@").map(String.init)
             if let n = ContactsStore.shared.name(forUser: p[0], domain: p[1]) { return n }
         }

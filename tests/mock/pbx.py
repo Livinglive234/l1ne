@@ -47,11 +47,11 @@ def parse(msg):
         else: hs.setdefault(k, v)
     return lines[0], hs, vias, body
 
-def reply(code, reason, hs, vias, extra=(), body="", ctype=None):
+def reply(code, reason, hs, vias, extra=(), body=""):
     to = hs["to"] + (";tag=" + TAG if "tag=" not in hs["to"] and code > 100 else "")
     lines = [f"SIP/2.0 {code} {reason}"] + ["Via: " + v for v in vias] + ["From: " + hs["from"], "To: " + to, "Call-ID: " + hs["call-id"], "CSeq: " + hs["cseq"]]
     lines += list(extra)
-    if body: lines.append("Content-Type: " + (ctype or "application/sdp"))
+    if body: lines.append("Content-Type: application/sdp")
     lines.append(f"Content-Length: {len(body.encode())}")
     return "\r\n".join(lines) + "\r\n\r\n" + body
 
@@ -61,7 +61,7 @@ def user_of(uri):
     m = re.search(r"sips?:([^@;>]+)", uri); return m.group(1) if m else ""
 def contact(host, proto="tcp"): return f"Contact: <sip:pbx@{host}:{args.sip_port};transport={proto}>"
 
-def sdp_answer(offer, host, direction=None, hold_of=None):
+def sdp_answer(offer, host):
     m = re.search(r"^m=audio (\d+) (\S+) (.*)$", offer, re.M)
     proto = m.group(2) if m else "RTP/AVP"; fmts = m.group(3).split() if m else ["0"]
     fmt = fmts[0]; rtpmap = re.search(rf"^a=rtpmap:{fmt} (\S+)", offer, re.M)
@@ -89,7 +89,7 @@ def digest_ok(auth, method, user):
     else: want = hashlib.md5(f"{ha1}:{f.get('nonce')}:{ha2}".encode()).hexdigest()
     return f.get("response") == want
 
-async def process(text, send, host, proto, peer):
+async def process(text, send, host, proto):
     """Handles one SIP message; send(text) writes to the same peer."""
     start, hs, vias, body = parse(text)
     if start.startswith("SIP/2.0"):
@@ -102,7 +102,7 @@ async def process(text, send, host, proto, peer):
                 await send(ack); log("-> ACK to phone")
         return
     if len(start.split()) < 2: return           # a bare CRLF keep-alive from the phone, not a request
-    method, ruri = start.split()[0], start.split()[1]; cseq = hs.get("cseq", "")
+    method, ruri = start.split()[0], start.split()[1]
     m_host = re.search(r"sips?:(?:[^@/;>]*@)?([^:;>/]+)", ruri)
     if m_host and re.match(r"[\d.]+$|[A-Za-z]", m_host.group(1)): host = m_host.group(1)       # advertise the address the phone dialled (the socket's own address is 127.0.0.1 behind the emulator's NAT)
     log("<-", method, ruri[:60], f"({proto})")
@@ -179,7 +179,7 @@ async def tcp_client(reader, writer):
                 m = re.search(rb"(?im)^(?:content-length|l)\s*:\s*(\d+)", buf[:i]); n = int(m.group(1)) if m else 0
                 if len(buf) < i + 4 + n: break
                 msg, buf = buf[:i + 4 + n].decode(errors="replace"), buf[i + 4 + n:]
-                asyncio.create_task(process(msg, send, host, "tcp", peer))
+                asyncio.create_task(process(msg, send, host, "tcp"))
     except ConnectionError: pass
     finally: writer.close()
 
@@ -189,7 +189,7 @@ class UdpSip(asyncio.DatagramProtocol):
         text = data.decode(errors="replace")
         if not text.strip(): return
         async def send(s): self.t.sendto(s.encode(), addr)
-        asyncio.create_task(process(text, send, self.t.get_extra_info("sockname")[0] if False else (addr[0] and local_ip_for(addr[0])), "udp", addr))
+        asyncio.create_task(process(text, send, addr[0] and local_ip_for(addr[0]), "udp"))
 
 def local_ip_for(remote):
     import socket

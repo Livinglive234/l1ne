@@ -20,7 +20,6 @@ struct Conversation: Codable, Identifiable, Equatable {
     var id: String { Conversation.key(accountID, peer) }
     var last: Message? { messages.last }
     var unread: Int { messages.filter { !$0.read }.count }
-    var user: String { String(peer.split(separator: "@").first ?? "") }
 
     static func key(_ account: UUID, _ peer: String) -> String { account.uuidString + "|" + peer.lowercased() }
 }

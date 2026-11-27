@@ -5,7 +5,6 @@ import AVFoundation
 struct ProvisionSheet: View {
     @EnvironmentObject var engine: SIPEngine
     @EnvironmentObject var store: AccountStore
-    @EnvironmentObject var contacts: ContactsStore
     @EnvironmentObject var dirs: DirectoryStore
     @Environment(\.dismiss) private var dismiss
 
@@ -35,7 +34,7 @@ struct ProvisionSheet: View {
                     .listRowBackground(Theme.surface)
                     Section("Or paste a link") {
                         TextField("https://…", text: $link)
-                            .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                            .plainInput(.URL)
                         Button(busy ? "Fetching…" : "Fetch configuration") { fetch(link) }.disabled(busy || link.isEmpty)
                     }
                     .listRowBackground(Theme.surface)

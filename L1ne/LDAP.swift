@@ -186,11 +186,9 @@ final class LDAPClient: @unchecked Sendable {
         let bindID = take()
         let bind = BER.seq(BER.int(bindID) + BER.tlv(0x60, BER.int(3) + BER.octets(s.bindDN) + BER.octets(s.password, tag: 0x80)))
         try await send(bind)
-        let (_, op) = try await readMessage()
+        let op = try await readMessage()
         guard op.tag == 0x61 else { throw LDAPError.protocolError("expected a bind response") }
-        var r = BERReader(op.content)
-        let code = r.next().map { BERReader.int($0.content) } ?? -1
-        _ = r.next(); let diag = r.next().map { BERReader.string($0.content) } ?? ""
+        let (code, diag) = ldapResult(op.content)
         guard code == 0 else { throw LDAPError.server(code, diag) }
 
         // search
@@ -203,7 +201,7 @@ final class LDAPClient: @unchecked Sendable {
 
         var entries: [LDAPEntry] = []
         while true {
-            let (_, op) = try await readMessage()
+            let op = try await readMessage()
             switch op.tag {
             case 0x64:  // searchResEntry
                 var e = BERReader(op.content)
@@ -219,9 +217,7 @@ final class LDAPClient: @unchecked Sendable {
                 }
                 entries.append(LDAPEntry(dn: BERReader.string(dn.content), attributes: attrsOut))
             case 0x65:  // searchResDone
-                var d = BERReader(op.content)
-                let code = d.next().map { BERReader.int($0.content) } ?? -1
-                _ = d.next(); let msg = d.next().map { BERReader.string($0.content) } ?? ""
+                let (code, msg) = ldapResult(op.content)
                 try? await send(BER.seq(BER.int(take()) + [0x42, 0x00]))      // unbind
                 if code == 0 || code == 4 { return entries }                   // 4 = size limit exceeded: keep what we got
                 throw LDAPError.server(code, msg)
@@ -261,15 +257,15 @@ final class LDAPClient: @unchecked Sendable {
         }
     }
 
-    /// One LDAPMessage: returns (messageID, protocolOp element).
-    private func readMessage() async throws -> (Int, (tag: UInt8, content: [UInt8])) {
+    /// One LDAPMessage: returns its protocolOp element (the message ID is not needed: one request is in flight at a time).
+    private func readMessage() async throws -> (tag: UInt8, content: [UInt8]) {
         while true {
             var r = BERReader(buffer)
             if let msg = r.next(), msg.tag == 0x30 {
                 buffer.removeFirst(r.pos)
                 var m = BERReader(msg.content)
-                guard let id = m.next(), let op = m.next() else { throw LDAPError.protocolError("short message") }
-                return (BERReader.int(id.content), op)
+                guard m.next() != nil, let op = m.next() else { throw LDAPError.protocolError("short message") }
+                return op
             }
             let chunk: Data = try await withCheckedThrowingContinuation { c in
                 connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, isComplete, error in
@@ -282,4 +278,12 @@ final class LDAPClient: @unchecked Sendable {
             buffer += Array(chunk)
         }
     }
+}
+
+/// The LDAPResult that ends a bind or search response: the result code, then (after the matched DN) the diagnostic message.
+private func ldapResult(_ content: [UInt8]) -> (code: Int, message: String) {
+    var r = BERReader(content)
+    let code = r.next().map { BERReader.int($0.content) } ?? -1
+    _ = r.next()
+    return (code, r.next().map { BERReader.string($0.content) } ?? "")
 }

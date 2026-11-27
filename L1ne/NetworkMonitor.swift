@@ -6,7 +6,7 @@ import Network
 final class NetworkMonitor: ObservableObject {
     static let shared = NetworkMonitor()
     @Published private(set) var onWiFi = true
-    @Published private(set) var online = true
+    private(set) var online = true
     var onChange: (() -> Void)?
 
     private let monitor = NWPathMonitor()

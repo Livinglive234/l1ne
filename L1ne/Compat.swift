@@ -155,8 +155,15 @@ struct ShareFileButton<Label: View>: View {
     }
 }
 
-private struct ActivitySheet: UIViewControllerRepresentable {
+struct ActivitySheet: UIViewControllerRepresentable {
     var items: [Any]
     func makeUIViewController(context: Context) -> UIActivityViewController { UIActivityViewController(activityItems: items, applicationActivities: nil) }
     func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
+}
+
+extension View {
+    /// For fields that take addresses, URLs and numbers: no capital letters, no autocorrect, and the right keyboard.
+    func plainInput(_ keyboard: UIKeyboardType = .default) -> some View {
+        textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(keyboard)
+    }
 }

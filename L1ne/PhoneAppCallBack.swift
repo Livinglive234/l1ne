@@ -5,7 +5,6 @@ import Intents
 /// request. This places that call on the right line, waiting for the account to register if the app was just launched.
 @MainActor
 enum PhoneAppCallBack {
-    static let activityTypes = ["INStartCallIntent", "INStartAudioCallIntent"]
 
     static func handle(_ activity: NSUserActivity) {
         let intent = activity.interaction?.intent
