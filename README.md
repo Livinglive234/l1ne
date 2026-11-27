@@ -143,6 +143,8 @@ The NDK version is pinned in `scripts/lib.sh` and `android/app/build.gradle.kts`
   (`gradle :app:connectedDebugAndroidTest`, on a device or emulator).
 - `tests/parsers`: vCard, provisioning, dial rules, account migration and contact-source rules as plain Swift, no simulator needed.
   `tests/parsers/run.sh`
+- `tests/zrtp`: the ZRTP engine and our SRTP layer in memory (lost and altered packets, key continuity), SRTP byte for byte against libsrtp, and `run-interop.sh`
+  against Linphone's bzrtp (fetched into a temp folder for the test, never shipped). `tests/zrtp/run.sh`. The mock PBX also starts a ZRTP media peer for the wire tests.
 - `tests/directory/run.sh`: the LDAP and CardDAV clients against real OpenLDAP and Radicale servers (`brew install openldap`, a Python venv with `radicale`).
 - `tests/mock`: a local SIP-over-TLS server and scripts that place a call from the simulator and print the encryption lines in the offer.
 

@@ -53,6 +53,9 @@ jobs:
       - name: Parser tests
         run: tests/parsers/run.sh
 
+      - name: ZRTP and SRTP tests
+        run: brew install openssl && tests/zrtp/run.sh
+
       - name: Install XcodeGen
         run: brew install xcodegen
 

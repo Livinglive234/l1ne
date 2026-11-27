@@ -45,9 +45,7 @@ button count show new messages only while L1ne is running.
 
 None of these is started. They are listed so they are not forgotten, with what each one needs.
 
-**ZRTP (call encryption without the PBX's help).** ZRTP agrees keys between the two phones during the call and shows a short code both people can read out to rule
-out a man in the middle. It works on a plain PBX, since the PBX only relays audio. **Not in PJSIP.** It needs a ZRTP library (GNU ZRTP or ZRTP4PJ) built for iOS and
-Android and hooked into PJSIP's media layer, plus a "verify this code" screen. Only worth it if the other end also speaks ZRTP (Linphone does; most phones do not).
+**ZRTP: built.** Per account, Media can be ZRTP (optional, or "mandatory" to refuse clear media and end the call if the other side has no ZRTP). The two phones agree keys during the call and show a four-character code to read out; "Code matches" remembers the person (key continuity), and a changed secret is flagged. The engine is our own, written from RFC 6189 (`native/zrtp`), tested against libsrtp and Linphone's bzrtp. Open: ECDH key exchange, GoClear, multistream, and an optional swap to the Apache-2.0 GNU ZRTP C++ library (its OpenSSL backend is written for OpenSSL 1.0 and needs patching for 3.x; its standalone mode includes GPL bignum code).
 
 **Video calls.** Needs PJSIP rebuilt with video: H.264 (VideoToolbox on iPhone, MediaCodec on Android) and VP8, the camera and its permissions, a video call screen
 (picture-in-picture, camera flip, mute video), bandwidth handling and the SDP/AVPF settings. Many PBXes need video enabled per extension. It is a large piece of work on both platforms.
