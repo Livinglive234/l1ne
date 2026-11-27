@@ -152,6 +152,26 @@ class WireTest {
         val a = registered(account("7100")); dial(a, "1001"); waitServer("INVITE 1001")
         val line = serverLog().lines().first { "INVITE 1001" in it }; assertTrue(line.indexOf("PCMA") in 0 until line.indexOf("PCMU").let { if (it < 0) Int.MAX_VALUE else it }, line)
     }
+    /** pjsua has one STUN server for the whole app: an account that doesn't use STUN must not use another account's. */
+    @Test fun anAccountWithoutStunDoesNotUseAnotherAccountsStunServer() {
+        val withStun = registered(account("7100") { it.copy(stunServer = "$host:3478", iceEnabled = true) }); dial(withStun, "1001")
+        waitFor("the STUN server to be contacted", 15) { serverSaw("STUN binding request") }
+        main { engine.hangupAll() }; waitFor("the first call to end") { engine.calls.value.isEmpty() }
+        http("/clear")
+        val plain = registered(account("7101")); dial(plain, "1001"); waitServer("INVITE 1001")
+        Thread.sleep(1500)
+        assertFalse(serverSaw("STUN binding request"), "the account without STUN made no STUN request")
+    }
+    /** Needs a real TURN server (the fake PBX only does STUN): tests/mock/run-turn-test.sh android starts one and passes its host:port as the "turn" argument. */
+    @Test fun aTurnServerGivesTheOfferARelayAddress() {
+        val turn = InstrumentationRegistry.getArguments().getString("turn")
+        org.junit.Assume.assumeTrue("needs a TURN server: run tests/mock/run-turn-test.sh android", !turn.isNullOrEmpty())
+        val a = account("7100") { it.copy(stunServer = turn!!, iceEnabled = true, turnEnabled = true, turnUser = "l1ne") }
+        accounts.saveTurnSecret(a.id, "turnpass")
+        registered(a); dial(a, "1001"); waitServer("INVITE 1001", 15)
+        assertTrue(serverLog().contains("typ relay"), "the offer carries a relayed candidate from the TURN server")
+        assertTrue(serverLog().contains("typ host"), "and still the phone's own address")
+    }
     @Test fun aStunServerIsAskedForThePublicAddress() {
         val a = registered(account("7100") { it.copy(stunServer = "$host:3478", iceEnabled = true) }); dial(a, "1001"); waitServer("INVITE 1001")
         waitFor("the STUN server to be contacted", 15) { serverSaw("STUN binding request") }

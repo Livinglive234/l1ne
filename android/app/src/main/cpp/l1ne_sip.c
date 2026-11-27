@@ -130,6 +130,7 @@ JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nAddAccount(JNIEnv *env,
     const char *stun = (*env)->GetStringUTFChars(env, jstun, NULL), *tu = (*env)->GetStringUTFChars(env, jtuser, NULL), *tp = (*env)->GetStringUTFChars(env, jtpass, NULL);
     pjsua_media_config mc; pjsua_media_config_default(&mc);
     if (stun[0] && (ice || turn)) { pj_str_t srv = pjdup(stun); pjsua_update_stun_servers(1, &srv, PJ_FALSE); }
+    else { ac.media_stun_use = PJSUA_STUN_USE_DISABLED; }      /* pjsua's STUN list is global: an account without STUN must not put another account's server's addresses in its calls */
     if (ice) { ac.ice_cfg_use = PJSUA_ICE_CONFIG_USE_CUSTOM; pjsua_ice_config_from_media_config(g_pool, &ac.ice_cfg, &mc); ac.ice_cfg.enable_ice = PJ_TRUE; }
     if (turn && stun[0]) {
         ac.turn_cfg_use = PJSUA_TURN_CONFIG_USE_CUSTOM; pjsua_turn_config_from_media_config(g_pool, &ac.turn_cfg, &mc);

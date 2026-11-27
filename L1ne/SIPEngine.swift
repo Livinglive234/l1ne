@@ -231,10 +231,13 @@ final class SIPEngine: ObservableObject {
         ac.ipv6_sip_use = v6
         ac.ipv6_media_use = v6
 
-        // NAT traversal. pjsua has one list of STUN servers for the whole app: the first account that sets one wins.
+        // NAT traversal. pjsua has one list of STUN servers for the whole app: the first account that sets one wins. An account that
+        // doesn't use STUN must say so itself, or it would use the other account's server for the addresses in its calls.
         if !account.stunServer.isEmpty && (account.iceEnabled || account.turnEnabled) {
             var srv = cs.make(account.stunServer)
             _ = pjsua_update_stun_servers(1, &srv, 0)
+        } else {
+            ac.media_stun_use = PJSUA_STUN_USE_DISABLED
         }
         var mc = pjsua_media_config(); pjsua_media_config_default(&mc)
         if account.iceEnabled {

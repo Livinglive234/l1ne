@@ -177,6 +177,25 @@ final class WireTests: XCTestCase {
         let pcma = line.range(of: "PCMA")?.lowerBound, pcmu = line.range(of: "PCMU")?.lowerBound
         XCTAssertNotNil(pcma, line); if let pcma, let pcmu { XCTAssertLessThan(pcma, pcmu, line) }
     }
+    /// pjsua has one STUN server for the whole app: an account that doesn't use STUN must not use another account's.
+    func testAnAccountWithoutStunDoesNotUseAnotherAccountsStunServer() throws {
+        let withStun = try registered(account("7100") { $0.stunServer = "\(host):3478"; $0.iceEnabled = true })
+        dial(withStun, "1001"); try waitServer("STUN binding request", seconds: 15)
+        engine.hangupAll(); try waitFor("the first call to end") { engine.calls.isEmpty }
+        _ = http("/clear")
+        let plain = try registered(account("7101")); dial(plain, "1001"); try waitServer("INVITE 1001")
+        pause(1.5)
+        XCTAssertFalse(serverSaw("STUN binding request"), "the account without STUN made no STUN request")
+    }
+    /// Needs a real TURN server (the fake PBX only does STUN): tests/mock/run-turn-test.sh starts one and sets L1NE_TURN to its host:port.
+    func testATurnServerGivesTheOfferARelayAddress() throws {
+        guard let turn = ProcessInfo.processInfo.environment["L1NE_TURN"], !turn.isEmpty else { throw XCTSkip("needs a TURN server: run tests/mock/run-turn-test.sh") }
+        let a = account("7100") { $0.stunServer = turn; $0.iceEnabled = true; $0.turnEnabled = true; $0.turnUser = "l1ne" }
+        accounts.save(a, secret: nil, turnSecret: "turnpass")
+        try registered(a); dial(a, "1001"); try waitServer("INVITE 1001", seconds: 15)
+        XCTAssertTrue(serverLog().contains("typ relay"), "the offer carries a relayed candidate from the TURN server")
+        XCTAssertTrue(serverLog().contains("typ host"), "and still the phone's own address")
+    }
     func testAStunServerIsAskedForThePublicAddress() throws {
         let a = try registered(account("7100") { $0.stunServer = "\(host):3478"; $0.iceEnabled = true }); dial(a, "1001"); try waitServer("INVITE 1001")
         try waitFor("the STUN server to be contacted", seconds: 15) { serverSaw("STUN binding request") }

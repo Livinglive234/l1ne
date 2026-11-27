@@ -1,11 +1,11 @@
 #!/bin/bash
 # Runs L1ne's real SIP engine (Android) against the fake PBX in tests/mock/pbx.py and prints what passed.
-# usage: tests/mock/run-android-wire-tests.sh [emulator-avd-name]     (default l1ne_api28; the emulator reaches this Mac as 10.0.2.2)
+# usage: tests/mock/run-android-wire-tests.sh [emulator-avd-name] [extra gradle arguments]     (default l1ne_api28; the emulator reaches this Mac as 10.0.2.2)
 # Needs: the Android SDK (android/local.properties), the native libraries built (scripts/build-android-native.sh), python3.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$HERE/../.."
 SDK="${ANDROID_HOME:-$(sed -n 's/^sdk.dir=//p' "$ROOT/android/local.properties")}"
-AVD="${1:-l1ne_api28}"
+AVD=l1ne_api28; if [ $# -gt 0 ] && [[ "$1" != -* ]]; then AVD="$1"; shift; fi
 cleanup() { [ -n "${PBX:-}" ] && kill "$PBX" 2>/dev/null || true; [ -n "${EMU:-}" ] && "$SDK/platform-tools/adb" -s emulator-5554 emu kill >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 python3 "$HERE/pbx.py" > /tmp/l1ne-pbx.log 2>&1 & PBX=$!
