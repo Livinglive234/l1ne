@@ -94,3 +94,8 @@ androidComponents {
         }
     }
 }
+
+// Downloads the Android lint tool (which release builds run) so CI can fetch it early, with retries, and keep it in the Gradle cache.
+tasks.register("warmLintTool") {
+    doLast { configurations.getByName("androidLintTool").resolve() }
+}

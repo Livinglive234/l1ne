@@ -90,6 +90,17 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
+      # The lint tool that release builds run comes from Maven Central, which now and then answers GitHub's shared machines with "429 Too Many Requests".
+      # It is fetched first, with retries. Ordinary builds on main fetch it too, so the cache they save already holds it when a release is built.
+      - name: Fetch the lint tool (with retries)
+        working-directory: android
+        run: |
+          for i in 1 2 3 4; do
+            ./gradlew --no-daemon :app:warmLintTool && exit 0
+            echo "attempt $i failed; waiting before the next one"; sleep $((i * 45))
+          done
+          exit 1
+
       - name: Unit tests and APK
         working-directory: android
         run: |
