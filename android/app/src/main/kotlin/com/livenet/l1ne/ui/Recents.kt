@@ -33,7 +33,7 @@ fun RecentsScreen(open: (Dest) -> Unit) {
     var confirm by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<CallRecord?>(null) }
 
-    fun nameOf(r: CallRecord): String { val p = r.peer.split("@"); return app.contacts.name(p[0], p.getOrNull(1)) ?: p[0] }
+    fun nameOf(r: CallRecord): String { val p = r.peer.split("@"); return app.contacts.name(p[0], p.getOrNull(1)) ?: com.livenet.l1ne.core.PhoneFormat.pretty(p[0]) }
     val shown = records.filter { (!missedOnly || it.direction == Direction.MISSED) && (search.isEmpty() || nameOf(it).contains(search, true) || it.peer.contains(search, true)) }
 
     Column(Modifier.fillMaxSize()) {

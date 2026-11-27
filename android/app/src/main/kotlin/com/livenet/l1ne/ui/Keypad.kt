@@ -129,7 +129,7 @@ fun KeypadScreen(open: (Dest) -> Unit, wide: Boolean = false) {
             item { Text(if (number.isEmpty()) "Recent calls" else "Matching contacts", Modifier.padding(horizontal = 20.dp, vertical = 12.dp), color = L1neColors.Muted, style = MaterialTheme.typography.titleSmall) }
             if (number.isEmpty()) {
                 items(records.take(20), key = { it.id }) { r ->
-                    val p = r.peer.split("@"); val name = app.contacts.name(p[0], p.getOrNull(1)) ?: p[0]
+                    val p = r.peer.split("@"); val name = app.contacts.name(p[0], p.getOrNull(1)) ?: com.livenet.l1ne.core.PhoneFormat.pretty(p[0])
                     Row(Modifier.fillMaxWidth().clickable { fill(r.peer) }.padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) { Text(name, fontWeight = FontWeight.Medium, maxLines = 1); Text(r.peer, style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted, maxLines = 1) }
                         CallCircleButton { callBack(app, r) }

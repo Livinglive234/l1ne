@@ -24,7 +24,7 @@ data class CallInfo(val id: Int, val remote: String, val incoming: Boolean, val 
     val peerAddress: String get() = Regex("sip:([^>;]+)").find(remote)?.groupValues?.get(1) ?: remote
     val number: String get() = Regex("sip:([^@>;]+)").find(remote)?.groupValues?.get(1) ?: remote
     /** What the caller sent as their name (the PBX's caller ID, such as "(612) 555-0142"), else the number. */
-    val sentName: String get() = sentDisplayName(remote) ?: number
+    val sentName: String get() = com.livenet.l1ne.core.PhoneFormat.pretty(sentDisplayName(remote) ?: number)
 }
 
 /** The display name part of a SIP address: "\"(612) 555-0142\" <sip:...>" -> (612) 555-0142; null when there is none. */

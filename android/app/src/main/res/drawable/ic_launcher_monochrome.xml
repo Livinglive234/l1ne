@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The single-colour logo for themed icons (Android 13+), pulled in from the edge so it stays inside the adaptive icon's safe zone. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android" android:drawable="@drawable/ic_stat_l1ne" android:inset="28%" />

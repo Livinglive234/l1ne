@@ -116,11 +116,30 @@ object CallNotifications {
     fun showIncoming(ctx: Context, callId: Int, name: String) {
         channels(ctx)
         val open = PendingIntent.getActivity(ctx, 0, Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE)
-        val person = androidx.core.app.Person.Builder().setName(name).setImportant(true).build()
+        val person = androidx.core.app.Person.Builder().setName(name).setImportant(true).apply { runCatching { setIcon(callerAvatar(name)) } }.build()
         val n = androidx.core.app.NotificationCompat.Builder(ctx, INCOMING).setSmallIcon(R.drawable.ic_stat_l1ne).setCategory(Notification.CATEGORY_CALL).setOngoing(true)
             .setFullScreenIntent(open, true).setContentIntent(open)
             .setStyle(androidx.core.app.NotificationCompat.CallStyle.forIncomingCall(person, action(ctx, "decline", callId), action(ctx, "answer", callId))).build()
         runCatching { NotificationManagerCompat.from(ctx).notify(ID_INCOMING, n) }
+    }
+    /** The round picture on the incoming-call banner: the caller's initials, or a plain person for a number, in L1ne's dark green.
+     *  Without one, Samsung draws its own default avatar (a purple-blue circle) behind the app badge. */
+    private fun callerAvatar(name: String): androidx.core.graphics.drawable.IconCompat {
+        val size = 192
+        val bmp = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(bmp)
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        p.color = 0xFF14301F.toInt(); c.drawCircle(size / 2f, size / 2f, size / 2f, p)
+        p.color = 0xFFB5DEC0.toInt()
+        val letters = name.split(' ').filter { it.isNotEmpty() && it.first().isLetter() }.take(2).map { it.first().uppercaseChar() }.joinToString("")
+        if (letters.isNotEmpty()) {
+            p.textAlign = android.graphics.Paint.Align.CENTER; p.textSize = size * 0.42f; p.typeface = android.graphics.Typeface.DEFAULT_BOLD
+            c.drawText(letters, size / 2f, size / 2f - (p.descent() + p.ascent()) / 2f, p)
+        } else {
+            c.drawCircle(size / 2f, size * 0.38f, size * 0.16f, p)                                   // head
+            c.drawOval(android.graphics.RectF(size * 0.24f, size * 0.60f, size * 0.76f, size * 1.04f), p)   // shoulders, cut off by the circle
+        }
+        return androidx.core.graphics.drawable.IconCompat.createWithBitmap(bmp)
     }
     fun cancelIncoming(ctx: Context) = NotificationManagerCompat.from(ctx).cancel(ID_INCOMING)
 
