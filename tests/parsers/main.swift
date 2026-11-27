@@ -18,6 +18,21 @@ check(PhoneFormat.pretty("6517604266") == "(651) 760-4266", "a bare US number is
 check(PhoneFormat.pretty("16517604266") == "(651) 760-4266" && PhoneFormat.pretty("+16517604266") == "(651) 760-4266", "+1 and 1 prefixes are dropped")
 check(["7001", "5550142", "(612) 354-0645", "Max Example", "+442071234567", "0123456789", "61235406451", ""].allSatisfy { PhoneFormat.pretty($0) == $0 }, "extensions, names, formatted and international numbers are left alone")
 
+check(PhoneFormat.isOutside("6125550142") && PhoneFormat.isOutside("16125550142") && PhoneFormat.isOutside("+16125550142"), "outside numbers are told")
+check(!["7001", "2993", "0", "*97", "96125550142", "+442071234567"].contains { PhoneFormat.isOutside($0) }, "extensions, codes and prefixed numbers are not outside numbers")
+
+// outside-line prefix
+var ob = Account(); ob.username = "7001"; ob.domain = "pbx.example.com"; ob.outboundPrefix = "9"
+check(ob.dial("6125550142") == "96125550142" && ob.dial("(612) 555-0142") == "96125550142" && ob.dial("16125550142") == "916125550142" && ob.dial("+16125550142") == "916125550142", "outside numbers get the prefix")
+check(["7001", "2997", "0", "*97", "911", "96125550142"].allSatisfy { ob.dial($0) == $0 }, "extensions, codes and prefixed numbers are left alone")
+var ob2 = ob; ob2.formatWithPrefix = true; ob2.intlPrefix = "1"; ob2.plusTo00 = true
+check(ob2.dial("6125550142") == "96125550142" && ob2.dial("+44207123456789") == "0044207123456789", "works with the other dial rules")
+check(ob.withoutOutboundPrefix("96125550142@pbx.example.com") == "6125550142@pbx.example.com" && ob.withoutOutboundPrefix("7001@pbx.example.com") == "7001@pbx.example.com" && ob.withoutOutboundPrefix("9125550142@pbx.example.com") == "9125550142@pbx.example.com", "history keeps the number without the prefix")
+let xmlPrefix = (try! String(contentsOf: dir.appendingPathComponent("linphone-provision.xml"), encoding: .utf8)).replacingOccurrences(of: "</config>", with: "<section name=\"l1ne\"><entry name=\"outbound_prefix\">9</entry></section></config>")
+let rp = try! Provisioning.parse(xml: Data(xmlPrefix.utf8))
+check(rp.accounts[0].account.outboundPrefix == "9" && rp.accounts[1].account.outboundPrefix == "", "the l1ne section sets the prefix, the push-only account is left alone")
+check((try! Provisioning.parse(xml: Data(xmlPrefix.replacingOccurrences(of: ">9<", with: ">9x<").utf8))).accounts[0].account.outboundPrefix == "", "only digits, * and # are accepted")
+
 // provisioning
 let r = try! Provisioning.parse(xml: try! Data(contentsOf: dir.appendingPathComponent("linphone-provision.xml")))
 check(r.accounts.count == 2, "both accounts are returned (got \(r.accounts.count))")

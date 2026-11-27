@@ -147,10 +147,11 @@ struct AccountEditor: View {
             Section {
                 text("Strip prefix", $account.dialStripPrefix)
                 text("Add prefix", $account.dialAddPrefix)
+                text("Outside-line prefix (for example 9)", $account.outboundPrefix)
                 Toggle("Format phone numbers using international prefix", isOn: $account.formatWithPrefix)
                 Toggle("Replace + by 00 when formatting phone numbers", isOn: $account.plusTo00)
             } header: { Text("Dialling") } footer: {
-                Text("Extensions and codes like *97 are never changed; only long phone numbers get the country code.")
+                Text("Extensions and codes like *97 are never changed; only long phone numbers get the country code. The outside-line prefix is put in front of numbers with 10 digits (or 1 and 10 digits) only, so extensions like 7001 still dial as they are. The call history keeps the number without it.")
             }
             .listRowBackground(Theme.surface)
 

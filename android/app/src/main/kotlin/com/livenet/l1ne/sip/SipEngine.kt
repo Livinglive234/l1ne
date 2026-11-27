@@ -111,7 +111,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, val s
                         else -> com.livenet.l1ne.data.Direction.MISSED }
                     val target = outgoingTargets.remove(a)
                     unansweredAtChange.remove(a)
-                    val record = com.livenet.l1ne.data.CallRecord(peer = mine.peerAddress, accountID = ci.accountID ?: mine.accountID, direction = dir, duration = ci.connectedSecs.toInt())
+                    val record = com.livenet.l1ne.data.CallRecord(peer = if (mine.incoming) mine.peerAddress else (store.accounts.value.firstOrNull { it.id == (ci.accountID ?: mine.accountID) }?.withoutOutboundPrefix(mine.peerAddress) ?: mine.peerAddress), accountID = ci.accountID ?: mine.accountID, direction = dir, duration = ci.connectedSecs.toInt())
                     // A call that dies unanswered with a server/transport error right around a network change is redialled once.
                     // Android reports the dead connection and the new network in either order, so wait a moment before deciding.
                     if (!mine.incoming && ci.connectedSecs == 0L && !byYou && target != null && target.attempt == 0 && ci.status >= 500) {

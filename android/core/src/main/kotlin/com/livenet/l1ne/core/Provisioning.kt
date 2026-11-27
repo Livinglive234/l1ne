@@ -68,6 +68,10 @@ object Provisioning {
         }
 
         val contacts = sections["misc"]?.get("contacts-vcard-list")?.takeIf { it.isNotEmpty() }
+        // L1ne's own section (Linphone ignores it): <section name="l1ne"><entry name="outbound_prefix">9</entry></section>
+        sections["l1ne"]?.get("outbound_prefix")?.takeIf { it.isNotEmpty() && it.length <= 4 && it.all { c -> c in "0123456789*#" } }?.let { p ->
+            for (i in accounts.indices) if (!accounts[i].pushOnly) accounts[i] = accounts[i].copy(account = accounts[i].account.copy(outboundPrefix = p))
+        }
         if (accounts.isEmpty()) throw Failure("The file has no usable SIP account.")
         return Result(accounts, contacts, notes)
     }

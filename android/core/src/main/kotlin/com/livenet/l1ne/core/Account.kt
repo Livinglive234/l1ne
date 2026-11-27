@@ -27,6 +27,7 @@ data class Account(
     val pushGateway: String = "",
     val dialStripPrefix: String = "",
     val dialAddPrefix: String = "",
+    val outboundPrefix: String = "",          // put in front of numbers that look like outside numbers (10 digits, or 1 + 10), never extensions; e.g. 9
     val intlPrefix: String = "",
     val formatWithPrefix: Boolean = false,
     val plusTo00: Boolean = false,
@@ -59,13 +60,26 @@ data class Account(
     fun dial(number: String): String {
         var n = number.filter { it !in " -()" }
         if (dialStripPrefix.isNotEmpty() && n.startsWith(dialStripPrefix)) n = n.removePrefix(dialStripPrefix)
-        if (formatWithPrefix && intlPrefix.isNotEmpty() && !n.startsWith("+") && !n.startsWith("00") &&
+        // an outside number (10 digits, or 1 + 10) gets the outside-line prefix, and is already complete, so no country code is added
+        val outside = outboundPrefix.isNotEmpty() && PhoneFormat.isOutside(n)
+        if (!outside && formatWithPrefix && intlPrefix.isNotEmpty() && !n.startsWith("+") && !n.startsWith("00") &&
             n.firstOrNull()?.isDigit() == true && n.count { it.isDigit() } >= 7) {
             if (n.startsWith("0")) n = n.drop(1)
             n = "+$intlPrefix$n"
         }
-        if (plusTo00 && n.startsWith("+")) n = "00" + n.drop(1)
+        if (outside) n = outboundPrefix + n.removePrefix("+") else if (plusTo00 && n.startsWith("+")) n = "00" + n.drop(1)
         return dialAddPrefix + n
+    }
+
+    /** An address as it was dialled -> as it should be kept in the call history: without the outside-line prefix, so redial and
+     *  callbacks still work. "96125550142@pbx" with prefix 9 -> "6125550142@pbx". */
+    fun withoutOutboundPrefix(address: String): String {
+        if (outboundPrefix.isEmpty()) return address
+        val user = address.substringBefore('@'); val host = address.substringAfter('@', "")
+        if (!user.startsWith(outboundPrefix)) return address
+        val rest = user.removePrefix(outboundPrefix)
+        if (!PhoneFormat.isOutside(rest)) return address
+        return if (host.isEmpty()) rest else "$rest@$host"
     }
 
     /** Reads what you typed in the Domain field: pbx.example.com, pbx.example.com:5080 or sip:pbx.example.com. */

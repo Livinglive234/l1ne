@@ -271,7 +271,7 @@ fun AccountEditorScreen(id: String?, onSubmit: ((Account, String) -> Unit)? = nu
                 SectionHeader("Login")
                 Card { Field("Username / extension", a.username, { a = a.copy(username = it) }); Secret("Secret (leave empty to keep)", secret) { secret = it }; Field("Authentication ID (if different)", a.authUser, { a = a.copy(authUser = it) }) }
                 SectionHeader("Dialling")
-                Card { Field("Strip prefix", a.dialStripPrefix, { a = a.copy(dialStripPrefix = it) }); Field("Add prefix", a.dialAddPrefix, { a = a.copy(dialAddPrefix = it) })
+                Card { Field("Strip prefix", a.dialStripPrefix, { a = a.copy(dialStripPrefix = it) }); Field("Add prefix", a.dialAddPrefix, { a = a.copy(dialAddPrefix = it) }); Field("Outside-line prefix (for example 9)", a.outboundPrefix, { a = a.copy(outboundPrefix = it) })
                     SwitchRow("Format phone numbers using international prefix", a.formatWithPrefix) { a = a.copy(formatWithPrefix = it) }; RowDivider()
                     SwitchRow("Replace + by 00 when formatting phone numbers", a.plusTo00) { a = a.copy(plusTo00 = it) } }
                 FooterText("Extensions and codes like *97 are never changed; only long phone numbers get the country code.")

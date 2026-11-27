@@ -500,7 +500,8 @@ final class SIPEngine: ObservableObject {
                 }
             } else {
             CallLogStore.shared.add(CallRecord(
-                peer: VCard.sipAddress(inner) ?? Self.displayName(from: remote),
+                peer: { let p = VCard.sipAddress(inner) ?? Self.displayName(from: remote)
+                        return outgoing ? (accountForPJ[ci.acc_id].flatMap { AccountStore.shared.account($0) }?.withoutOutboundPrefix(p) ?? p) : p }(),
                 accountID: accountForPJ[ci.acc_id],
                 direction: outgoing ? .outgoing : (secs > 0 ? .incoming : .missed),
                 duration: secs))

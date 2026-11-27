@@ -120,6 +120,10 @@ enum Provisioning {
         }
 
         if let c = s["misc"]?["contacts-vcard-list"], !c.isEmpty { result.contactsURL = c }
+        // L1ne's own section (Linphone ignores it): <section name="l1ne"><entry name="outbound_prefix">9</entry></section>
+        if let p = s["l1ne"]?["outbound_prefix"], p.count <= 4, p.allSatisfy({ "0123456789*#".contains($0) }), !p.isEmpty {
+            for i in result.accounts.indices where !result.accounts[i].pushOnly { result.accounts[i].account.outboundPrefix = p }
+        }
         guard !result.accounts.isEmpty else { throw Failure.nothingUsable }
         return result
     }

@@ -73,7 +73,7 @@ class AccountStore(context: Context) {
         JSONObject().put("id", a.id).put("label", a.label).put("displayName", a.displayName).put("domain", a.domain).put("port", a.port)
             .put("transport", a.transport.wire).put("registrarURI", a.registrarURI).put("outboundProxy", a.outboundProxy).put("expires", a.expires)
             .put("enabled", a.enabled).put("media", a.media.wire).put("mediaMandatory", a.mediaMandatory).put("username", a.username)
-            .put("authUser", a.authUser).put("contactsUrl", a.contactsUrl).put("dialStripPrefix", a.dialStripPrefix).put("dialAddPrefix", a.dialAddPrefix)
+            .put("authUser", a.authUser).put("contactsUrl", a.contactsUrl).put("dialStripPrefix", a.dialStripPrefix).put("dialAddPrefix", a.dialAddPrefix).put("outboundPrefix", a.outboundPrefix)
             .put("intlPrefix", a.intlPrefix).put("formatWithPrefix", a.formatWithPrefix).put("plusTo00", a.plusTo00).put("voicemailURI", a.voicemailURI)
             .put("mwiEnabled", a.mwiEnabled).put("iceEnabled", a.iceEnabled).put("turnEnabled", a.turnEnabled).put("stunServer", a.stunServer).put("turnUser", a.turnUser)
     }).toString()
@@ -87,7 +87,7 @@ class AccountStore(context: Context) {
                 registrarURI = o.optString("registrarURI"), outboundProxy = o.optString("outboundProxy"), expires = o.optInt("expires", d.expires),
                 enabled = o.optBoolean("enabled", true), media = Media.entries.firstOrNull { m -> m.wire == o.optString("media") } ?: Media.SRTP_SDES,
                 mediaMandatory = o.optBoolean("mediaMandatory", true), username = o.optString("username"), authUser = o.optString("authUser"),
-                contactsUrl = o.optString("contactsUrl"), dialStripPrefix = o.optString("dialStripPrefix"), dialAddPrefix = o.optString("dialAddPrefix"),
+                contactsUrl = o.optString("contactsUrl"), dialStripPrefix = o.optString("dialStripPrefix"), dialAddPrefix = o.optString("dialAddPrefix"), outboundPrefix = o.optString("outboundPrefix"),
                 intlPrefix = o.optString("intlPrefix"), formatWithPrefix = o.optBoolean("formatWithPrefix"), plusTo00 = o.optBoolean("plusTo00"),
                 voicemailURI = o.optString("voicemailURI", "*97"), mwiEnabled = o.optBoolean("mwiEnabled", true), iceEnabled = o.optBoolean("iceEnabled"),
                 turnEnabled = o.optBoolean("turnEnabled"), stunServer = o.optString("stunServer"), turnUser = o.optString("turnUser"))

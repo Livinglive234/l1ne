@@ -23,6 +23,7 @@ struct Account: Codable, Identifiable, Equatable {
     var pushGateway = ""              // LATER (push proxy, see docs/ROADMAP.md): unused until then
     var dialStripPrefix = ""          // dial rules: remove this, then add dialAddPrefix
     var dialAddPrefix = ""
+    var outboundPrefix = ""           // put in front of numbers that look like outside numbers (10 digits, or 1 + 10), never extensions; e.g. 9
     var intlPrefix = ""               // country calling code without "+", e.g. 1
     var formatWithPrefix = false      // turn national numbers into +<prefix><number>
     var plusTo00 = false              // send +… as 00…
@@ -88,21 +89,35 @@ struct Account: Codable, Identifiable, Equatable {
     func dial(_ number: String) -> String {
         var n = number.filter { !" -()".contains($0) }
         if !dialStripPrefix.isEmpty, n.hasPrefix(dialStripPrefix) { n.removeFirst(dialStripPrefix.count) }
+        // an outside number (10 digits, or 1 + 10) gets the outside-line prefix, and is already complete, so no country code is added
+        let outside = !outboundPrefix.isEmpty && PhoneFormat.isOutside(n)
         // national number -> international: only long numbers, never extensions or codes like *97
-        if formatWithPrefix, !intlPrefix.isEmpty, !n.hasPrefix("+"), !n.hasPrefix("00"),
+        if !outside, formatWithPrefix, !intlPrefix.isEmpty, !n.hasPrefix("+"), !n.hasPrefix("00"),
            n.first?.isNumber == true, n.filter(\.isNumber).count >= 7 {
             if n.hasPrefix("0") { n.removeFirst() }
             n = "+" + intlPrefix + n
         }
-        if plusTo00, n.hasPrefix("+") { n = "00" + n.dropFirst() }
+        if outside { n = outboundPrefix + (n.hasPrefix("+") ? String(n.dropFirst()) : n) }
+        else if plusTo00, n.hasPrefix("+") { n = "00" + n.dropFirst() }
         return dialAddPrefix + n
+    }
+
+    /// An address as it was dialled -> as it should be kept in the call history: without the outside-line prefix, so redial and
+    /// callbacks still work. "96125550142@pbx" with prefix 9 -> "6125550142@pbx".
+    func withoutOutboundPrefix(_ address: String) -> String {
+        guard !outboundPrefix.isEmpty else { return address }
+        let parts = address.split(separator: "@", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+        guard parts[0].hasPrefix(outboundPrefix) else { return address }
+        let rest = String(parts[0].dropFirst(outboundPrefix.count))
+        guard PhoneFormat.isOutside(rest) else { return address }
+        return parts.count == 2 ? rest + "@" + parts[1] : rest
     }
 
     init() {}
 
     enum CodingKeys: String, CodingKey {
         case id, label, displayName, domain, port, transport, registrarURI, outboundProxy, expires, enabled, media, mediaMandatory
-        case username, authUser, contactsURL, pushGateway, dialStripPrefix, dialAddPrefix, intlPrefix, formatWithPrefix, plusTo00
+        case username, authUser, contactsURL, pushGateway, dialStripPrefix, dialAddPrefix, outboundPrefix, intlPrefix, formatWithPrefix, plusTo00
         case voicemailURI, mwiEnabled, iceEnabled, turnEnabled, stunServer, turnUser
     }
 
@@ -128,6 +143,7 @@ struct Account: Codable, Identifiable, Equatable {
         pushGateway = try c.decodeIfPresent(String.self, forKey: .pushGateway) ?? def.pushGateway
         dialStripPrefix = try c.decodeIfPresent(String.self, forKey: .dialStripPrefix) ?? def.dialStripPrefix
         dialAddPrefix = try c.decodeIfPresent(String.self, forKey: .dialAddPrefix) ?? def.dialAddPrefix
+        outboundPrefix = try c.decodeIfPresent(String.self, forKey: .outboundPrefix) ?? def.outboundPrefix
         intlPrefix = try c.decodeIfPresent(String.self, forKey: .intlPrefix) ?? def.intlPrefix
         formatWithPrefix = try c.decodeIfPresent(Bool.self, forKey: .formatWithPrefix) ?? def.formatWithPrefix
         plusTo00 = try c.decodeIfPresent(Bool.self, forKey: .plusTo00) ?? def.plusTo00

@@ -22,6 +22,16 @@ class ParsersTest {
         assertTrue(v.entries.none { it.address.contains("+1612") })
     }
 
+    @Test fun theL1neSectionSetsTheOutsideLinePrefix() {
+        val xml = File(dir, "linphone-provision.xml").readText().replace("</config>", "<section name=\"l1ne\"><entry name=\"outbound_prefix\">9</entry></section></config>")
+        val r = Provisioning.parse(xml.toByteArray())
+        assertEquals("9", r.accounts[0].account.outboundPrefix)
+        assertEquals("", r.accounts[1].account.outboundPrefix)                                   // the push-only Linphone account is not touched
+        val bad = Provisioning.parse(xml.replace(">9<", ">9x<").toByteArray())
+        assertEquals("", bad.accounts[0].account.outboundPrefix)                                  // digits, * and # only
+        assertEquals("", Provisioning.parse(File(dir, "linphone-provision.xml").readBytes()).accounts[0].account.outboundPrefix)   // a plain Linphone file sets nothing
+    }
+
     @Test fun provisioning() {
         val r = Provisioning.parse(File(dir, "linphone-provision.xml").readBytes())
         assertEquals(2, r.accounts.size)
