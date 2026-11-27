@@ -15,7 +15,10 @@ targets:
   L1ne:
     type: application
     platform: iOS
-    sources: [L1ne]
+    sources:
+      - L1ne
+      - path: native/zrtp                     # ZRTP media transport (C), compiled into the app; see native/zrtp/zrtp.h
+        excludes: ["*.md"]
     dependencies:
       - framework: vendor/PJSIP.xcframework     # built by scripts/build-pjsip.sh
         embed: false
@@ -61,6 +64,9 @@ targets:
         ARCHS: arm64                                   # PJSIP is built for arm64 only (device + Apple-silicon simulator)
         EXCLUDED_ARCHS: x86_64
         OTHER_SWIFT_FLAGS: [-Xcc, -DPJ_AUTOCONF=1]     # same define the library was built with
+        OTHER_CFLAGS: [-DPJ_AUTOCONF=1]
+        SWIFT_OBJC_BRIDGING_HEADER: L1ne/L1ne-Bridging-Header.h
+        HEADER_SEARCH_PATHS: ["$(SRCROOT)/native/zrtp", "$(SRCROOT)/vendor/openssl/ios-arm64/include"]
         OTHER_LDFLAGS: [-lc++, -framework, Network, -framework, Security, -framework, AudioToolbox,
                         -framework, CoreAudio, -framework, AVFoundation, -framework, CFNetwork,
                         -framework, CoreMedia, -framework, CoreVideo, -framework, VideoToolbox]

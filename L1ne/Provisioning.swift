@@ -106,9 +106,7 @@ enum Provisioning {
             switch enc {
             case "none": a.media = .none
             case "dtls": a.media = .srtpDTLS
-            case "zrtp":
-                a.media = .srtpSDES
-                result.notes.append("\(ident.user)@\(ident.domain) asks for ZRTP, which L1ne doesn't support; using SRTP instead.")
+            case "zrtp": a.media = .zrtp
             default: a.media = .srtpSDES
             }
             let mandatory = (s["sip"]?["media_encryption_mandatory"] ?? e["media_encryption_mandatory"] ?? "0")

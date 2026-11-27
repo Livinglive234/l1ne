@@ -278,6 +278,19 @@ struct CallScreen: View {
                     Text(c.incoming ? "Incoming call" : c.state).font(.title3).foregroundStyle(Theme.muted)
                 }
                 if let line = securityLine(c) { Label(line.text, systemImage: line.icon).font(.footnote).foregroundStyle(line.color) }
+                if engine.encryption[c.id] == .zrtp, let z = engine.zrtp[c.id] {             // the code to read out loud, compared with the other person
+                    Text("Code: \(z.code)" + (z.verified ? "  ·  verified" : "")).font(.callout.monospaced())
+                    if z.cacheMismatch {
+                        Text("This is not the same secret as in earlier calls with this person. Read the code to each other; if it differs, hang up.")
+                            .font(.caption).multilineTextAlignment(.center).foregroundStyle(Theme.danger)
+                    }
+                    if !z.verified {
+                        HStack(spacing: 12) {
+                            Button("Code matches") { engine.zrtpVerified(c.id, matched: true) }.buttonStyle(.bordered)
+                            Button("Doesn't match") { engine.zrtpVerified(c.id, matched: false) }.buttonStyle(.bordered).tint(Theme.danger)
+                        }
+                    }
+                }
                 if let original = engine.consults[c.id] {            // an attended transfer: this call asks the new person, the caller is on hold
                     Text("\(engine.calls.first { $0.id == original }?.remote ?? "The caller") is on hold").font(.footnote).foregroundStyle(Theme.muted)
                     HStack(spacing: 12) {
@@ -310,6 +323,7 @@ struct CallScreen: View {
         switch engine.encryption[c.id] ?? .unknown {
         case .srtp: return ("Encrypted by SRTP", "lock.fill", Theme.brand)
         case .dtls: return ("Encrypted by DTLS-SRTP", "lock.fill", Theme.brand)
+        case .zrtp: return ("Encrypted by ZRTP", "lock.fill", Theme.brand)
         case .none: return ("Not encrypted", "lock.open.fill", Theme.danger)
         case .unknown: return nil
         }

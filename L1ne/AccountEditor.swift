@@ -177,12 +177,13 @@ struct AccountEditor: View {
                     Text("None").tag(Account.Media.none)
                     Text("SRTP").tag(Account.Media.srtpSDES)
                     Text("DTLS-SRTP").tag(Account.Media.srtpDTLS)
+                    Text("ZRTP").tag(Account.Media.zrtp)
                 }
                 Toggle("Media encryption mandatory", isOn: $account.mediaMandatory).disabled(account.media == .none)
             } header: { Text("Media") } footer: {
                 Text(account.media == .srtpSDES && account.transport != .tls
                      ? "SRTP sends its keys inside the call setup, so it only works over TLS. With UDP or TCP choose DTLS-SRTP or None."
-                     : "SRTP sends its keys inside the call setup, so it needs TLS. DTLS-SRTP negotiates keys in the media path.")
+                     : "SRTP sends its keys inside the call setup, so it needs TLS. DTLS-SRTP and ZRTP agree keys in the media path, so they also work over UDP and TCP. ZRTP needs no certificates: you compare a four-character code with the other person.")
                     .foregroundStyle(account.media == .srtpSDES && account.transport != .tls ? Theme.danger : Theme.muted)
             }
             .listRowBackground(Theme.surface)

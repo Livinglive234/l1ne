@@ -20,7 +20,11 @@ final class SIPEngine: ObservableObject {
         var waiting = false           // an outgoing call that has been placed and not answered yet: dialling or ringing
     }
 
-    enum CallSecurity { case srtp, dtls, none, unknown }
+    enum CallSecurity { case srtp, dtls, zrtp, none, unknown }
+
+    /// ZRTP of a call: state 0 negotiating, 1 secure, 2 failed; the code to read out loud; whether it differs from earlier calls with this person.
+    struct ZrtpState: Equatable { var state: Int; var code: String; var cacheMismatch: Bool; var knownBefore: Bool; var verified: Bool }
+    @Published var zrtp: [Int32: ZrtpState] = [:]
 
     struct Codec: Identifiable, Equatable {
         var id: String            // "PCMU/8000/1"
@@ -92,6 +96,16 @@ final class SIPEngine: ObservableObject {
     func start() {
         guard !started else { return }
         guard pjsua_create() == 0 else { return }
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        var cacheURL = support.appendingPathComponent("zrtp.cache")
+        l1ne_zrtp_init(cacheURL.path, { _, call, info in                       // the secrets kept from earlier calls: never backed up
+            guard let i = info?.pointee else { return }
+            let code = withUnsafePointer(to: i.sas) { $0.withMemoryRebound(to: CChar.self, capacity: 5) { String(cString: $0) } }
+            let z = ZrtpState(state: Int(i.state), code: code, cacheMismatch: i.cache_mismatch != 0, knownBefore: i.known_before != 0, verified: i.verified != 0)
+            Task { @MainActor in SIPEngine.shared.zrtpChanged(call: Int32(call), z) }
+        }, nil)
+        var values = URLResourceValues(); values.isExcludedFromBackup = true; try? cacheURL.setResourceValues(values)
 
         var cfg = pjsua_config()
         pjsua_config_default(&cfg)
@@ -120,6 +134,7 @@ final class SIPEngine: ObservableObject {
             let f = str(from.pointee), text = str(body.pointee)
             Task { @MainActor in SIPEngine.shared.received(from: f, text: text, acc: acc) }
         }
+        cfg.cb.on_create_media_transport = l1ne_zrtp_on_create_media_transport
         cfg.cb.on_call_transfer_status = { call, status, text, final, _ in       // how a transfer you asked for is going: the other side reports it as it goes
             let code = Int(status), why = text.map { str($0.pointee) } ?? "", done = final != 0
             Task { @MainActor in SIPEngine.shared.transferProgress(call: call, code: code, reason: why, final: done) }
@@ -220,8 +235,8 @@ final class SIPEngine: ObservableObject {
 
         // Media encryption: none, SDES (keys in SDP, so only over TLS) or DTLS-SRTP (keys negotiated in the media path)
         switch account.media {
-        case .none:
-            ac.use_srtp = PJMEDIA_SRTP_DISABLED
+        case .none, .zrtp:
+            ac.use_srtp = PJMEDIA_SRTP_DISABLED          // ZRTP keys the media itself (native/zrtp); PJSIP's SRTP stays off
         case .srtpSDES:
             ac.use_srtp = account.mediaMandatory ? PJMEDIA_SRTP_MANDATORY : PJMEDIA_SRTP_OPTIONAL
             ac.srtp_secure_signaling = account.transport == .tls ? 1 : 0
@@ -270,7 +285,20 @@ final class SIPEngine: ObservableObject {
         if status != 0 { registration[account.id] = "Could not add account: \(Self.errorText(status))"; return }
         pjAccounts[account.id] = accID
         accountForPJ[accID] = account.id
+        l1ne_zrtp_set_account_mode(accID, account.media == .zrtp ? (account.mediaMandatory ? 2 : 1) : 0)
         registration[account.id] = "Registering…"
+    }
+
+    fileprivate func zrtpChanged(call: Int32, _ z: ZrtpState) {
+        zrtp[call] = z
+        let account = calls.first { $0.id == call }?.accountID.flatMap { AccountStore.shared.account($0) }
+        if z.state == 2, account?.media == .zrtp, account?.mediaMandatory == true { hangup(call) }          // required, and the other side has none (or it was refused): nothing was sent in the clear
+    }
+
+    /// The user compared the code with the other person: it matched, or it did not (then this person's saved secret is dropped).
+    func zrtpVerified(_ call: Int32, matched: Bool) {
+        l1ne_zrtp_call_verified(call, matched ? 1 : 0)
+        if var z = zrtp[call] { z.verified = matched; z.cacheMismatch = false; zrtp[call] = z }
     }
 
     func unregister(_ id: UUID) {
@@ -605,7 +633,7 @@ final class SIPEngine: ObservableObject {
             recording.remove(call); muted.remove(call); held.remove(call)
             calls.removeAll { $0.id == call }
             CallKitManager.shared.reportEnded(call)
-            encryption[call] = nil; quality[call] = nil
+            encryption[call] = nil; quality[call] = nil; zrtp[call] = nil
             consultEnded(call); transferNote[call] = nil
             if currentCallID == call { currentCallID = calls.first?.id }
             if calls.isEmpty { speaker = false; statsTask?.cancel(); statsTask = nil }
@@ -659,7 +687,10 @@ final class SIPEngine: ObservableObject {
                 let dtls = p & PJMEDIA_TP_PROTO_DTLS.rawValue != 0
                 let account = c.accountID.flatMap { AccountStore.shared.account($0) }
                 // "none" is only certain when the account asked for no encryption; otherwise leave it unknown
-                encryption[c.id] = srtp ? (dtls ? .dtls : .srtp) : (account?.media == Account.Media.none ? CallSecurity.none : .unknown)
+                var zi = l1ne_zrtp_info()
+                let zrtpOn = l1ne_zrtp_call_info(c.id, &zi) != 0 && zi.state == 1
+                let zrtpFailed = account?.media == .zrtp && zrtp[c.id]?.state == 2
+                encryption[c.id] = zrtpOn ? .zrtp : srtp ? (dtls ? .dtls : .srtp) : (account?.media == Account.Media.none || zrtpFailed ? CallSecurity.none : .unknown)
             }
             var st = pjsua_stream_stat()
             if pjsua_call_get_stream_stat(c.id, 0, &st) == 0 {

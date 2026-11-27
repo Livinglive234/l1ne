@@ -3,7 +3,7 @@ import Security
 
 struct Account: Codable, Identifiable, Equatable {
     enum Transport: String, Codable, CaseIterable { case tls, tcp, udp }
-    enum Media: String, Codable, CaseIterable { case none, srtpSDES = "srtp-sdes", srtpDTLS = "srtp-dtls" }
+    enum Media: String, Codable, CaseIterable { case none, srtpSDES = "srtp-sdes", srtpDTLS = "srtp-dtls", zrtp }
 
     var id = UUID()
     var label = ""
