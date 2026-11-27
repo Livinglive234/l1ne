@@ -234,7 +234,7 @@ private fun TransferDialog(call: CallInfo, engine: SipEngine, onClose: () -> Uni
             }
             Text(if (askFirst) "Calls the new person with this caller on hold. Once they answer, you choose Complete transfer, or Cancel to go back to this caller."
                  else "Sends this caller to the new person straight away. If nobody answers there, you are not on the line any more.", color = CallMuted, fontSize = 12.sp)
-            OutlinedTextField(typed, { typed = it }, singleLine = true, label = { Text("Extension or address") })
+            OutlinedTextField(typed, { typed = it }, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), singleLine = true, label = { Text("Extension or address") })
             contacts.filter { typed.isEmpty() || it.name.contains(typed, true) || it.address.contains(typed, true) }.take(5).forEach { c ->
                 Row(Modifier.fillMaxWidth().clickable { go(c.address) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) { Avatar(32.dp, initialsOf(c.name), CallBrand.copy(alpha = 0.14f)); Spacer(Modifier.width(10.dp)); Column { Text(c.name, color = CallText); Text(c.address, fontSize = 12.sp, color = CallMuted) } } }
         } },

@@ -124,8 +124,8 @@ private fun AddContactDialog(onClose: () -> Unit) {
     var name by remember { mutableStateOf("") }; var address by remember { mutableStateOf("") }; var failed by remember { mutableStateOf(false) }
     AlertDialog(onClose, containerColor = L1neColors.SheetBg, title = { Text("Add contact") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true)
-            OutlinedTextField(address, { address = it; failed = false }, label = { Text("SIP address, e.g. 7201@pbx.example.com") }, singleLine = true)
+            OutlinedTextField(name, { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), singleLine = true)
+            OutlinedTextField(address, { address = it; failed = false }, label = { Text("SIP address, e.g. 7201@pbx.example.com") }, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), singleLine = true)
             if (failed) Text("Enter a SIP address like 7201@pbx.example.com.", color = MaterialTheme.colorScheme.error)
         } },
         confirmButton = { TextButton({ if (app.contacts.add(name.trim(), address.trim(), app.store.selected?.id)) onClose() else failed = true }, enabled = address.isNotBlank()) { Text("Save") } },
@@ -138,7 +138,7 @@ private fun LinkImportDialog(onClose: () -> Unit, report: (String) -> Unit) {
     var text by remember { mutableStateOf("") }; var busy by remember { mutableStateOf(false) }; var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(onClose, containerColor = L1neColors.SheetBg, title = { Text("Import from a link") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(text, { text = it }, label = { Text("https://…/contacts.vcf") }, singleLine = true)
+            OutlinedTextField(text, { text = it }, label = { Text("https://…/contacts.vcf") }, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), singleLine = true)
             Text("L1ne fetches this once, now. It does not check again unless you do this again.", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         } },

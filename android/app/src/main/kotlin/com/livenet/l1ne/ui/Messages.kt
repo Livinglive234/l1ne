@@ -161,7 +161,7 @@ fun NewMessageDialog(open: (Dest) -> Unit, onClose: () -> Unit) {
                 AssistChip({ lineMenu = true }, label = { Text("from ${from?.titleWithUser ?: "—"}") }, trailingIcon = { Icon(Icons.Filled.ExpandMore, null) })
                 DropdownMenu(lineMenu, { lineMenu = false }, shape = MaterialTheme.shapes.extraLarge, containerColor = L1neColors.Surface) { accounts.forEach { a -> DropdownMenuItem({ Text(a.titleWithUser) }, { from = a; lineMenu = false }) } }
             }
-            OutlinedTextField(typed, { typed = it }, label = { Text("Extension or user@server") }, singleLine = true)
+            OutlinedTextField(typed, { typed = it }, label = { Text("Extension or user@server") }, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), singleLine = true)
             contacts.filter { typed.isEmpty() || it.name.contains(typed, true) || it.address.contains(typed, true) }.take(5).forEach { c ->
                 Row(Modifier.fillMaxWidth().clickable { start(c.address, accounts.firstOrNull { it.id == c.accountID } ?: from) }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Avatar(32.dp, initialsOf(c.name), L1neColors.Brand.copy(alpha = 0.14f)); Spacer(Modifier.width(10.dp)); Column { Text(c.name); Text(c.address, style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted) } }

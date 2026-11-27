@@ -96,7 +96,7 @@ fun SettingsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
 
             SectionHeader("Advanced")
             Card {
-                OutlinedTextField(prov, { s.provisioningURL = it }, Modifier.fillMaxWidth().padding(12.dp), singleLine = true, label = { Text("Remote provisioning URL") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Uri))
+                OutlinedTextField(prov, { s.provisioningURL = it }, Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), singleLine = true, label = { Text("Remote provisioning URL") }, keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Uri))
                 NavRow("Download & apply", icon = Icons.Filled.CloudDownload) { if (com.livenet.l1ne.core.Provisioning.configUrl(prov) != null) applying = true }
             }
             FooterText("Fetches a Linphone-style configuration file once, shows you what it contains, and adds the accounts you confirm.")
@@ -388,7 +388,7 @@ fun LinkDialog(initial: String?, autoScan: Boolean = false, onClose: () -> Unit)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton({ scanning = true }, Modifier.fillMaxWidth()) { Icon(Icons.Filled.QrCodeScanner, null); Spacer(Modifier.width(8.dp)); Text("Scan QR code") }
             Text("or paste the https link (or linphone-config: link) from your PBX setup file.", color = L1neColors.Muted)
-            OutlinedTextField(text, { text = it }, singleLine = true, label = { Text("https://…") }); error?.let { Text(it, color = MaterialTheme.colorScheme.error) } } },
+            OutlinedTextField(text, { text = it }, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), singleLine = true, label = { Text("https://…") }); error?.let { Text(it, color = MaterialTheme.colorScheme.error) } } },
         confirmButton = { TextButton(enabled = !busy && text.isNotBlank(), onClick = { fetch(text) }) { Text(if (busy) "Fetching…" else "Next") } }, dismissButton = { TextButton(onClose) { Text("Cancel") } })
     else AlertDialog(onClose, containerColor = L1neColors.SheetBg, title = { Text("Found in this file") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -396,7 +396,7 @@ fun LinkDialog(initial: String?, autoScan: Boolean = false, onClose: () -> Unit)
                 Checkbox(p.account.id in picked, { picked = if (it) picked + p.account.id else picked - p.account.id })
                 Column { Text(p.account.title); Text("${p.account.username}@${p.account.domain}", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
                     failures[p.account.id]?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = L1neColors.Danger) } } }
-                if (p.secret.isEmpty() && p.account.id in picked) OutlinedTextField(secrets[p.account.id] ?: "", { secrets = secrets + (p.account.id to it) }, singleLine = true, label = { Text("Password for ${p.account.username}") }, visualTransformation = PasswordVisualTransformation()) }
+                if (p.secret.isEmpty() && p.account.id in picked) OutlinedTextField(secrets[p.account.id] ?: "", { secrets = secrets + (p.account.id to it) }, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), singleLine = true, label = { Text("Password for ${p.account.username}") }, visualTransformation = PasswordVisualTransformation()) }
             if (r.contactsUrl != null) { SwitchRow("Import contacts from ${java.net.URI(r.contactsUrl).host ?: "the link"}", importContacts, enabled = !app.directories.directoryEnabled) { importContacts = it }
                 if (importContacts) Text("L1ne keeps your contacts in step with it. You can change this any time in Settings → Contacts sync.", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted) }
             r.notes.forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted) } } },
