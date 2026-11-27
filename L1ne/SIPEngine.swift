@@ -598,7 +598,7 @@ final class SIPEngine: ObservableObject {
                 peer: { let p = VCard.sipAddress(inner) ?? Self.displayName(from: remote)
                         return outgoing ? (accountForPJ[ci.acc_id].flatMap { AccountStore.shared.account($0) }?.withoutOutboundPrefix(p) ?? p) : p }(),
                 accountID: accountForPJ[ci.acc_id],
-                direction: outgoing ? .outgoing : (secs > 0 ? .incoming : .missed),
+                direction: outgoing ? .outgoing : (secs > 0 || byYou ? .incoming : .missed),          // declined by you is not a missed call
                 duration: secs))
             }
             if let rec = recorders.removeValue(forKey: call) { pjsua_recorder_destroy(rec) }
