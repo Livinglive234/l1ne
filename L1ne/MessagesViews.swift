@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ConversationsView: View {
+    @EnvironmentObject var engine: SIPEngine
     @EnvironmentObject var store: AccountStore
     @EnvironmentObject var contacts: ContactsStore
     @EnvironmentObject var messages: MessageStore
@@ -75,6 +76,16 @@ struct ConversationsView: View {
             }
             .profileToolbar()
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        ForEach(store.accounts) { a in         // one entry per line, the same test as the account page's Check messaging
+                            Button { engine.messagingNote[a.id] = nil; engine.messagingCheck[a.id] = .unknown; engine.checkMessaging(a.id) } label: {
+                                Label(store.accounts.count > 1 ? "Check messaging: \(a.title)" : "Check messaging", systemImage: "checkmark.message")
+                            }
+                            .disabled(engine.registration[a.id] != "Registered" || engine.messagingCheck[a.id] == .checking)
+                        }
+                    } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("More").disabled(store.accounts.isEmpty)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { composing = true } label: { Image(systemName: "square.and.pencil") }.accessibilityLabel("New message")
                         .disabled(store.accounts.isEmpty)

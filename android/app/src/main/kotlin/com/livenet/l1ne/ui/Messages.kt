@@ -54,7 +54,21 @@ fun WarningBanner(text: String, dismiss: (() -> Unit)? = null) {
 fun ConversationsScreen(open: (Dest) -> Unit) {
     val app = LocalApp.current
     val convs by app.messages.conversations.collectAsState(); val accounts by app.store.accounts.collectAsState();
-    Box(Modifier.fillMaxSize()) {
+    val reg by app.engine.registration.collectAsState(); val checks by app.engine.messagingCheck.collectAsState(); var menu by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize()) {
+    if (accounts.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.End) {
+        Box {
+            IconButton({ menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
+            DropdownMenu(menu, { menu = false }, shape = MaterialTheme.shapes.extraLarge, containerColor = L1neColors.Surface) {
+                accounts.forEach { a ->       // one entry per line, the same test as Settings → Accounts → Check messaging
+                    DropdownMenuItem({ Text(if (accounts.size > 1) "Check messaging: ${a.title}" else "Check messaging") },
+                        { menu = false; app.engine.checkMessaging(a.id) }, enabled = reg[a.id] == "Registered" && checks[a.id] != com.livenet.l1ne.sip.SipEngine.MessagingCheck.CHECKING,
+                        leadingIcon = { Icon(Icons.Filled.Sms, null) })
+                }
+            }
+        }
+    }
+    Box(Modifier.weight(1f).fillMaxWidth()) {
         if (convs.isEmpty()) EmptyState(Icons.AutoMirrored.Filled.Chat, "No chats", "Texts need a server that supports SIP messages.")
         else LazyColumn(Modifier.fillMaxSize()) {
             items(convs, key = { it.id }) { c ->
@@ -74,6 +88,7 @@ fun ConversationsScreen(open: (Dest) -> Unit) {
             }
         }
         FloatingActionButton({ open(Dest.NewMessage) }, Modifier.align(Alignment.BottomEnd).padding(20.dp), containerColor = L1neColors.Brand, contentColor = L1neColors.OnBrand) { Icon(Icons.Filled.Edit, "New message") }
+    }
     }
 }
 
