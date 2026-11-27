@@ -1,4 +1,4 @@
-/* Interoperability test: this repo's ZRTP engine against Linphone's bzrtp (GPLv3, fetched and built only by run-interop.sh, never shipped). */
+/* Interoperability test: this repo's ZRTP engine against Linphone's bzrtp (GPLv3; fetched and built only by run-interop.sh, never shipped). */
 #include "zrtp.h"
 #include "bzrtp/bzrtp.h"
 #include <stdio.h>
@@ -47,12 +47,12 @@ int main(int argc, char **argv) {
         /* bzrtp has no cache here, and wants a self ZID: cacheless runtime */
         zrtp_start(a); int rc4 = bzrtp_startChannelEngine(b, 0x2222); if (r == 0) printf("   start %x\n", rc4);
         for (int step = 0; step < 3000 && !(a_secure && b_secure) && !a_failed; step++, T += 10) {
-            while (b_h < b_t) { pk *p = &to_b[b_h++ % 64]; bzrtp_processMessage(b, 0x2222, p->d, p->n); }
+            while (b_h < b_t) { pk *p = &to_b[b_h++ % 64]; if (r == 0 && b_h < 5) printf("   A->B %.8s len %d\n", p->d + 16, p->n); bzrtp_processMessage(b, 0x2222, p->d, p->n); }
             while (a_h < a_t) { pk *p = &to_a[a_h++ % 64]; if (r == 0 && a_h < 3) { printf("   crc mine %08x stored %02x%02x%02x%02x len %d\n", zrtp_crc32c(p->d, p->n - 4), p->d[p->n-4], p->d[p->n-3], p->d[p->n-2], p->d[p->n-1], p->n); }
-
+ if (r == 0 && a_h < 8) { printf("   B->A %.8s len %d crc %s\n", p->d + 20, p->n, zrtp_crc32c(p->d, p->n - 4) == (uint32_t)(p->d[p->n-4] << 24 | p->d[p->n-3] << 16 | p->d[p->n-2] << 8 | p->d[p->n-1]) ? "ok" : "BAD"); } zrtp_recv(a, p->d, p->n); }
             zrtp_poll(a); bzrtp_iterate(b, 0x2222, T);
         }
-        int keys_ok = a_secure && b_secure && !memcmp(a_tx.tx.key, b_peer_key, 16) && !memcmp(a_tx.tx.salt, b_peer_salt, 14) && !memcmp(a_tx.rx.key, b_self_key, 16) && !memcmp(a_tx.rx.salt, b_self_salt, 14);
+        printf("   packets: to_b=%d to_a=%d\n", b_t, a_t); int keys_ok = a_secure && b_secure && !memcmp(a_tx.tx.key, b_peer_key, 16) && !memcmp(a_tx.tx.salt, b_peer_salt, 14) && !memcmp(a_tx.rx.key, b_self_key, 16) && !memcmp(a_tx.rx.salt, b_self_salt, 14);
         int sas_ok = !strncmp(a_sas, b_sas, 4);
         printf("round %2d%s: secure A=%d B=%d keys %s SAS %s/%s (%s) role of bzrtp=%d tag=%d (mine %d)\n", r, drop_mod ? " (lossy)" : "", a_secure, b_secure, keys_ok ? "match" : "DIFFER", a_sas, b_sas, sas_ok ? "match" : "DIFFER", keys_ok && sas_ok ? "ok" : "BAD", b_role, b_tag, a_tx.tag_len);
         if (keys_ok && sas_ok) ok++; else bad++;
