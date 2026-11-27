@@ -1,6 +1,9 @@
 package com.livenet.l1ne.sip
 
 import android.content.Context
+import com.livenet.l1ne.core.CallQuality
+import com.livenet.l1ne.core.RegistrationText
+import com.livenet.l1ne.core.SipAddress
 import android.media.AudioManager
 import android.net.ConnectivityManager
 import android.net.Network
@@ -20,20 +23,11 @@ data class CallInfo(val id: Int, val remote: String, val incoming: Boolean, val 
     val ended get() = state == 6                      // DISCONNECTED
     val ringing get() = state in 1..4 && !active
     /** user@domain of the other side, for the call log */
-    val peerAddress: String get() = SIP_ADDRESS.find(remote)?.groupValues?.get(1) ?: remote
+    val peerAddress: String get() = SipAddress.address(remote)
     /** "sip:7001@host" or "\"Name\" <sip:7001@host>" -> the user part */
-    val number: String get() = SIP_USER.find(remote)?.groupValues?.get(1) ?: remote
+    val number: String get() = SipAddress.user(remote)
     /** What the caller sent as their name (the PBX's caller ID, such as "(612) 555-0142"), else the number. */
-    val sentName: String get() = com.livenet.l1ne.core.PhoneFormat.pretty(sentDisplayName(remote) ?: number)
-}
-
-private val SIP_ADDRESS = Regex("sip:([^>;]+)")
-private val SIP_USER = Regex("sip:([^@>;]+)")
-
-/** The display name part of a SIP address: "\"(612) 555-0142\" <sip:...>" -> (612) 555-0142; null when there is none. */
-fun sentDisplayName(remote: String): String? {
-    val lt = remote.indexOf('<').takeIf { it > 0 } ?: return null
-    return remote.substring(0, lt).trim().trim('"').trim().takeIf { it.isNotEmpty() }
+    val sentName: String get() = com.livenet.l1ne.core.PhoneFormat.pretty(SipAddress.displayName(remote) ?: number)
 }
 
 /** pjsua behind the JNI bridge: accounts, registration state and calls. The Kotlin twin of SIPEngine.swift. */
@@ -83,7 +77,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     /** Everything PJSIP tells us arrives here (internal so tests can feed it events without a network). */
     internal fun event(type: String, a: Int, b: Int, s1: String, s2: String) {
         when (type) {
-            "reg" -> accOfPJ[a]?.let { id -> setReg(id, regText(b, s1)) }
+            "reg" -> accOfPJ[a]?.let { id -> setReg(id, RegistrationText.status(b, s1)) }
             "message" -> incomingText(a, s1, s2)
             "sent" -> sendTags.remove(a)?.let { id -> messages?.update(id, if (b in 200..299) com.livenet.l1ne.data.MsgStatus.SENT else com.livenet.l1ne.data.MsgStatus.FAILED, if (b in 200..299) null else "$b $s1") }
             "mwi" -> accOfPJ[a]?.let { id -> _mwi.value = _mwi.value + (id to b) }
@@ -124,11 +118,6 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
         }
     }
 
-    private fun regText(code: Int, text: String) = when {
-        code / 100 == 2 -> "Registered"
-        code == 0 || code == 100 || code == 408 && text.isEmpty() -> "Registering…"
-        else -> "Not registered: $code $text"
-    }
 
     /** [password] lets an account be tried before it is saved; otherwise the saved one is used. */
     fun register(a: Account, password: String? = null) {
@@ -225,10 +214,8 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
         for (c in _calls.value.filter { it.active }) {
             val f = Native.nStats(c.id).split("|"); if (f.size < 6) continue
             val lost = f[0].toDouble(); val pkts = f[1].toDouble(); val rtt = f[2].toDouble(); val jitter = f[3].toDouble()
-            val total = pkts + lost; val loss = if (total > 20) lost * 100 / total else 0.0
-            var score = 5     // forgiving on purpose: ordinary internet jitter and a distant server shouldn't cost a call its bars
-            if (loss > 3) score--; if (loss > 8) score--; if (loss > 15) score--; if (jitter > 60) score--; if (jitter > 150) score--; if (rtt > 350) score--; if (rtt > 700) score--
-            quality.value = quality.value + (c.id to maxOf(1, score)); qualityNumbers.value = qualityNumbers.value + (c.id to QualityNumbers(loss, jitter, rtt))
+            val loss = CallQuality.lossPercent(lost, pkts)
+            quality.value = quality.value + (c.id to CallQuality.bars(loss, jitter, rtt)); qualityNumbers.value = qualityNumbers.value + (c.id to QualityNumbers(loss, jitter, rtt))
             val acc = store.account(c.accountID)
             encryption.value = encryption.value + (c.id to if (f[4] == "1") (if (f[5] == "1") Security.DTLS else Security.SRTP) else if (acc?.media == Media.NONE) Security.NONE else Security.UNKNOWN)
         }

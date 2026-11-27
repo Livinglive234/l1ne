@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.livenet.l1ne.core.RegistrationText
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -96,7 +97,7 @@ fun WelcomeScreen(signingIn: Boolean, setSigningIn: (Boolean) -> Unit, onClose: 
         if (pending == null || status == null) return@LaunchedEffect
         when {
             status == "Registered" -> { pending = null; setSigningIn(false) }
-            status.startsWith("Not registered") || status.startsWith("Could not add") -> fail(explainRegistration(status))
+            status.startsWith("Not registered") || status.startsWith("Could not add") -> fail(RegistrationText.explain(status))
         }
     }
     LaunchedEffect(pending) {       // a PBX that never answers: give up after 25 s rather than spin forever
@@ -208,19 +209,7 @@ suspend fun verifyLogin(engine: com.livenet.l1ne.sip.SipEngine, a: Account, pass
     }
     if (s == "Registered") return null
     engine.unregister(a.id)
-    return if (s == null) "${a.domain} didn't answer. Check the server name and your connection." else explainRegistration(s)
-}
-
-/** Plain words for the usual ways a first login goes wrong. */
-private val STATUS_CODE = Regex("""\b(\d{3})\b""")
-internal fun explainRegistration(status: String): String {
-    val code = STATUS_CODE.find(status)?.value?.toIntOrNull() ?: 0
-    return when (code) {
-        401, 403 -> "The PBX refused that username or password. Check them and try again."
-        404 -> "The PBX doesn't know that username or extension."
-        408, 503, 504 -> "Couldn't reach the PBX. Check the server name and your connection."
-        else -> "Couldn't sign in: ${status.removePrefix("Not registered: ")}"
-    }
+    return if (s == null) "${a.domain} didn't answer. Check the server name and your connection." else RegistrationText.explain(s)
 }
 
 /** Soft layered hills in the brand green, drawn to the very bottom of the screen (behind the navigation bar too). */

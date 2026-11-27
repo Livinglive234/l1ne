@@ -1,6 +1,7 @@
 package com.livenet.l1ne.data
 
 import android.content.Context
+import com.livenet.l1ne.core.ContactBook
 import com.livenet.l1ne.core.VCard
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -9,11 +10,34 @@ import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
-/** Reads and writes one JSON file in the app's private storage (nothing leaves the phone). */
+/** One background thread writes every store's file, so a change never makes the main thread wait for the disk. */
+private val storeWriter = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "l1ne-store-writer") }
+
+/** Waits until every change handed over so far is on disk. Used before a file is read back, and when L1ne goes to the background. */
+fun flushStoreWrites() { runCatching { storeWriter.submit {}.get(5, java.util.concurrent.TimeUnit.SECONDS) } }
+
+/** Reads and writes one JSON file in the app's private storage (nothing leaves the phone).
+ *  Writes happen in the background and only the newest content is written (a burst of changes becomes one write), through a temp file so a crash never leaves half a file. */
 private class JsonFile(context: Context, name: String) {
     private val f = File(context.filesDir, name)
-    fun read(): JSONArray = runCatching { JSONArray(f.readText()) }.getOrDefault(JSONArray())
-    fun write(a: JSONArray) { val tmp = File(f.path + ".tmp"); tmp.writeText(a.toString()); tmp.renameTo(f) }
+    private val lock = Any()
+    private var latest: String? = null          // the content waiting to be written
+    private var scheduled = false               // a writer task is queued or running
+
+    fun read(): JSONArray { flushStoreWrites(); return runCatching { JSONArray(f.readText()) }.getOrDefault(JSONArray()) }
+
+    fun write(a: JSONArray) {
+        val text = a.toString()
+        synchronized(lock) { latest = text; if (scheduled) return; scheduled = true }
+        storeWriter.execute(::drain)
+    }
+
+    private fun drain() {
+        while (true) {
+            val text = synchronized(lock) { latest.also { latest = null; if (it == null) scheduled = false } } ?: return
+            val tmp = File(f.path + ".tmp"); tmp.writeText(text); tmp.renameTo(f)
+        }
+    }
 }
 
 // MARK: Call log
@@ -38,11 +62,8 @@ class CallLogStore(context: Context) {
 
 // MARK: Contacts
 
-data class Contact(val id: String = UUID.randomUUID().toString(), val name: String, val address: String, val accountID: String? = null,
-                   val imported: Boolean = false, val source: String? = null) {
-    val user: String get() = address.substringBefore('@')
-}
-data class ImportSummary(var added: Int = 0, var updated: Int = 0, var kept: Int = 0, var skipped: Int = 0, var removed: Int = 0)
+typealias Contact = com.livenet.l1ne.core.Contact
+typealias ImportSummary = com.livenet.l1ne.core.ImportSummary
 
 /** L1ne's own address book: never reads the phone's contacts, never fetches by itself, only holds entries with a SIP address. */
 class ContactsStore(context: Context) {
@@ -54,27 +75,12 @@ class ContactsStore(context: Context) {
         file.write(JSONArray(_contacts.value.map { c -> JSONObject().put("id", c.id).put("name", c.name).put("address", c.address)
             .put("accountID", c.accountID ?: "").put("imported", c.imported).put("source", c.source ?: "") })) }
 
-    /** Entries you typed in win over imported ones with the same address; an import only renames earlier imports. */
+    /** The rules are in core's ContactBook; this only keeps the list and saves it. */
     fun merge(result: VCard.Result, account: String?, source: String = "link"): ImportSummary {
-        val s = ImportSummary(skipped = result.skipped); val list = _contacts.value.toMutableList()
-        for (e in result.entries) {
-            val i = list.indexOfFirst { it.address.equals(e.address, true) }
-            if (i >= 0) { if (list[i].imported && list[i].name != e.name) { list[i] = list[i].copy(name = e.name); s.updated++ } else s.kept++ }
-            else { list.add(Contact(name = e.name, address = e.address, accountID = account, imported = true, source = source)); s.added++ }
-        }
-        commit(list); return s
+        val (list, summary) = ContactBook.merge(_contacts.value, result, account, source); commit(list); return summary
     }
-    /** Makes one synced directory's contacts match it exactly (new added, renamed, gone removed); others' entries are never touched. */
     fun replaceSource(tag: String, result: VCard.Result, account: String?): ImportSummary {
-        val s = ImportSummary(skipped = result.skipped); val wanted = result.entries.associateBy { it.address.lowercase() }
-        val list = _contacts.value.toMutableList(); val before = list.size
-        list.removeAll { it.source == tag && wanted[it.address.lowercase()] == null }; s.removed = before - list.size
-        for ((addr, e) in wanted) {
-            val i = list.indexOfFirst { it.address.lowercase() == addr }
-            if (i >= 0) { if (list[i].source == tag && list[i].name != e.name) { list[i] = list[i].copy(name = e.name); s.updated++ } else s.kept++ }
-            else { list.add(Contact(name = e.name, address = e.address, accountID = account, imported = true, source = tag)); s.added++ }
-        }
-        commit(list); return s
+        val (list, summary) = ContactBook.replaceSource(_contacts.value, tag, result, account); commit(list); return summary
     }
     fun removeLinkImports(): Int { val n = _contacts.value.size; commit(_contacts.value.filterNot { it.imported && (it.source == null || it.source == "link") }); return n - _contacts.value.size }
     fun deleteSource(tag: String) = commit(_contacts.value.filter { it.source != tag })
@@ -87,26 +93,8 @@ class ContactsStore(context: Context) {
     fun remove(id: String) = commit(_contacts.value.filter { it.id != id })
     fun removeAll() = commit(emptyList())
 
-    /** What to show for a "user@domain" peer: the contact's name, else the number nicely formatted. */
-    fun nameOrNumber(address: String): String {
-        val user = address.substringBefore('@')
-        return name(user, address.substringAfter('@', "").ifEmpty { null }) ?: com.livenet.l1ne.core.PhoneFormat.pretty(user)
-    }
-
-    /** Who a call was with: same extension on the same server; the same extension anywhere (if only one contact has it); a number by its last ten digits. */
-    fun name(rawUser: String, rawDomain: String? = null): String? {
-        val user = rawUser.lowercase().removePrefix("sip:"); val domain = rawDomain?.lowercase()?.substringBefore(':')
-        val all = _contacts.value
-        fun dom(c: Contact) = c.address.substringAfter('@', "").lowercase()
-        all.firstOrNull { it.user.lowercase() == user && (domain == null || dom(it) == domain) }?.let { return it.name }
-        all.filter { it.user.lowercase() == user }.takeIf { it.size == 1 }?.let { return it[0].name }
-        val digits = user.filter { it.isDigit() }
-        if (digits.length >= 7) {
-            val tail = digits.takeLast(10)
-            all.filter { c -> c.user.filter { it.isDigit() }.let { it.length >= 7 && it.takeLast(10) == tail } }.takeIf { it.size == 1 }?.let { return it[0].name }
-        }
-        return null
-    }
+    fun nameOrNumber(address: String): String = ContactBook.nameOrNumber(_contacts.value, address)
+    fun name(rawUser: String, rawDomain: String? = null): String? = ContactBook.name(_contacts.value, rawUser, rawDomain)
 }
 
 // MARK: Messages

@@ -19,6 +19,7 @@ class MainActivity : ComponentActivity() {
         val u = intent?.data ?: return
         if (u.scheme.equals("sip", true) || u.scheme.equals("sips", true)) (application as L1neApplication).let { it.pendingDial.value = it.dialTarget(u) }
     }
+    override fun onStop() { super.onStop(); com.livenet.l1ne.data.flushStoreWrites() }          // whatever was changed is on disk before L1ne can be closed in the background
     override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); handle(intent) }
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
