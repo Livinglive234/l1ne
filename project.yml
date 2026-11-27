@@ -3,6 +3,7 @@ settings:
   base:
     CURRENT_PROJECT_VERSION: "1"
     MARKETING_VERSION: "1.0"
+    L1NE_VERSION_LABEL: "1.0"          # the version as shown in Settings, with the beta suffix (CI passes the tag); MARKETING_VERSION can only be numeric
     # Lines to change when the paid team is ready (Team ID and bundle ID), then run: xcodegen generate
     DEVELOPMENT_TEAM: ${L1NE_TEAM_ID}      # set in your shell (export L1NE_TEAM_ID=XXXXXXXXXX); scripts/gen.sh defaults it to empty
     APP_ID: com.livenet.l1ne
@@ -31,6 +32,7 @@ targets:
     info:
       path: L1ne/Info.plist
       properties:
+        L1neVersionLabel: $(L1NE_VERSION_LABEL)
         ITSAppUsesNonExemptEncryption: false   # only standard TLS / SRTP / DTLS (PJSIP + OpenSSL) and the OS Keychain; no custom crypto. Revisit if that changes.
         NSUserActivityTypes: [INStartCallIntent, INStartAudioCallIntent]   # call back from the Phone app's Recents
         UIBackgroundModes: [voip, audio, fetch]   # voip: PushKit + CallKit; audio: a call survives locking the screen; fetch: directory sync

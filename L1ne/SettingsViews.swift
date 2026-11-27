@@ -80,7 +80,7 @@ struct SettingsView: View {
                 .listRowBackground(Theme.surface)
 
                 Section("About") {
-                    ValueRow("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1")
+                    ValueRow("Version", value: VersionLabel.pretty(Bundle.main.infoDictionary?["L1neVersionLabel"] as? String ?? Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1"))
                     ValueRow("SIP engine", value: "PJSIP \(SIPEngine.version)")
                 }
                 .listRowBackground(Theme.surface)

@@ -35,6 +35,9 @@ check(SipLog.shared.count == 2500 && SipLog.shared.text().hasPrefix("line 100") 
 SipLog.shared.clear(); SipLog.shared.add("Authorization: Digest response=\"x\""); SipLog.shared.add("   ")
 check(SipLog.shared.text() == "Authorization: [removed]" && SipLog.shared.count == 1, "entries are redacted as they arrive; blank ones are skipped")
 
+// version label
+check(VersionLabel.pretty("0.1.0-beta.9") == "0.1.0 beta 9" && VersionLabel.pretty("0.1.0-rc1") == "0.1.0 rc1" && VersionLabel.pretty("0.1.0") == "0.1.0" && VersionLabel.pretty("1.0") == "1.0", "a tag version reads naturally")
+
 // outside-line prefix
 var ob = Account(); ob.username = "7001"; ob.domain = "pbx.example.com"; ob.outboundPrefix = "9"
 check(ob.dial("6125550142") == "96125550142" && ob.dial("(612) 555-0142") == "96125550142" && ob.dial("16125550142") == "916125550142" && ob.dial("+16125550142") == "916125550142", "outside numbers get the prefix")

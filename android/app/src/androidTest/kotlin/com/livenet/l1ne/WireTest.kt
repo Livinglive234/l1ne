@@ -127,6 +127,17 @@ class WireTest {
         assertFalse(Regex("response=\"[0-9a-f]{8,}").containsMatchIn(t), "no digest response is left")
         assertFalse(t.contains("inline:") && !t.contains("inline:[removed]"), "no SRTP key is left")
     }
+    /** The speaker button: audio moves to the speaker through Telecom, and back to the earpiece. */
+    @Test fun theSpeakerButtonSwitchesTheAudioToTheSpeakerAndBack() {
+        val telecom = (InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as com.livenet.l1ne.L1neApplication).telecom
+        val a = registered(account("7100")); dial(a, "1001"); waitFor("answered") { onlyCall()?.active == true }
+        waitFor("Telecom to offer the speaker") { telecom.routes.value.supported and android.telecom.CallAudioState.ROUTE_SPEAKER != 0 }
+        main { engine.setSpeaker(true) }; waitFor("the speaker is the active route") { telecom.routes.value.speaker }
+        assertTrue(com.livenet.l1ne.core.SipLog.text().contains("[audio]"), "the route changes are in the SIP log")
+        if (telecom.routes.value.supported and android.telecom.CallAudioState.ROUTE_EARPIECE != 0) {        // an emulator has no earpiece to go back to
+            main { engine.setSpeaker(false) }; waitFor("the earpiece is the active route again") { !telecom.routes.value.speaker }
+        }
+    }
     @Test fun anIncomingCallRingsIsAnsweredAndHangsUp() {
         registered(account("7100")); http("/invite?user=7100")
         waitFor("incoming call") { onlyCall()?.incoming == true }
@@ -155,8 +166,10 @@ class WireTest {
     /** pjsua has one STUN server for the whole app: an account that doesn't use STUN must not use another account's. */
     @Test fun anAccountWithoutStunDoesNotUseAnotherAccountsStunServer() {
         val withStun = registered(account("7100") { it.copy(stunServer = "$host:3478", iceEnabled = true) }); dial(withStun, "1001")
-        waitFor("the STUN server to be contacted", 15) { serverSaw("STUN binding request") }
+        waitServer("INVITE 1001", 15)                                         // the INVITE goes out once the address gathering (STUN) is done
+        assertTrue(serverSaw("STUN binding request"), "the account with STUN asked the STUN server")
         main { engine.hangupAll() }; waitFor("the first call to end") { engine.calls.value.isEmpty() }
+        Thread.sleep(1500)                                                    // the first account's last messages arrive before the log is cleared
         http("/clear")
         val plain = registered(account("7101")); dial(plain, "1001"); waitServer("INVITE 1001")
         Thread.sleep(1500)

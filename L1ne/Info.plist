@@ -45,6 +45,8 @@
 	<string>1</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>L1neVersionLabel</key>
+	<string>$(L1NE_VERSION_LABEL)</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>linphone</string>

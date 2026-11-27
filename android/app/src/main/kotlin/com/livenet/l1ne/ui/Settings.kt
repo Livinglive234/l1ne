@@ -122,7 +122,7 @@ fun SettingsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
             FooterText("What L1ne's phone engine sent and received recently, to find out why a call or sign-in didn't work. Passwords and encryption keys are removed.")
 
             SectionHeader("About")
-            Card { Row(Modifier.padding(16.dp)) { Text("Version", Modifier.weight(1f)); Text("1.0", color = L1neColors.Muted) }; RowDivider()
+            Card { Row(Modifier.padding(16.dp)) { Text("Version", Modifier.weight(1f)); Text(com.livenet.l1ne.core.VersionLabel.pretty(ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "1.0"), color = L1neColors.Muted) }; RowDivider()
                 Row(Modifier.padding(16.dp)) { Text("SIP engine", Modifier.weight(1f)); Text("PJSIP ${Native.nVersion()}", color = L1neColors.Muted) } }
         }
     }

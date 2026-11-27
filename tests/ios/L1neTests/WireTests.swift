@@ -180,8 +180,10 @@ final class WireTests: XCTestCase {
     /// pjsua has one STUN server for the whole app: an account that doesn't use STUN must not use another account's.
     func testAnAccountWithoutStunDoesNotUseAnotherAccountsStunServer() throws {
         let withStun = try registered(account("7100") { $0.stunServer = "\(host):3478"; $0.iceEnabled = true })
-        dial(withStun, "1001"); try waitServer("STUN binding request", seconds: 15)
+        dial(withStun, "1001"); try waitServer("INVITE 1001", seconds: 15)           // the INVITE goes out once the address gathering (STUN) is done
+        XCTAssertTrue(serverSaw("STUN binding request"), "the account with STUN asked the STUN server")
         engine.hangupAll(); try waitFor("the first call to end") { engine.calls.isEmpty }
+        pause(1.5)                                                                  // the first account's last messages arrive before the log is cleared
         _ = http("/clear")
         let plain = try registered(account("7101")); dial(plain, "1001"); try waitServer("INVITE 1001")
         pause(1.5)

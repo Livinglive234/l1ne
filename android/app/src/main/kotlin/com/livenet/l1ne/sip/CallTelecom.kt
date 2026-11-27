@@ -64,7 +64,7 @@ class CallTelecom(private val app: Context) {
         connections.remove(callId)?.let { it.setDisconnected(DisconnectCause(if (byRemote) DisconnectCause.REMOTE else DisconnectCause.LOCAL)); it.destroy() }
         CallNotifications.cancelIncoming(app)
     }
-    fun setRoute(route: Int) { connections.values.firstOrNull()?.setAudioRoute(route) }
+    fun setRoute(route: Int) { connections.values.firstOrNull()?.requestRoute(route) ?: com.livenet.l1ne.core.SipLog.add("[audio] route $route requested but there is no Telecom connection") }
 
     companion object { const val EXTRA_CALL = "l1ne.call"; const val EXTRA_NAME = "l1ne.name" }
 }
@@ -83,7 +83,53 @@ class L1neConnection(val callId: Int, private val app: L1neApplication) : Connec
     override fun onShowIncomingCallUi() {
         CallNotifications.showIncoming(app, callId, app.engine.displayName(callId)) }
     @Deprecated("Telecom still calls this on older Android versions")
-    override fun onCallAudioStateChanged(state: CallAudioState?) { state?.let { app.telecom.routes.value = AudioRoutes(it.route, it.supportedRouteMask); app.engine.updateProximity() } }
+    override fun onCallAudioStateChanged(state: CallAudioState?) {
+        state?.let { publish(it.route, it.supportedRouteMask, "CallAudioState") }
+    }
+
+    // Android 14 and later report the audio routes as "call endpoints" (and the older callback above may not be used there).
+    private var endpoints: List<android.telecom.CallEndpoint> = emptyList()
+    private var endpoint: android.telecom.CallEndpoint? = null
+    @androidx.annotation.RequiresApi(34)
+    override fun onAvailableCallEndpointsChanged(available: List<android.telecom.CallEndpoint>) { endpoints = available; publishEndpoints() }
+    @androidx.annotation.RequiresApi(34)
+    override fun onCallEndpointChanged(e: android.telecom.CallEndpoint) { endpoint = e; publishEndpoints() }
+
+    @androidx.annotation.RequiresApi(34)
+    private fun publishEndpoints() {
+        val active = endpoint?.let { routeOf(it.endpointType) } ?: return
+        publish(active, endpoints.fold(active) { mask, e -> mask or routeOf(e.endpointType) }, "CallEndpoint")
+    }
+    @androidx.annotation.RequiresApi(34)
+    private fun routeOf(type: Int) = when (type) {
+        android.telecom.CallEndpoint.TYPE_EARPIECE -> CallAudioState.ROUTE_EARPIECE
+        android.telecom.CallEndpoint.TYPE_BLUETOOTH -> CallAudioState.ROUTE_BLUETOOTH
+        android.telecom.CallEndpoint.TYPE_WIRED_HEADSET -> CallAudioState.ROUTE_WIRED_HEADSET
+        android.telecom.CallEndpoint.TYPE_SPEAKER -> CallAudioState.ROUTE_SPEAKER
+        else -> 0
+    }
+
+    private fun publish(route: Int, supported: Int, from: String) {
+        com.livenet.l1ne.core.SipLog.add("[audio] route is now $route, available $supported ($from)")
+        app.telecom.routes.value = AudioRoutes(route, supported); app.engine.updateProximity()
+    }
+
+    /** Moves the call's audio (speaker, earpiece, Bluetooth, headset): through the call endpoints on Android 14 and later, the older way before that or when the phone offers no such endpoint. */
+    fun requestRoute(route: Int) {
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
+            val target = endpoints.firstOrNull { routeOf(it.endpointType) == route }
+            if (target != null) {
+                com.livenet.l1ne.core.SipLog.add("[audio] asking for route $route (${target.endpointName})")
+                requestCallEndpointChange(target, app.mainExecutor, object : android.os.OutcomeReceiver<Void, android.telecom.CallEndpointException> {
+                    override fun onResult(r: Void?) { com.livenet.l1ne.core.SipLog.add("[audio] route $route accepted") }
+                    override fun onError(e: android.telecom.CallEndpointException) { com.livenet.l1ne.core.SipLog.add("[audio] route $route refused: ${e.message} (code ${e.code})") }
+                })
+                return
+            }
+        }
+        com.livenet.l1ne.core.SipLog.add("[audio] asking for route $route the older way")
+        @Suppress("DEPRECATION") setAudioRoute(route)
+    }
 }
 
 class L1neConnectionService : ConnectionService() {
