@@ -47,23 +47,20 @@ check(ob2.dial("6125550142") == "96125550142" && ob2.dial("+44207123456789") == 
 check(ob.withoutOutboundPrefix("96125550142@pbx.example.com") == "6125550142@pbx.example.com" && ob.withoutOutboundPrefix("7001@pbx.example.com") == "7001@pbx.example.com" && ob.withoutOutboundPrefix("9125550142@pbx.example.com") == "9125550142@pbx.example.com", "history keeps the number without the prefix")
 let xmlPrefix = (try! String(contentsOf: dir.appendingPathComponent("linphone-provision.xml"), encoding: .utf8)).replacingOccurrences(of: "</config>", with: "<section name=\"l1ne\"><entry name=\"outbound_prefix\">9</entry></section></config>")
 let rp = try! Provisioning.parse(xml: Data(xmlPrefix.utf8))
-check(rp.accounts[0].account.outboundPrefix == "9" && rp.accounts[1].account.outboundPrefix == "", "the l1ne section sets the prefix, the push-only account is left alone")
+check(rp.accounts.allSatisfy { $0.account.outboundPrefix == "9" }, "the l1ne section sets the prefix on every account in the file")
 check((try! Provisioning.parse(xml: Data(xmlPrefix.replacingOccurrences(of: ">9<", with: ">9x<").utf8))).accounts[0].account.outboundPrefix == "", "only digits, * and # are accepted")
 
 // provisioning
 let r = try! Provisioning.parse(xml: try! Data(contentsOf: dir.appendingPathComponent("linphone-provision.xml")))
 check(r.accounts.count == 2, "both accounts are returned (got \(r.accounts.count))")
-check(r.accounts[1].pushOnly && r.accounts[1].account.domain == "sip.linphone.org" && !r.accounts[0].pushOnly, "the linphone.org account is flagged push-only, the PBX one is not")
+check(r.accounts[1].account.domain == "sip.linphone.org", "the linphone.org account is returned like any other")
 let a = r.accounts[0]
 check(a.account.username == "7201" && a.account.domain == "pbx.example.com", "identity")
 check(a.account.port == 5061 && a.account.transport == .tls, "tls on 5061")
 check(a.account.label == "pbx.example.com" && a.account.displayName == "Max Example", "label is the SIP domain, display name kept")
-check(r.selectedByDefault.count == 1 && r.selectedByDefault[0].account.domain == "pbx.example.com", "push-only account is off by default when another account comes with it")
-var lone = r; lone.accounts = [r.accounts[1]]
-check(lone.selectedByDefault.count == 1 && lone.selectedByDefault[0].pushOnly, "a lone linphone.org account is selected by default")
 check(a.secret == "test-secret-not-real", "secret from auth_info")
 check(r.contactsURL == "https://pbx.example.com/p/contacts-0123456789abcdef0123456789abcdef.vcf", "contacts URL")
-check(r.accounts[1].secret == "another-fake", "the push-only account keeps its own credentials so it can be added if wanted")
+check(r.accounts[1].secret == "another-fake", "the linphone.org account keeps its own credentials")
 
 // links
 check(Provisioning.configURL(from: "linphone-config:https://pbx.example.com/p/x.xml")?.absoluteString == "https://pbx.example.com/p/x.xml", "linphone-config: link")

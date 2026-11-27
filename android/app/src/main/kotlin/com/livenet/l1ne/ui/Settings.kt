@@ -373,7 +373,7 @@ fun LinkDialog(initial: String?, autoScan: Boolean = false, onClose: () -> Unit)
         busy = true; error = null
         scope.launch {
             runCatching { withContext(Dispatchers.IO) { com.livenet.l1ne.core.Provisioning.parse(java.net.URL(url.toString()).readBytes()) } }
-                .onSuccess { r -> picked = r.selectedByDefault.map { it.account.id }.toSet(); importContacts = r.contactsUrl != null && !app.directories.directoryEnabled; result = r }
+                .onSuccess { r -> picked = r.accounts.map { it.account.id }.toSet(); importContacts = r.contactsUrl != null && !app.directories.directoryEnabled; result = r }
                 .onFailure { error = it.message ?: "Could not fetch the file." }
             busy = false
         }
@@ -391,7 +391,7 @@ fun LinkDialog(initial: String?, autoScan: Boolean = false, onClose: () -> Unit)
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             r.accounts.forEach { p -> Row(Modifier.clickable { picked = if (p.account.id in picked) picked - p.account.id else picked + p.account.id }, verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(p.account.id in picked, { picked = if (it) picked + p.account.id else picked - p.account.id })
-                Column { Text(p.account.title); Text("${p.account.username}@${p.account.domain}" + if (p.pushOnly) " · incoming only" else "", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
+                Column { Text(p.account.title); Text("${p.account.username}@${p.account.domain}", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
                     failures[p.account.id]?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = L1neColors.Danger) } } }
                 if (p.secret.isEmpty() && p.account.id in picked) OutlinedTextField(secrets[p.account.id] ?: "", { secrets = secrets + (p.account.id to it) }, singleLine = true, label = { Text("Password for ${p.account.username}") }, visualTransformation = PasswordVisualTransformation()) }
             if (r.contactsUrl != null) { SwitchRow("Import contacts from ${java.net.URI(r.contactsUrl).host ?: "the link"}", importContacts, enabled = !app.directories.directoryEnabled) { importContacts = it }
@@ -408,8 +408,8 @@ fun LinkDialog(initial: String?, autoScan: Boolean = false, onClose: () -> Unit)
                 checking = false
                 if (failed.isNotEmpty()) { chosen.forEach { app.engine.unregister(it.account.id) }; failures = failed; return@launch }
                 var first: Account? = null
-                for (p in chosen) { var acc = p.account; if (r.contactsUrl != null && importContacts && (!p.pushOnly || !r.hasOtherThanPushOnly)) acc = acc.copy(contactsUrl = r.contactsUrl!!)
-                    app.store.save(acc, secretOf(p)); if (first == null && (!p.pushOnly || !r.hasOtherThanPushOnly)) first = acc }       // already registered by the check above
+                for (p in chosen) { var acc = p.account; if (r.contactsUrl != null && importContacts) acc = acc.copy(contactsUrl = r.contactsUrl!!)
+                    app.store.save(acc, secretOf(p)); if (first == null) first = acc }       // already registered by the check above
                 if (importContacts && !app.directories.directoryEnabled && r.contactsUrl != null) (first ?: app.store.selected)?.let { acc ->
                     val link = com.livenet.l1ne.data.DirectorySource(kind = com.livenet.l1ne.data.DirKind.VCARD_LINK, name = "PBX contacts", url = r.contactsUrl!!, interval = com.livenet.l1ne.data.SyncInterval.ON_OPEN, accountID = acc.id)
                     app.directories.save(link, null); scope.launch { app.dirSync.sync(link.id) } }

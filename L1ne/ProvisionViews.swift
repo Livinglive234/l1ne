@@ -68,10 +68,6 @@ struct ProvisionSheet: View {
                                 .font(.footnote).foregroundStyle(Theme.muted)
                         }
                     }
-                    if p.pushOnly && r.hasOtherThanPushOnly {
-                        Text("This account only delivers push to the Linphone app, which L1ne can't use, so it's off. Switch it on if you want it anyway.")
-                            .font(.caption).foregroundStyle(Theme.muted)
-                    }
                     if picked.contains(p.account.id) && p.secret.isEmpty {
                         SecureField("Secret", text: Binding(get: { secrets[p.account.id] ?? "" }, set: { secrets[p.account.id] = $0 }))
                     }
@@ -117,7 +113,7 @@ struct ProvisionSheet: View {
         Task {
             do {
                 let r = try await Provisioning.fetch(url)
-                picked = Set(r.selectedByDefault.map { $0.account.id })
+                picked = Set(r.accounts.map { $0.account.id })
                 importContacts = r.contactsURL != nil && !dirs.directoryEnabled     // on by default when the file brings a contacts link
                 result = r
             } catch { self.error = error.localizedDescription }
@@ -155,9 +151,9 @@ struct ProvisionSheet: View {
             var first: Account?
             for p in chosen {
                 var a = p.account
-                if let c = r.contactsURL, importContacts, !p.pushOnly || !r.hasOtherThanPushOnly { a.contactsURL = c }
+                if let c = r.contactsURL, importContacts { a.contactsURL = c }
                 store.save(a, secret: secret(p))                        // already registered by the check above
-                if first == nil && (!p.pushOnly || !r.hasOtherThanPushOnly) { first = a }
+                if first == nil { first = a }
             }
             if importContacts, !dirs.directoryEnabled, let c = r.contactsURL, let acc = first ?? store.selected {
                 var link = DirectorySource(kind: .vcardLink)

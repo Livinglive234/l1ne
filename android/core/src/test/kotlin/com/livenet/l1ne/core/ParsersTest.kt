@@ -26,7 +26,7 @@ class ParsersTest {
         val xml = File(dir, "linphone-provision.xml").readText().replace("</config>", "<section name=\"l1ne\"><entry name=\"outbound_prefix\">9</entry></section></config>")
         val r = Provisioning.parse(xml.toByteArray())
         assertEquals("9", r.accounts[0].account.outboundPrefix)
-        assertEquals("", r.accounts[1].account.outboundPrefix)                                   // the push-only Linphone account is not touched
+        assertEquals("9", r.accounts[1].account.outboundPrefix)                                  // every account in the file
         val bad = Provisioning.parse(xml.replace(">9<", ">9x<").toByteArray())
         assertEquals("", bad.accounts[0].account.outboundPrefix)                                  // digits, * and # only
         assertEquals("", Provisioning.parse(File(dir, "linphone-provision.xml").readBytes()).accounts[0].account.outboundPrefix)   // a plain Linphone file sets nothing
@@ -35,7 +35,7 @@ class ParsersTest {
     @Test fun provisioning() {
         val r = Provisioning.parse(File(dir, "linphone-provision.xml").readBytes())
         assertEquals(2, r.accounts.size)
-        assertTrue(r.accounts[1].pushOnly && r.accounts[1].account.domain == "sip.linphone.org" && !r.accounts[0].pushOnly)
+        assertEquals("sip.linphone.org", r.accounts[1].account.domain)                          // the linphone.org account is returned like any other, and added with the rest
         val a = r.accounts[0]
         assertEquals("7201", a.account.username)
         assertEquals("Max Example", a.account.displayName)   // the name in the QR/link is kept
@@ -43,7 +43,6 @@ class ParsersTest {
         assertEquals(5061, a.account.port)
         assertEquals(Transport.TLS, a.account.transport)
         assertEquals("pbx.example.com", a.account.label)
-        assertEquals(1, r.selectedByDefault.size)
         assertEquals("test-secret-not-real", a.secret)
         assertEquals("https://pbx.example.com/p/contacts-0123456789abcdef0123456789abcdef.vcf", r.contactsUrl)
         assertEquals("another-fake", r.accounts[1].secret)

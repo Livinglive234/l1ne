@@ -7,20 +7,11 @@ enum Provisioning {
     struct Parsed: Equatable {
         var account: Account
         var secret: String
-        /// An account on linphone.org that is only there so the Linphone app can receive push. L1ne can't use that push,
-        /// so when it comes with another account it is offered but not selected by default (see `Result.selectedByDefault`).
-        var pushOnly = false
     }
     struct Result: Equatable {
         var accounts: [Parsed] = []
         var contactsURL: String?
         var notes: [String] = []
-        /// Accounts switched on by default: all of them, except that a linphone.org push-only account is left off when the
-        /// file also brings another account. On its own it is selected.
-        var selectedByDefault: [Parsed] {
-            accounts.contains { !$0.pushOnly } ? accounts.filter { !$0.pushOnly } : accounts
-        }
-        var hasOtherThanPushOnly: Bool { accounts.contains { !$0.pushOnly } }
     }
     enum Failure: Error, LocalizedError {
         case notHTTPS, badStatus(Int), notConfig, nothingUsable
@@ -81,7 +72,6 @@ enum Provisioning {
             let e = s[name]!
             guard let ident = parseIdentity(e["reg_identity"] ?? "") else { continue }
             if e["reg_sendregister"] == "0" { continue }
-            let pushOnly = ident.domain.hasSuffix("linphone.org")
 
             var a = Account()
             a.username = ident.user
@@ -119,13 +109,13 @@ enum Provisioning {
             }
             let mandatory = (s["sip"]?["media_encryption_mandatory"] ?? e["media_encryption_mandatory"] ?? "0")
             a.mediaMandatory = (mandatory == "1" || mandatory.lowercased() == "true")
-            result.accounts.append(Parsed(account: a, secret: secret, pushOnly: pushOnly))
+            result.accounts.append(Parsed(account: a, secret: secret))
         }
 
         if let c = s["misc"]?["contacts-vcard-list"], !c.isEmpty { result.contactsURL = c }
         // L1ne's own section (Linphone ignores it): <section name="l1ne"><entry name="outbound_prefix">9</entry></section>
         if let p = s["l1ne"]?["outbound_prefix"], p.count <= 4, p.allSatisfy({ "0123456789*#".contains($0) }), !p.isEmpty {
-            for i in result.accounts.indices where !result.accounts[i].pushOnly { result.accounts[i].account.outboundPrefix = p }
+            for i in result.accounts.indices { result.accounts[i].account.outboundPrefix = p }
         }
         guard !result.accounts.isEmpty else { throw Failure.nothingUsable }
         return result

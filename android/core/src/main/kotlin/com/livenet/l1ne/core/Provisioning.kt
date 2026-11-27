@@ -10,13 +10,8 @@ import javax.xml.parsers.DocumentBuilderFactory
  * the same XML Linphone fetches after scanning a QR code. Fetching is the app's job and happens once, on demand.
  */
 object Provisioning {
-    /** pushOnly: a linphone.org account that only delivers push to the Linphone app; offered; off by default only when the file also brings another account. */
-    data class Parsed(val account: Account, val secret: String, val pushOnly: Boolean = false)
-    data class Result(val accounts: List<Parsed>, val contactsUrl: String?, val notes: List<String>) {
-        val hasOtherThanPushOnly get() = accounts.any { !it.pushOnly }
-        /** All accounts, except a push-only one is left off when another account comes with it. */
-        val selectedByDefault get() = if (hasOtherThanPushOnly) accounts.filter { !it.pushOnly } else accounts
-    }
+    data class Parsed(val account: Account, val secret: String)
+    data class Result(val accounts: List<Parsed>, val contactsUrl: String?, val notes: List<String>)
     class Failure(message: String) : Exception(message)
 
     /** Accepts `https://…`, `linphone-config:https://…`, `l1ne-config:https://…`. */
@@ -40,7 +35,6 @@ object Provisioning {
             val e = sections.getValue(name)
             val ident = parseIdentity(e["reg_identity"] ?: "") ?: continue
             if (e["reg_sendregister"] == "0") continue
-            val pushOnly = ident.domain.endsWith("linphone.org")
             var a = Account(username = ident.user, domain = ident.domain, label = ident.domain, displayName = ident.display)
             val proxy = parseProxy(e["reg_proxy"] ?: e["reg_route"] ?: "")
             if (proxy != null) {
@@ -64,13 +58,13 @@ object Provisioning {
 
             val enc = (sections["sip"]?.get("media_encryption") ?: sections["rtp"]?.get("media_encryption") ?: e["media_encryption"] ?: "").lowercase()
             a = a.copy(media = if (enc == "none") Media.NONE else Media.SRTP_SDES)
-            accounts.add(Parsed(a, secret, pushOnly))
+            accounts.add(Parsed(a, secret))
         }
 
         val contacts = sections["misc"]?.get("contacts-vcard-list")?.takeIf { it.isNotEmpty() }
         // L1ne's own section (Linphone ignores it): <section name="l1ne"><entry name="outbound_prefix">9</entry></section>
         sections["l1ne"]?.get("outbound_prefix")?.takeIf { it.isNotEmpty() && it.length <= 4 && it.all { c -> c in "0123456789*#" } }?.let { p ->
-            for (i in accounts.indices) if (!accounts[i].pushOnly) accounts[i] = accounts[i].copy(account = accounts[i].account.copy(outboundPrefix = p))
+            for (i in accounts.indices) accounts[i] = accounts[i].copy(account = accounts[i].account.copy(outboundPrefix = p))
         }
         if (accounts.isEmpty()) throw Failure("The file has no usable SIP account.")
         return Result(accounts, contacts, notes)
