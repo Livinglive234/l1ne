@@ -40,15 +40,18 @@ static void send_call(pjsua_call_id id, const char *type) {
     snprintf(s2, sizeof s2, "%d|%d|%s|%ld|%d|%d", (int)ci.role, (int)ci.last_status, lbl, (long)ci.connect_duration.sec, (int)ci.media_status, (int)ci.acc_id);
     emit(type, id, (int)ci.state, remote, s2);
 }
-static void on_incoming(pjsua_acc_id acc, pjsua_call_id call, pjsip_rx_data *rd) { (void)rd; (void)acc; send_call(call, "incoming"); }
+/* A muted call must stay muted when PJSIP reports a state or media change (hold/resume, re-INVITE): the microphone is only reconnected for calls not muted. */
+static int g_muted[PJSUA_MAX_CALLS];
+static void mic_connect(pjsua_call_id call, int slot) { pjsua_conf_connect(slot, 0); if (call < 0 || call >= PJSUA_MAX_CALLS || !g_muted[call]) pjsua_conf_connect(0, slot); }
+static void on_incoming(pjsua_acc_id acc, pjsua_call_id call, pjsip_rx_data *rd) { (void)rd; (void)acc; if (call >= 0 && call < PJSUA_MAX_CALLS) g_muted[call] = 0; send_call(call, "incoming"); }
 static void on_call_state(pjsua_call_id call, pjsip_event *e) {
     (void)e; pjsua_call_info ci;
-    if (pjsua_call_get_info(call, &ci) == 0 && ci.state == PJSIP_INV_STATE_CONFIRMED && ci.media_status == PJSUA_CALL_MEDIA_ACTIVE && ci.conf_slot >= 0) { pjsua_conf_connect(ci.conf_slot, 0); pjsua_conf_connect(0, ci.conf_slot); }   /* belt and braces */
+    if (pjsua_call_get_info(call, &ci) == 0 && ci.state == PJSIP_INV_STATE_CONFIRMED && ci.media_status == PJSUA_CALL_MEDIA_ACTIVE && ci.conf_slot >= 0) { mic_connect(call, ci.conf_slot); }   /* belt and braces */
     send_call(call, "call");
 }
 static void on_media_state(pjsua_call_id call) {
     pjsua_call_info ci; if (pjsua_call_get_info(call, &ci) != 0) return;
-    if (ci.media_status == PJSUA_CALL_MEDIA_ACTIVE && (ci.role != PJSIP_ROLE_UAC || ci.state != PJSIP_INV_STATE_EARLY || g_accept_early)  /* early media only exists on calls we placed: answering an incoming call starts media while it still reads EARLY */) { pjsua_conf_connect(ci.conf_slot, 0); pjsua_conf_connect(0, ci.conf_slot); }
+    if (ci.media_status == PJSUA_CALL_MEDIA_ACTIVE && (ci.role != PJSIP_ROLE_UAC || ci.state != PJSIP_INV_STATE_EARLY || g_accept_early)  /* early media only exists on calls we placed: answering an incoming call starts media while it still reads EARLY */) { mic_connect(call, ci.conf_slot); }
     send_call(call, "call");
 }
 static void on_reg_state(pjsua_acc_id acc) {
@@ -168,6 +171,7 @@ JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nDtmf(JNIEnv *env, jclas
 }
 JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nMute(JNIEnv *e, jclass c, jint call, jboolean on) {
     (void)e; (void)c; reg_thread(); pjsua_call_info ci; if (pjsua_call_get_info(call, &ci) != 0 || ci.conf_slot < 0) return;
+    if (call >= 0 && call < PJSUA_MAX_CALLS) g_muted[call] = on;
     if (on) pjsua_conf_disconnect(0, ci.conf_slot); else pjsua_conf_connect(0, ci.conf_slot);
 }
 JNIEXPORT jboolean JNICALL Java_com_livenet_l1ne_sip_Native_nHold(JNIEnv *e, jclass c, jint call, jboolean on) {

@@ -17,14 +17,16 @@ import com.livenet.l1ne.ui.L1neTheme
 class MainActivity : ComponentActivity() {
     private fun handle(intent: android.content.Intent?) {
         val u = intent?.data ?: return
-        if (u.scheme.equals("sip", true) || u.scheme.equals("sips", true)) (application as L1neApplication).let { it.pendingDial.value = it.dialTarget(u) }
+        val app = application as L1neApplication
+        if (u.scheme.equals("sip", true) || u.scheme.equals("sips", true)) app.pendingDial.value = app.dialTarget(u)
+        else app.pendingSetup.value = u.toString()
     }
     override fun onStop() { super.onStop(); com.livenet.l1ne.data.flushStoreWrites() }          // whatever was changed is on disk before L1ne can be closed in the background
     override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); handle(intent) }
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        handle(intent)
+        if (savedInstanceState == null) handle(intent)          // not again after a rotation
         val app = application as L1neApplication
         requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.POST_NOTIFICATIONS), 1)
         app.engine.start(); app.engine.registerMissing()

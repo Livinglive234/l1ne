@@ -37,6 +37,8 @@ fun L1neApp() {
         CompositionLocalProvider(LocalAddAccount provides { adding = true }) { MainTabs() }
         if (adding) Surface(Modifier.fillMaxSize().pointerInput(Unit) {}, color = L1neColors.Bg) { WelcomeScreen(signingIn, { signingIn = it }, onClose = { adding = false }) }
     }
+    val setup by app.pendingSetup.collectAsState()
+    setup?.let { link -> LinkDialog(link) { app.pendingSetup.value = null } }
 }
 
 /** Lets the Accounts screen open the welcome screen to add an account. */

@@ -14,6 +14,8 @@ class L1neApplication : Application() {
     lateinit var dirSync: com.livenet.l1ne.data.DirectorySync
     lateinit var telecom: com.livenet.l1ne.sip.CallTelecom
     /** A sip: link opened from another app: the Keypad tab shows it, ready to call. It never dials by itself. */
+    /** A setup link (https, l1ne-config: or linphone-config:) opened from another app: L1ne shows what it contains and asks before adding anything. */
+    val pendingSetup = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
     val pendingDial = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
     /** "sip:7001@pbx.example.com;transport=tls" -> "7001" when that is one of your servers, else "7001@pbx.example.com". */
     fun dialTarget(uri: android.net.Uri): String? {
