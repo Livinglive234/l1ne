@@ -28,7 +28,7 @@ static void send_cb(void *u, const uint8_t *p, size_t n) {
     side *t = s->peer; memcpy(t->q[t->qt % 64], p, n); t->qn[t->qt % 64] = n; t->qt++;
     if (tamper_type && !memcmp(p + 16, tamper_type, 8)) {
         uint8_t *q = t->q[(t->qt - 1) % 64]; q[60] ^= 0x40; uint32_t c = zrtp_crc32c(q, n - 4);
-        q[n - 4] = c >> 24; q[n - 3] = c >> 16; q[n - 2] = c >> 8; q[n - 1] = c;
+        q[n - 4] = c; q[n - 3] = c >> 8; q[n - 2] = c >> 16; q[n - 1] = c >> 24;
     }
 }
 static void rx_cb(void *u, const zrtp_keys *k) { side *s = u; s->rx = *k; s->got_rx = 1; }

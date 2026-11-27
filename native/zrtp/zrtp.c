@@ -101,7 +101,7 @@ static void send_msg(zrtp_t *z, const msg_t *m) {
     pkt[0] = 0x10; pkt[1] = 0x00; pkt[2] = z->seq >> 8; pkt[3] = (uint8_t)z->seq; z->seq++;
     put32(pkt + 4, 0x5a525450); put32(pkt + 8, z->ssrc);
     memcpy(pkt + 12, m->m, m->n);
-    put32(pkt + 12 + m->n, zrtp_crc32c(pkt, 12 + m->n));
+    { uint32_t c = zrtp_crc32c(pkt, 12 + m->n); uint8_t *w = pkt + 12 + m->n; w[0] = c; w[1] = c >> 8; w[2] = c >> 16; w[3] = c >> 24; }      /* the CRC goes out least significant byte first, as in SCTP */
     z->cb.send(z->cb.user, pkt, 16 + m->n);
 }
 
@@ -516,7 +516,7 @@ void zrtp_srtp_seen(zrtp_t *z) { if (z->st == Z_CONF2) go_secure(z); }
 int zrtp_recv(zrtp_t *z, const uint8_t *pkt, size_t len) {
     if (!zrtp_is_zrtp(pkt, len)) return 0;
     if (len < 16 + 12 || len > ZRTP_MAX_PACKET) return 1;
-    if (be32(pkt + len - 4) != zrtp_crc32c(pkt, len - 4)) return 1;                  /* damaged: dropped */
+    { const uint8_t *w = pkt + len - 4; uint32_t got = (uint32_t)w[0] | (uint32_t)w[1] << 8 | (uint32_t)w[2] << 16 | (uint32_t)w[3] << 24; if (got != zrtp_crc32c(pkt, len - 4)) return 1; }                  /* damaged: dropped */
     const uint8_t *m = pkt + 12; size_t n = len - 16;
     if (m[0] != 0x50 || m[1] != 0x5a || n < 12 || (size_t)((m[2] << 8) | m[3]) * 4 != n || n > MAXMSG) return 1;
     if (z->st == Z_FAILED) return 1;
