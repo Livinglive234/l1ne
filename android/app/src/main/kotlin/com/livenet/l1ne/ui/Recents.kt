@@ -80,7 +80,7 @@ fun RecentsScreen(open: (Dest) -> Unit) {
 
 fun callBack(app: com.livenet.l1ne.L1neApplication, r: CallRecord) {
     val acc = app.store.account(r.accountID)
-    app.engine.call(r.peer.substringBefore('@'), acc)
+    app.engine.call(r.peer, acc)
 }
 
 /** "Today | 12:37 PM", "Yesterday | 9:10 PM", "11/13 | 10:41 AM" */

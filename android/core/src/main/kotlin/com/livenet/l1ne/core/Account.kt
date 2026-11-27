@@ -71,6 +71,17 @@ data class Account(
         return dialAddPrefix + n
     }
 
+    /** The SIP address to dial for what was typed or tapped. An explicit sip: / sips: address goes out as it is (the voicemail number, a link from another app).
+     *  A bare "user@domain" on this account's own server gets the dial rules like a typed number, so the outside-line prefix is put back on a call-back from
+     *  Recents (the history keeps numbers without it); one on another server goes out as it is. */
+    fun dialUri(text: String): String {
+        val t = text.trim(); val lower = t.lowercase()
+        if (lower.startsWith("sip:") || lower.startsWith("sips:")) return t
+        val at = t.lastIndexOf('@')
+        if (at < 0) return "sip:${dial(t)}@$domain"
+        return if (t.substring(at + 1).equals(domain, true)) "sip:${dial(t.substring(0, at))}@$domain" else "sip:$t"
+    }
+
     /** An address as it was dialled -> as it should be kept in the call history: without the outside-line prefix, so redial and
      *  callbacks still work. "96125550142@pbx" with prefix 9 -> "6125550142@pbx". */
     fun withoutOutboundPrefix(address: String): String {

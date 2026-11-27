@@ -102,6 +102,17 @@ struct Account: Codable, Identifiable, Equatable {
         return dialAddPrefix + n
     }
 
+    /// The SIP address to dial for what was typed or tapped. An explicit sip: / sips: address goes out as it is (the voicemail number, a link from another app).
+    /// A bare "user@domain" on this account's own server gets the dial rules like a typed number, so the outside-line prefix is put back on a call-back from
+    /// Recents (the history keeps numbers without it); one on another server goes out as it is.
+    func dialURI(_ text: String) -> String {
+        let t = text.trimmingCharacters(in: .whitespaces), lower = t.lowercased()
+        if lower.hasPrefix("sip:") || lower.hasPrefix("sips:") { return t }
+        guard let at = t.lastIndex(of: "@") else { return "sip:\(dial(t))@\(domain)" }
+        let user = String(t[..<at]), host = String(t[t.index(after: at)...])
+        return host.lowercased() == domain.lowercased() ? "sip:\(dial(user))@\(domain)" : "sip:\(t)"
+    }
+
     /// An address as it was dialled -> as it should be kept in the call history: without the outside-line prefix, so redial and
     /// callbacks still work. "96125550142@pbx" with prefix 9 -> "6125550142@pbx".
     func withoutOutboundPrefix(_ address: String) -> String {

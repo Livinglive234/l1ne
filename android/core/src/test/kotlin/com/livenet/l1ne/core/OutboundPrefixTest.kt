@@ -28,4 +28,12 @@ class OutboundPrefixTest {
         assertEquals("9125550142@pbx.example.com", a.withoutOutboundPrefix("9125550142@pbx.example.com"))   // a real 912 number, not prefixed
         assertEquals("96125550142", a.copy(outboundPrefix = "").withoutOutboundPrefix("96125550142"))
     }
+
+    @Test fun dialingAnAddressUsesTheRulesOnlyOnTheAccountsOwnServer() {
+        val acc = a.copy(domain = "pbx.example.com")
+        assertEquals("sip:96125550142@pbx.example.com", acc.dialUri("6125550142@pbx.example.com"))        // a call-back from Recents: the prefix is put back
+        assertEquals("sip:96125550142@pbx.example.com", acc.dialUri("6125550142@PBX.example.com")); assertEquals("sip:96125550142@pbx.example.com", acc.dialUri("6125550142"))
+        assertEquals("sip:7001@pbx.example.com", acc.dialUri("7001@pbx.example.com"))
+        assertEquals("sip:6125550142@other.example.org", acc.dialUri("6125550142@other.example.org")); assertEquals("sip:*97@pbx.example.com", acc.dialUri("sip:*97@pbx.example.com"))
+    }
 }

@@ -40,6 +40,7 @@ check(RingbackRule.wanted(outgoing: true, answered: false, waiting: true, accept
 check(!RingbackRule.wanted(outgoing: true, answered: true, waiting: true, acceptEarlyMedia: false) && !RingbackRule.wanted(outgoing: false, answered: false, waiting: true, acceptEarlyMedia: false)
       && !RingbackRule.wanted(outgoing: true, answered: false, waiting: false, acceptEarlyMedia: false) && !RingbackRule.wanted(outgoing: true, answered: false, waiting: true, acceptEarlyMedia: true), "none once answered, for incoming calls, when not waiting, or when the PBX's early media is let through")
 
+
 // version label
 check(VersionLabel.pretty("0.1.0-beta.9") == "0.1.0 beta 9" && VersionLabel.pretty("0.1.0-rc1") == "0.1.0 rc1" && VersionLabel.pretty("0.1.0") == "0.1.0" && VersionLabel.pretty("1.0") == "1.0", "a tag version reads naturally")
 
@@ -48,6 +49,11 @@ var ob = Account(); ob.username = "7001"; ob.domain = "pbx.example.com"; ob.outb
 check(ob.dial("6125550142") == "96125550142" && ob.dial("(612) 555-0142") == "96125550142" && ob.dial("16125550142") == "916125550142" && ob.dial("+16125550142") == "916125550142", "outside numbers get the prefix")
 check(["7001", "2997", "0", "*97", "911", "96125550142"].allSatisfy { ob.dial($0) == $0 }, "extensions, codes and prefixed numbers are left alone")
 var ob2 = ob; ob2.formatWithPrefix = true; ob2.intlPrefix = "1"; ob2.plusTo00 = true
+// dialling an address: the account's own server gets the dial rules (the outside-line prefix is put back on a call-back), another server is left alone
+var dialAcc = ob; dialAcc.domain = "pbx.example.com"
+check(dialAcc.dialURI("6125550142@pbx.example.com") == "sip:96125550142@pbx.example.com" && dialAcc.dialURI("6125550142@PBX.example.com") == "sip:96125550142@pbx.example.com", "a call-back to an outside number on the account's own server gets the prefix again")
+check(dialAcc.dialURI("7001@pbx.example.com") == "sip:7001@pbx.example.com" && dialAcc.dialURI("6125550142") == "sip:96125550142@pbx.example.com", "extensions are left alone, a typed number gets the rules")
+check(dialAcc.dialURI("6125550142@other.example.org") == "sip:6125550142@other.example.org" && dialAcc.dialURI("sip:*97@pbx.example.com") == "sip:*97@pbx.example.com", "another server and explicit sip: addresses go out as they are")
 check(ob2.dial("6125550142") == "96125550142" && ob2.dial("+44207123456789") == "0044207123456789", "works with the other dial rules")
 check(ob.withoutOutboundPrefix("96125550142@pbx.example.com") == "6125550142@pbx.example.com" && ob.withoutOutboundPrefix("7001@pbx.example.com") == "7001@pbx.example.com" && ob.withoutOutboundPrefix("9125550142@pbx.example.com") == "9125550142@pbx.example.com", "history keeps the number without the prefix")
 let xmlPrefix = (try! String(contentsOf: dir.appendingPathComponent("linphone-provision.xml"), encoding: .utf8)).replacingOccurrences(of: "</config>", with: "<section name=\"l1ne\"><entry name=\"outbound_prefix\">9</entry></section></config>")

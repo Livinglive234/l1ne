@@ -168,7 +168,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
         val a = from ?: store.accounts.value.firstOrNull { _registration.value[it.id] == "Registered" } ?: store.accounts.value.firstOrNull() ?: return false
         val pj = pjAcc[a.id] ?: return false
         val full = number.contains("@")
-        val id = Native.nCall(pj, if (full) "sip:$number" else "sip:${a.dial(number)}@${a.domain}")
+        val id = Native.nCall(pj, a.dialUri(number))
         if (id < 0) return false
         return placed(id, if (full) "sip:$number" else "sip:$number@${a.domain}", Redial(number, null, a.id, attempt), a.id, number, "$number@${a.domain}")
     }

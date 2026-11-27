@@ -99,7 +99,7 @@ fun ContactsScreen(open: (Dest) -> Unit) {
                             Text(c.name, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(c.address, style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        CallCircleButton { app.engine.call(c.user, app.store.account(c.accountID) ?: app.store.selected) }
+                        CallCircleButton { app.engine.call(c.address, app.store.account(c.accountID) ?: app.store.selected) }
                     }
                     RowDivider()
                     }
@@ -168,7 +168,7 @@ fun PersonScreen(p: PersonTarget, open: (Dest) -> Unit, onBack: (() -> Unit)?) {
             Avatar(120.dp, initialsOf(p.name), L1neColors.Brand.copy(alpha = 0.14f))
             Text(p.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
             Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-                Action(Icons.Filled.Call, "call") { app.engine.call(p.address.substringBefore('@'), account) }
+                Action(Icons.Filled.Call, "call") { app.engine.call(p.address, account) }
                 if (p.address.contains("@")) Action(Icons.AutoMirrored.Filled.Message, "message") { account?.let { open(Dest.Thread(it.id, p.address)) } }
             }
             Card(Modifier.padding(top = 4.dp)) {

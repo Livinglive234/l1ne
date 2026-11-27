@@ -94,7 +94,7 @@ fun ThreadScreen(accountID: String, peer: String, open: (Dest) -> Unit, onBack: 
 
     PageScaffold(name, onBack, actions = {
         IconButton({ open(Dest.Person(PersonTarget(name, peer, accountID))) }) { Icon(Icons.Filled.Info, "Contact info") }
-        IconButton({ app.engine.call(user, account) }) { Icon(Icons.Filled.Call, "Call") }
+        IconButton({ app.engine.call(peer, account) }) { Icon(Icons.Filled.Call, "Call") }
     }) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().imePadding()) {
             if (accountTitle(accounts, accountID) != null) Text("from ${account?.titleWithUser ?: "—"}", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
