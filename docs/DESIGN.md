@@ -61,10 +61,9 @@ See [PUSH.md](PUSH.md) and [ROADMAP.md](ROADMAP.md). Decided approach: a per-acc
 device token) or a self-hosted proxy. A hosted proxy that holds people's SIP logins was ruled out on purpose. Designed, not built.
 
 ## Android
-Same product, formats and rules, with Android conventions: Material 3 theme with the same palette, three bottom-bar destinations, an avatar menu
-that opens account and settings sheets; PJSIP's Java bindings for the engine; Telecom `ConnectionService` for calls; FCM for push later; the
-contact picker via `ACTION_PICK` (no `READ_CONTACTS`). `android/core` (accounts, vCard, provisioning) is pure Kotlin and tested against the same
-fixtures as iOS. `android/app` currently has the theme, tabs and keypad only.
+Same product, formats and rules, with Android conventions: Material 3 theme with the same palette, an avatar menu that opens account and settings,
+the system Telecom `ConnectionService` for calls, and the contact picker via `ACTION_PICK` (no `READ_CONTACTS`). The engine is the same PJSIP behind a small
+C bridge (`android/app/src/main/cpp`). `android/core` (accounts, vCard, provisioning, dial rules) is pure Kotlin and tested against the same fixtures as iOS.
 
 ## Third-party components
 PJSIP 2.17 (SIP, media, SRTP, DTLS-SRTP), OpenSSL 3.5 (TLS), Mozilla CA bundle. See the README for licensing.

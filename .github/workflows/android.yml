@@ -103,12 +103,14 @@ jobs:
       - name: Name the APK
         run: |
           if [ -n "$RELEASE_TAG" ]; then
+            APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/ | tail -1)apksigner"
             for abi in arm64-v8a armeabi-v7a universal; do
               cp "android/app/build/outputs/apk/release/app-$abi-release.apk" "L1ne-${RELEASE_TAG}-android-$abi.apk"
               # Show who signed it: the SHA-256 must stay the same for every release, or phones will refuse to update.
-              echo "== $abi"; "$(ls -d "$ANDROID_HOME"/build-tools/*/ | tail -1)apksigner" verify --print-certs "L1ne-${RELEASE_TAG}-android-$abi.apk" | grep -E "SHA-256|Verifies"
+              CERTS="$("$APKSIGNER" verify --print-certs "L1ne-${RELEASE_TAG}-android-$abi.apk")"
+              echo "== $abi"; echo "$CERTS" | grep -E "SHA-256|Verifies"
               # Every release must be signed by the same key (pinned in .github/release-cert.sha256), or no phone will install it over the last one. Stop here if not.
-              GOT="$("$(ls -d "$ANDROID_HOME"/build-tools/*/ | tail -1)apksigner" verify --print-certs "L1ne-${RELEASE_TAG}-android-$abi.apk" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)"
+              GOT="$(echo "$CERTS" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)"
               [ "$GOT" = "$(tr -d '[:space:]' < .github/release-cert.sha256)" ] || { echo "::error::$abi APK is signed by $GOT, not the pinned release key. Phones would refuse to update to it."; exit 1; }
             done
           else

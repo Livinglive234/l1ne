@@ -1,6 +1,6 @@
 #!/bin/bash
 # Builds pjproject (vendor/pjproject) for iOS device + simulator (arm64) and packs it into
-# vendor/PJSIP.xcframework. TLS uses Apple's own backend (no OpenSSL to cross-build);
+# vendor/PJSIP.xcframework. TLS and DTLS-SRTP use OpenSSL (vendor/openssl, built by build-openssl.sh);
 # SRTP uses pjproject's bundled libsrtp (SDES, what Asterisk/FreePBX offers).
 # Usage: scripts/build-pjsip.sh            (re-run safely; each slice builds in vendor/build/<slice>)
 set -euo pipefail

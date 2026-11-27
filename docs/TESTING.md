@@ -26,7 +26,7 @@ what is dialled, so one running copy covers every scenario:
 `GET /log` returns everything it saw, `GET /clear` empties the log. `tests/mock/mock_sip_tls.py` is the older TLS-only server used for certificate and
 encryption-offer checks from the iPhone simulator (`run-call-test.sh`).
 
-## Android: `WireTest` (32 tests)
+## Android: `WireTest`
 `android/app/src/androidTest/kotlin/com/livenet/l1ne/WireTest.kt` uses the app's own engine (PJSIP can only start once per process) and checks both what the
 engine reports and what the server saw on the wire: registration (good and wrong password, 404, 503, silent server, UDP, disabled account), calls (answered, busy,
 declined, unknown, cancelled while ringing, early media, hold and resume, transfer, voicemail button, dial rules, incoming), what is offered (no encryption, SDES keys, DTLS
@@ -49,7 +49,7 @@ cd android && ANDROID_SERIAL=<emulator> ./gradlew :app:connectedDebugAndroidTest
 ```
 Keep the emulator awake and unlocked (`adb shell svc power stayon true`): a sleeping screen makes every test fail with "No compose hierarchies found". Breaking `TWO_PANE_MIN_DP` on purpose makes 5 of the 8 fail, so they do notice.
 
-## iPhone: `WireTests` (32 tests)
+## iPhone: `WireTests`
 `tests/ios/L1neTests/WireTests.swift` is the same set of scenarios as the Android one (registration, calls, what is offered, texts, message waiting and the QR / setup-link login check), run by Xcode inside the app on a simulator so it drives the app's own engine.
 
 ```bash

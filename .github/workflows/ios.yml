@@ -47,6 +47,10 @@ jobs:
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
 
+      # needs only swiftc, so a failure shows up in a minute and not after the native build
+      - name: Parser tests
+        run: tests/parsers/run.sh
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -64,11 +68,6 @@ jobs:
           scripts/fetch-deps.sh
           scripts/build-openssl.sh
           scripts/build-pjsip.sh
-
-      - name: Parser tests
-        run: |
-          swiftc -o /tmp/parsers L1ne/PhoneFormat.swift L1ne/SipLog.swift L1ne/VCard.swift L1ne/Provisioning.swift L1ne/Account.swift L1ne/SystemContacts.swift L1ne/ContactsStore.swift tests/parsers/main.swift
-          /tmp/parsers tests/fixtures
 
       - name: Generate the Xcode project
         run: scripts/gen.sh

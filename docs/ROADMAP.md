@@ -73,7 +73,7 @@ Supporting it in L1ne would mean implementing Linphone's group chat protocol on 
 
 ## Built: wide screens, and LATER: foldable and dual-screen phones
 
-**Built (2026-11-25): two-pane layouts on wide windows**, on both platforms, whenever the window is wide (iPad, the iPhone Duo's inner screen, an Android tablet or unfolded foldable; Android: 840 dp or more).
+**Built (2026-11-25): two-pane layouts on wide windows**, on both platforms, whenever the window is wide (iPad, the iPhone Duo's inner screen, an Android tablet or unfolded foldable; Android: 700 dp or more).
 Recents, Contacts and Chats show the list beside the person or conversation; the Keypad shows the matching contacts (or recent calls while the number is empty) beside the keys.
 Voicemail and Settings stay single-column (nothing to show beside them) at a readable width. On a narrow window nothing changes. The keypad also shrinks its keys on a short screen. Tested on the iPad Pro 13" and iPhone Duo simulators and an Android tablet emulator; the Duo's hinge postures were checked (closed, half open, flat) and the keypad entry survived switching screens.
 Android's main activity handles size changes itself, so folding does not recreate it.

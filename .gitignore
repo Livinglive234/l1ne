@@ -7,12 +7,15 @@ build/
 .DS_Store
 .local/
 *.log
+__pycache__/
+*.pyc
 
 # third-party sources and build products (fetch with scripts/fetch-deps.sh, build with scripts/build-*.sh)
 vendor/
 
 # Android
 android/.gradle/
+android/app/.cxx/
 android/**/build/
 android/local.properties
 *.iml
@@ -20,4 +23,3 @@ android/local.properties
 
 # private notes about a specific installation (not published)
 docs/private/
-android/app/.cxx/
