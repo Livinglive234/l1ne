@@ -68,17 +68,26 @@ fun SettingsScreen(open: (Dest) -> Unit, onBack: () -> Unit) {
 
             SectionHeader("Incoming calls")
             Card {
-                SwitchRow("Stay connected in the background", keepAlive, subtitle = "Shows a small notification so calls can ring when L1ne is closed") { s.keepAlive = it; if (it) com.livenet.l1ne.sip.KeepAliveService.start(ctx) else com.livenet.l1ne.sip.KeepAliveService.stop(ctx) }; RowDivider()
+                // One switch for both halves of "calls can reach this phone while it sits idle": the small notification that keeps L1ne running, and
+                // Android's own permission to not be put to sleep. Android never lets an app grant that permission to itself, so turning the switch on
+                // opens Android's prompt for it; turning it off stops the notification (the permission can only be taken back in Android's settings).
+                val receiving = keepAlive && batteryOk
+                SwitchRow("Receive calls in the background", receiving,
+                    subtitle = if (keepAlive && !batteryOk) "Android may still put L1ne to sleep when the phone is idle. Turn on and allow it when Android asks." else "Keeps L1ne connected, with a small notification, so calls ring when the phone has been idle") { on ->
+                    s.keepAlive = on
+                    if (on) {
+                        com.livenet.l1ne.sip.KeepAliveService.start(ctx)
+                        if (!batteryOk) ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, android.net.Uri.parse("package:${ctx.packageName}")))
+                    } else com.livenet.l1ne.sip.KeepAliveService.stop(ctx)
+                }
                 if (android.os.Build.VERSION.SDK_INT >= 34) {
+                    RowDivider()
                     val lockScreenOk = remember(shownAgain) { ctxPm.getSystemService(android.app.NotificationManager::class.java).canUseFullScreenIntent() }
                     NavRow("Show calls on the lock screen", if (lockScreenOk) "On" else "Off") {
                         ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, android.net.Uri.parse("package:${ctx.packageName}"))) }
-                    RowDivider()
                 }
-                NavRow("Allow background activity", if (batteryOk) "On" else "Off", icon = Icons.Filled.BatteryChargingFull) {
-                    ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, android.net.Uri.parse("package:${ctx.packageName}"))) }
             }
-            FooterText("Android pauses background apps to save battery. Turn on background activity so a call can wake L1ne when the phone has been idle. On Android 14 and later, \"Show calls on the lock screen\" must be on for an incoming call to light the screen and show Answer and Decline while the phone is locked.")
+            FooterText("Android pauses background apps to save battery. \"Receive calls in the background\" keeps L1ne awake so a call can reach the phone when it has been idle. On Android 14 and later, \"Show calls on the lock screen\" must be on for an incoming call to light the screen and show Answer and Decline while the phone is locked.")
 
             SectionHeader("Network")
             Card { SwitchRow("Use only Wi-Fi networks", wifi) { s.wifiOnly = it; app.engine.registerAll() }; RowDivider(); SwitchRow("Allow IPv6", v6) { s.allowIPv6 = it } }
