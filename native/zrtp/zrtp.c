@@ -2,6 +2,8 @@
 #include "zrtp.h"
 
 #include <openssl/bn.h>
+#include <openssl/core_names.h>
+#include <openssl/param_build.h>
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
@@ -74,6 +76,8 @@ struct zrtp {
     int auth80;                                              /* chosen SRTP tag: 1 = HS80, 0 = HS32 */
 
     BIGNUM *x, *pub;                                         /* our DH secret and public value */
+    EVP_PKEY *ec; uint8_t ecpub[64]; int kex, kex_made;      /* kex: 0 = DH3k, 1 = EC25; kex_made: which one x/pub or ec hold (1 + kex), 0 = none */
+    int no_ec;                                               /* do not offer EC25 (tests, and peers that cannot do it) */
     uint8_t hvi[32];
 
     zrtp_cache_entry ce; int had_entry;                      /* what we remember about this peer */
@@ -155,6 +159,46 @@ static int dh_result(zrtp_t *z, const uint8_t *peer_pv, uint8_t out[DH3K_BYTES])
 
 static void pub_bytes(zrtp_t *z, uint8_t out[DH3K_BYTES]) { BN_bn2binpad(z->pub, out, DH3K_BYTES); }
 
+/* ---------- key agreement: DH3k (RFC 3526 group) or EC25 (ECDH on NIST P-256, public value X||Y) ---------- */
+
+#define EC25_PV 64
+static size_t pv_len(int kex) { return kex ? EC25_PV : DH3K_BYTES; }
+
+static int kex_generate(zrtp_t *z) {
+    if (z->kex_made == z->kex + 1) return 1;                 /* already made for this algorithm */
+    BN_clear_free(z->x); BN_free(z->pub); EVP_PKEY_free(z->ec); z->x = NULL; z->pub = NULL; z->ec = NULL; z->kex_made = 0;
+    if (!z->kex) { if (!dh_generate(z)) return 0; z->kex_made = 1; return 1; }
+    z->ec = EVP_EC_gen("P-256");
+    uint8_t buf[80]; size_t len = 0;
+    if (!z->ec || EVP_PKEY_get_octet_string_param(z->ec, OSSL_PKEY_PARAM_PUB_KEY, buf, sizeof buf, &len) != 1 || len != 65 || buf[0] != 4) return 0;
+    memcpy(z->ecpub, buf + 1, EC25_PV); z->kex_made = 2; return 1;
+}
+
+static void kex_pub(zrtp_t *z, uint8_t *out) { if (z->kex) memcpy(out, z->ecpub, EC25_PV); else pub_bytes(z, out); }
+
+/* The peer's public value must be a valid one: for DH neither 0, 1 nor p-1; for EC a point on the curve. */
+static int kex_valid(int kex, const uint8_t *pv) {
+    if (!kex) return dh_valid(pv);
+    uint8_t buf[65]; buf[0] = 4; memcpy(buf + 1, pv, EC25_PV);
+    OSSL_PARAM_BLD *bld = OSSL_PARAM_BLD_new(); OSSL_PARAM *par = NULL; EVP_PKEY_CTX *ctx = NULL, *chk = NULL; EVP_PKEY *k = NULL; int ok = 0;
+    if (bld && OSSL_PARAM_BLD_push_utf8_string(bld, OSSL_PKEY_PARAM_GROUP_NAME, "P-256", 0) && OSSL_PARAM_BLD_push_octet_string(bld, OSSL_PKEY_PARAM_PUB_KEY, buf, sizeof buf) && (par = OSSL_PARAM_BLD_to_param(bld))
+        && (ctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL)) && EVP_PKEY_fromdata_init(ctx) == 1 && EVP_PKEY_fromdata(ctx, &k, EVP_PKEY_PUBLIC_KEY, par) == 1 && k
+        && (chk = EVP_PKEY_CTX_new_from_pkey(NULL, k, NULL))) ok = EVP_PKEY_public_check(chk) == 1;
+    EVP_PKEY_CTX_free(chk); EVP_PKEY_free(k); EVP_PKEY_CTX_free(ctx); OSSL_PARAM_free(par); OSSL_PARAM_BLD_free(bld); return ok;
+}
+
+/* The shared secret: DH gives 384 bytes, EC the 32-byte X coordinate. Returns its length, 0 on failure. */
+static size_t kex_result(zrtp_t *z, const uint8_t *peer_pv, uint8_t out[DH3K_BYTES]) {
+    if (!z->kex) return dh_result(z, peer_pv, out) ? DH3K_BYTES : 0;
+    uint8_t buf[65]; buf[0] = 4; memcpy(buf + 1, peer_pv, EC25_PV);
+    OSSL_PARAM_BLD *bld = OSSL_PARAM_BLD_new(); OSSL_PARAM *par = NULL; EVP_PKEY_CTX *ctx = NULL, *dctx = NULL; EVP_PKEY *peer = NULL; size_t len = 0, ret = 0;
+    if (bld && OSSL_PARAM_BLD_push_utf8_string(bld, OSSL_PKEY_PARAM_GROUP_NAME, "P-256", 0) && OSSL_PARAM_BLD_push_octet_string(bld, OSSL_PKEY_PARAM_PUB_KEY, buf, sizeof buf) && (par = OSSL_PARAM_BLD_to_param(bld))
+        && (ctx = EVP_PKEY_CTX_new_from_name(NULL, "EC", NULL)) && EVP_PKEY_fromdata_init(ctx) == 1 && EVP_PKEY_fromdata(ctx, &peer, EVP_PKEY_PUBLIC_KEY, par) == 1 && peer
+        && (dctx = EVP_PKEY_CTX_new(z->ec, NULL)) && EVP_PKEY_derive_init(dctx) == 1 && EVP_PKEY_derive_set_peer(dctx, peer) == 1
+        && EVP_PKEY_derive(dctx, NULL, &len) == 1 && len == 32 && EVP_PKEY_derive(dctx, out, &len) == 1 && len == 32) ret = 32;
+    EVP_PKEY_CTX_free(dctx); EVP_PKEY_free(peer); EVP_PKEY_CTX_free(ctx); OSSL_PARAM_free(par); OSSL_PARAM_BLD_free(bld); return ret;
+}
+
 /* ---------- failure ---------- */
 
 static void fail(zrtp_t *z, zrtp_failure why, int code, int send_error) {
@@ -169,8 +213,11 @@ static void fail(zrtp_t *z, zrtp_failure why, int code, int send_error) {
 
 /* ---------- lifecycle ---------- */
 
-zrtp_t *zrtp_new(const zrtp_callbacks *cb, const uint8_t zid[ZRTP_ZID_LEN], uint32_t ssrc) {
+zrtp_t *zrtp_new(const zrtp_callbacks *cb, const uint8_t zid[ZRTP_ZID_LEN], uint32_t ssrc) { return zrtp_new_ex(cb, zid, ssrc, 0); }
+
+zrtp_t *zrtp_new_ex(const zrtp_callbacks *cb, const uint8_t zid[ZRTP_ZID_LEN], uint32_t ssrc, int opts) {
     zrtp_t *z = calloc(1, sizeof *z); if (!z) return NULL;
+    z->no_ec = (opts & ZRTP_ENABLE_EC) == 0;
     z->cb = *cb; memcpy(z->zid, zid, ZRTP_ZID_LEN); z->ssrc = ssrc; z->st = Z_HELLO;
     uint8_t s[2]; rnd(s, 2); z->seq = (uint16_t)(s[0] << 8 | s[1]);
     rnd(z->h0, 32); sha256(z->h0, 32, z->h1); sha256(z->h1, 32, z->h2); sha256(z->h2, 32, z->h3);
@@ -179,16 +226,17 @@ zrtp_t *zrtp_new(const zrtp_callbacks *cb, const uint8_t zid[ZRTP_ZID_LEN], uint
     msg_put(h, "1.10", 4); msg_put(h, "L1ne ZRTP 0.1   ", 16); msg_put(h, z->h3, 32); msg_put(h, zid, ZRTP_ZID_LEN);
     /* the 32-bit word: 0 S M P | 8 unused | hc cc ac kc sc (4 bits each) */
     uint8_t flags[4];
-    uint32_t w = (1u << 16) | (1u << 12) | (2u << 8) | (1u << 4) | 1u; put32(flags, w);
+    uint32_t w = (1u << 16) | (1u << 12) | (2u << 8) | ((z->no_ec ? 1u : 2u) << 4) | 1u; put32(flags, w);
     msg_put(h, flags, 4);
-    msg_put(h, "S256", 4); msg_put(h, "AES1", 4); msg_put(h, "HS80", 4); msg_put(h, "HS32", 4); msg_put(h, "DH3k", 4); msg_put(h, "B32 ", 4);
+    msg_put(h, "S256", 4); msg_put(h, "AES1", 4); msg_put(h, "HS80", 4); msg_put(h, "HS32", 4); if (!z->no_ec) msg_put(h, "EC25", 4);                    /* the faster of the two, preferred */
+    msg_put(h, "DH3k", 4); msg_put(h, "B32 ", 4);
     msg_end_mac(h, z->h2);
     return z;
 }
 
 void zrtp_free(zrtp_t *z) {
     if (!z) return;
-    BN_clear_free(z->x); BN_free(z->pub); OPENSSL_cleanse(z, sizeof *z); free(z);
+    BN_clear_free(z->x); BN_free(z->pub); EVP_PKEY_free(z->ec); OPENSSL_cleanse(z, sizeof *z); free(z);
 }
 
 void zrtp_start(zrtp_t *z) {
@@ -200,6 +248,7 @@ void zrtp_set_ssrc(zrtp_t *z, uint32_t ssrc) { z->ssrc = ssrc; }
 void zrtp_hello_hash(const zrtp_t *z, uint8_t out[32]) { sha256(z->hello.m, z->hello.n, out); }
 
 int zrtp_is_zrtp(const uint8_t *p, size_t n) { return n >= 16 && p[0] == 0x10 && p[1] == 0x00 && be32(p + 4) == 0x5a525450; }
+const char *zrtp_key_agreement(const zrtp_t *z) { return z->kex ? "EC25" : "DH3k"; }
 int zrtp_is_secure(const zrtp_t *z) { return z->st == Z_SECURE; }
 int zrtp_is_failed(const zrtp_t *z) { return z->st == Z_FAILED; }
 const char *zrtp_sas(const zrtp_t *z) { return z->sas; }
@@ -257,12 +306,12 @@ static const uint8_t *shared_s1(zrtp_t *z, const uint8_t theirs1[8], const uint8
 }
 
 /* From the DH result and the exchanged messages to every key we need. Fills ctx, keys, SAS, confirm keys and the new retained secret. */
-static int derive(zrtp_t *z, const uint8_t *dhresult, const uint8_t *s1) {
+static int derive(zrtp_t *z, const uint8_t *dhresult, size_t dhlen, const uint8_t *s1) {
     const uint8_t *zid_i = z->initiator ? z->zid : z->peer_zid, *zid_r = z->initiator ? z->peer_zid : z->zid;
     const msg_t *hello_r = z->initiator ? &z->peer_hello : &z->hello;
     sha_cat(hello_r, &z->commit, &z->dh1, &z->dh2, z->total_hash);
     buf_t b = {0};
-    bput32(&b, 1); bput(&b, dhresult, DH3K_BYTES); bput(&b, "ZRTP-HMAC-KDF", 13); bput(&b, zid_i, 12); bput(&b, zid_r, 12); bput(&b, z->total_hash, 32);
+    bput32(&b, 1); bput(&b, dhresult, dhlen); bput(&b, "ZRTP-HMAC-KDF", 13); bput(&b, zid_i, 12); bput(&b, zid_r, 12); bput(&b, z->total_hash, 32);
     bput32(&b, s1 ? 32 : 0); if (s1) bput(&b, s1, 32);
     bput32(&b, 0);                                           /* s2: no auxiliary secret */
     bput32(&b, 0);                                           /* s3: no PBX secret */
@@ -372,25 +421,34 @@ static int hello_ok(zrtp_t *z, const msg_t *h) {
     return h->n == 12 + 4 + 16 + 32 + 12 + 4 + 4 * (hc + cc + ac + kc + sc) + 8;
 }
 
+/* Does the other side list this key agreement (EC25 only; DH3k is mandatory and always available)? */
+static int peer_offers(const msg_t *h, const char *kex) {
+    uint32_t w = be32(h->m + 76); unsigned hc = (w >> 16) & 15, cc = (w >> 12) & 15, ac = (w >> 8) & 15, kc = (w >> 4) & 15;
+    const uint8_t *k = h->m + 80 + 4 * (hc + cc + ac);
+    for (unsigned i = 0; i < kc; i++) if (!memcmp(k + 4 * i, kex, 4)) return 1;
+    return 0;
+}
+
 static void send_helloack(zrtp_t *z) { msg_t a; msg_begin(&a, "HelloACK"); msg_end_plain(&a); send_msg(z, &a); }
 
 /* Both Hellos are in and ours was acknowledged: start the key agreement. */
 static void try_commit(zrtp_t *z) {
     if (z->st != Z_HELLO || !z->have_peer_hello || !z->hello_acked) return;
     z->initiator = 1;
-    if (!dh_generate(z)) { fail(z, ZRTP_FAIL_PROTOCOL, 0x20, 1); return; }
+    z->kex = !z->no_ec && peer_offers(&z->peer_hello, "EC25");      /* the faster one when both have it */
+    if (!kex_generate(z)) { fail(z, ZRTP_FAIL_PROTOCOL, 0x20, 1); return; }
     prepare_ids(z);
     /* DHPart2 is complete before the Commit goes out: hvi commits to it (section 4.4.1.1) */
     msg_t *d = &z->dh2; msg_begin(d, "DHPart2 ");
     msg_put(d, z->h1, 32); msg_put(d, z->rs1id_i, 8); msg_put(d, z->rs2id_i, 8);
     uint8_t aux[16]; rnd(aux, 16); msg_put(d, aux, 16);      /* auxsecretID and pbxsecretID: nothing to match, so random */
-    uint8_t pv[DH3K_BYTES]; pub_bytes(z, pv); msg_put(d, pv, DH3K_BYTES);
+    uint8_t pv[DH3K_BYTES]; kex_pub(z, pv); msg_put(d, pv, pv_len(z->kex));
     msg_end_mac(d, z->h0);
     buf_t b = {0}; bput(&b, d->m, d->n); bput(&b, z->peer_hello.m, z->peer_hello.n); sha256(b.p, b.n, z->hvi); bfree(&b);
     msg_t *c = &z->commit; msg_begin(c, "Commit  ");
     z->auth80 = 1;                                           /* HS80 and HS32 are both mandatory to implement: the stronger tag is always available */
     msg_put(c, z->h2, 32); msg_put(c, z->zid, 12); msg_put(c, "S256", 4); msg_put(c, "AES1", 4); msg_put(c, z->auth80 ? "HS80" : "HS32", 4);
-    msg_put(c, "DH3k", 4); msg_put(c, "B32 ", 4); msg_put(c, z->hvi, 32);
+    msg_put(c, z->kex ? "EC25" : "DH3k", 4); msg_put(c, "B32 ", 4); msg_put(c, z->hvi, 32);
     msg_end_mac(c, z->h1);
     z->st = Z_COMMIT;
     retry_start(z, c, 150, 1200, 10);
@@ -421,20 +479,22 @@ static void on_commit(zrtp_t *z, const msg_t *m) {
     uint8_t chk[32]; sha256(h2, 32, chk);
     if (!eq(chk, z->peer_h3, 32)) return;                                            /* not from whoever sent the Hello */
     if (memcmp(m->m + 44, z->peer_zid, 12) != 0) return;
-    if (memcmp(hash, "S256", 4) || memcmp(hash + 4, "AES1", 4) || memcmp(hash + 12, "DH3k", 4) || memcmp(hash + 16, "B32 ", 4)) { fail(z, ZRTP_FAIL_PROTOCOL, 0x51, 1); return; }
+    if (memcmp(hash, "S256", 4) || memcmp(hash + 4, "AES1", 4) || memcmp(hash + 16, "B32 ", 4)) { fail(z, ZRTP_FAIL_PROTOCOL, 0x51, 1); return; }
+    int kex = !memcmp(hash + 12, "EC25", 4) ? 1 : 0;
+    if (kex ? z->no_ec : memcmp(hash + 12, "DH3k", 4)) { fail(z, ZRTP_FAIL_PROTOCOL, 0x53, 1); return; }          /* a key agreement we did not offer */
     int a80 = !memcmp(hash + 8, "HS80", 4); if (!a80 && memcmp(hash + 8, "HS32", 4)) { fail(z, ZRTP_FAIL_PROTOCOL, 0x54, 1); return; }
     if (z->st == Z_COMMIT) {                                                         /* both sent a Commit: the lower hvi gives way (section 4.2) */
         int c = memcmp(z->hvi, m->m + 76, 32);
         if (c > 0) return;                                                           /* ours is higher: they give way, we carry on as initiator */
     }
     z->initiator = 0; z->hello_acked = 1; retry_stop(z);
-    z->commit = *m; z->auth80 = a80; memcpy(z->peer_h2, h2, 32);
-    if (!dh_generate(z)) { fail(z, ZRTP_FAIL_PROTOCOL, 0x20, 1); return; }
+    z->commit = *m; z->auth80 = a80; z->kex = kex; memcpy(z->peer_h2, h2, 32);
+    if (!kex_generate(z)) { fail(z, ZRTP_FAIL_PROTOCOL, 0x20, 1); return; }
     prepare_ids(z);
     msg_t *d = &z->dh1; msg_begin(d, "DHPart1 ");
     msg_put(d, z->h1, 32); msg_put(d, z->rs1id_r, 8); msg_put(d, z->rs2id_r, 8);
     uint8_t aux[16]; rnd(aux, 16); msg_put(d, aux, 16);
-    uint8_t pv[DH3K_BYTES]; pub_bytes(z, pv); msg_put(d, pv, DH3K_BYTES);
+    uint8_t pv[DH3K_BYTES]; kex_pub(z, pv); msg_put(d, pv, pv_len(z->kex));
     msg_end_mac(d, z->h0);
     z->st = Z_DH1;
     send_msg(z, d);                                                                   /* the initiator repeats the Commit if this is lost */
@@ -443,18 +503,18 @@ static void on_commit(zrtp_t *z, const msg_t *m) {
 /* Initiator side: the responder's DHPart1. */
 static void on_dhpart1(zrtp_t *z, const msg_t *m) {
     if (z->st == Z_DH2 || z->st == Z_CONF2) { send_msg(z, &z->dh2); return; }
-    if (z->st != Z_COMMIT || m->n != 468) return;
+    if (z->st != Z_COMMIT || m->n != 84 + pv_len(z->kex)) return;
     const uint8_t *h1 = m->m + 12; uint8_t h2[32];
     sha256(h1, 32, h2); { uint8_t h3[32]; sha256(h2, 32, h3); if (!eq(h3, z->peer_h3, 32)) return; }     /* false packet */
     if (!mac_ok(&z->peer_hello, h2)) { fail(z, ZRTP_FAIL_ATTACK, 0x40, 1); return; }                     /* the Hello was changed on the way */
     const uint8_t *pvr = m->m + 76;
-    if (!dh_valid(pvr)) { fail(z, ZRTP_FAIL_ATTACK, 0x61, 1); return; }
+    if (!kex_valid(z->kex, pvr)) { fail(z, ZRTP_FAIL_ATTACK, 0x61, 1); return; }
     memcpy(z->peer_h1, h1, 32); memcpy(z->peer_h2, h2, 32);
     z->dh1 = *m;
-    uint8_t dh[DH3K_BYTES];
-    if (!dh_result(z, pvr, dh)) { fail(z, ZRTP_FAIL_PROTOCOL, 0x20, 1); return; }
+    uint8_t dh[DH3K_BYTES]; size_t dhlen = kex_result(z, pvr, dh);
+    if (!dhlen) { fail(z, ZRTP_FAIL_PROTOCOL, 0x20, 1); return; }
     const uint8_t *s1 = shared_s1(z, m->m + 44, m->m + 52, "Responder");
-    derive(z, dh, s1); OPENSSL_cleanse(dh, sizeof dh);
+    derive(z, dh, dhlen, s1); OPENSSL_cleanse(dh, sizeof dh);
     z->st = Z_DH2;
     retry_start(z, &z->dh2, 150, 1200, 10);
 }
@@ -462,20 +522,20 @@ static void on_dhpart1(zrtp_t *z, const msg_t *m) {
 /* Responder: DHPart2 arrives. */
 static void on_dhpart2(zrtp_t *z, const msg_t *m) {
     if (z->st == Z_CONF1) { send_msg(z, &z->confirm); return; }
-    if (z->st != Z_DH1 || m->n != 468) return;
+    if (z->st != Z_DH1 || m->n != 84 + pv_len(z->kex)) return;
     const uint8_t *h1 = m->m + 12; uint8_t chk[32];
     sha256(h1, 32, chk); if (!eq(chk, z->peer_h2, 32)) return;                       /* false packet */
     if (!mac_ok(&z->commit, h1)) { fail(z, ZRTP_FAIL_ATTACK, 0x62, 1); return; }
     if (!mac_ok(&z->peer_hello, z->peer_h2)) { fail(z, ZRTP_FAIL_ATTACK, 0x40, 1); return; }
     const uint8_t *pvi = m->m + 76;
-    if (!dh_valid(pvi)) { fail(z, ZRTP_FAIL_ATTACK, 0x61, 1); return; }
+    if (!kex_valid(z->kex, pvi)) { fail(z, ZRTP_FAIL_ATTACK, 0x61, 1); return; }
     buf_t b = {0}; bput(&b, m->m, m->n); bput(&b, z->hello.m, z->hello.n); sha256(b.p, b.n, chk); bfree(&b);
     if (!eq(chk, z->commit.m + 76, 32)) { fail(z, ZRTP_FAIL_ATTACK, 0x62, 1); return; }               /* hvi does not match: a man in the middle */
     memcpy(z->peer_h1, h1, 32); z->dh2 = *m;
-    uint8_t dh[DH3K_BYTES];
-    if (!dh_result(z, pvi, dh)) { fail(z, ZRTP_FAIL_PROTOCOL, 0x20, 1); return; }
+    uint8_t dh[DH3K_BYTES]; size_t dhlen = kex_result(z, pvi, dh);
+    if (!dhlen) { fail(z, ZRTP_FAIL_PROTOCOL, 0x20, 1); return; }
     const uint8_t *s1 = shared_s1(z, m->m + 44, m->m + 52, "Initiator");
-    derive(z, dh, s1); OPENSSL_cleanse(dh, sizeof dh);
+    derive(z, dh, dhlen, s1); OPENSSL_cleanse(dh, sizeof dh);
     build_confirm(z, 1);
     z->st = Z_CONF1;
     send_msg(z, &z->confirm);

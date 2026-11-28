@@ -38,11 +38,12 @@ static void fail_cb(void *u, zrtp_failure w, int code) { side *s = u; s->failed 
 static int load_cb(void *u, const uint8_t *zid, zrtp_cache_entry *e) { side *s = u; if (s->cache->has && !memcmp(s->cache->zid, zid, 12)) { *e = s->cache->e; return 1; } return 0; }
 static void store_cb(void *u, const uint8_t *zid, const zrtp_cache_entry *e) { side *s = u; memcpy(s->cache->zid, zid, 12); s->cache->e = *e; s->cache->has = 1; }
 
+static int make_opts;                       /* ZRTP_ENABLE_EC for the next engine made (EC25 is off by default) */
 static void make(side *s, store_t *cache, uint8_t zidbyte, uint32_t ssrc) {
     memset(s, 0, sizeof *s); s->cache = cache;
     zrtp_callbacks cb = { .user = s, .send = send_cb, .keys_rx = rx_cb, .secure = sec_cb, .sas = sas_cb, .failed = fail_cb, .cache_load = load_cb, .cache_store = store_cb, .now_ms = now };
     uint8_t zid[12]; memset(zid, zidbyte, 12);
-    s->z = zrtp_new(&cb, zid, ssrc);
+    s->z = zrtp_new_ex(&cb, zid, ssrc, make_opts);
 }
 
 /* Runs both sides until nothing is left to do, or `max_ms` of fake time have passed. */
@@ -117,13 +118,26 @@ int main(void) {
     CHECK(a.failed && zrtp_is_failed(a.z) && !zrtp_is_secure(a.z), "no answer to the Hellos ends in a timeout failure");
     zrtp_free(a.z); zrtp_free(b.z);
 
+    /* the elliptic-curve key agreement is used when both have it; if either lacks it, DH3k */
+    ca = (store_t){0}; cb = (store_t){0}; clock_ms += 100000; sent_count = 0; make_opts = ZRTP_ENABLE_EC;
+    make(&a, &ca, 0xA1, 1); make(&b, &cb, 0xB2, 2); make_opts = 0; both_start(&a, &b); run(&a, &b, 10000);
+    CHECK(zrtp_is_secure(a.z) && zrtp_is_secure(b.z) && !strcmp(zrtp_key_agreement(a.z), "EC25") && !strcmp(zrtp_key_agreement(b.z), "EC25") && !strcmp(a.sas, b.sas), "two ECDH-capable sides agree keys with EC25");
+    CHECK(!memcmp(&a.tx.tx, &b.rx.rx, sizeof a.tx.tx) && !memcmp(&a.rx.rx, &b.tx.tx, sizeof a.tx.tx), "EC25: the keys match in both directions");
+    zrtp_free(a.z); zrtp_free(b.z);
+    for (int who = 0; who < 2; who++) {
+        ca = (store_t){0}; cb = (store_t){0}; clock_ms += 100000; sent_count = 0;
+        make_opts = who == 0 ? 0 : ZRTP_ENABLE_EC; make(&a, &ca, 0xA1, 1); make_opts = who == 1 ? 0 : ZRTP_ENABLE_EC; make(&b, &cb, 0xB2, 2); make_opts = 0;
+        both_start(&a, &b); run(&a, &b, 10000);
+        CHECK(zrtp_is_secure(a.z) && zrtp_is_secure(b.z) && !strcmp(zrtp_key_agreement(a.z), "DH3k") && !strcmp(zrtp_key_agreement(b.z), "DH3k") && !strcmp(a.sas, b.sas), "when %s lacks EC25 both fall back to DH3k", who == 0 ? "the first" : "the second");
+        zrtp_free(a.z); zrtp_free(b.z);
+    }
     /* a man in the middle who changes every copy of one message type: the exchange must never complete with different keys on the two sides */
     static const char *types[] = { "Hello   ", "Commit  ", "DHPart1 ", "DHPart2 ", "Confirm1", "Confirm2" };
-    for (unsigned k = 0; k < sizeof types / sizeof *types; k++) {
-        ca = (store_t){0}; cb = (store_t){0}; clock_ms += 100000; sent_count = 0; tamper_type = types[k];
-        make(&a, &ca, 0xA1, 1); make(&b, &cb, 0xB2, 2); both_start(&a, &b); run(&a, &b, 15000);
+    for (unsigned k = 0; k < 2 * (sizeof types / sizeof *types); k++) {
+        ca = (store_t){0}; cb = (store_t){0}; clock_ms += 100000; sent_count = 0; tamper_type = types[k % (sizeof types / sizeof *types)]; make_opts = k >= sizeof types / sizeof *types ? 0 : ZRTP_ENABLE_EC;
+        make(&a, &ca, 0xA1, 1); make(&b, &cb, 0xB2, 2); make_opts = 0; both_start(&a, &b); run(&a, &b, 15000);
         int both = zrtp_is_secure(a.z) && zrtp_is_secure(b.z), same = both && !memcmp(&a.tx.tx, &b.rx.rx, sizeof a.tx.tx);
-        CHECK(!both, "altering every %s is detected: the exchange does not complete (a.failed=%d b.failed=%d)", types[k], a.failed, b.failed);
+        CHECK(!both, "altering every %s is detected%s: the exchange does not complete (a.failed=%d b.failed=%d)", types[k % (sizeof types / sizeof *types)], k >= sizeof types / sizeof *types ? " (DH3k)" : " (EC25)", a.failed, b.failed);
         (void)same;
         zrtp_free(a.z); zrtp_free(b.z);
     }

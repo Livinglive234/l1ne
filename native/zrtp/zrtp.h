@@ -2,7 +2,7 @@
  * The engine does no network or timer work of its own: it is given packets (zrtp_recv), asked what is due (zrtp_poll) and hands
  * packets to send and keys to install back through callbacks, so it runs the same on iOS and Android and can be tested in memory.
  *
- * Supported: Diffie-Hellman mode with DH3k, SHA-256, AES-128, SRTP HMAC-SHA1 tags of 80 and 32 bits, base32 SAS, a cache of retained
+ * Supported: Diffie-Hellman mode with DH3k and ECDH on P-256 (EC25), SHA-256, AES-128, SRTP HMAC-SHA1 tags of 80 and 32 bits, base32 SAS, a cache of retained
  * secrets (key continuity) with the SAS verified flag, Hello/Commit/DHPart/Confirm retransmission, commit contention.
  * Not supported (the RFC leaves them optional): Preshared and Multistream modes, GoClear, PBX trusted-MiTM, signatures, EC and DH2k. */
 #ifndef L1NE_ZRTP_H
@@ -57,8 +57,13 @@ typedef struct {
 
 typedef struct zrtp zrtp_t;
 
+/* zrtp_new_ex options */
+#define ZRTP_ENABLE_EC 1         /* also offer the elliptic-curve key agreement (EC25), preferred when both have it. Off by default: DH3k takes only a few milliseconds even on a modest phone,
+                          * and EC25 has not been tested against another implementation (see tests/zrtp/README) */
+
 /* zid: this installation's 96-bit ZRTP id. ssrc: the SSRC of the RTP stream these packets belong to. */
 zrtp_t *zrtp_new(const zrtp_callbacks *cb, const uint8_t zid[ZRTP_ZID_LEN], uint32_t ssrc);
+zrtp_t *zrtp_new_ex(const zrtp_callbacks *cb, const uint8_t zid[ZRTP_ZID_LEN], uint32_t ssrc, int opts);
 void zrtp_free(zrtp_t *z);
 
 /* Starts sending Hello messages. Call once the media path can carry packets. */
@@ -82,6 +87,7 @@ void zrtp_srtp_seen(zrtp_t *z);
 /* The user said the code matched (1) or did not (0). Saves or removes the retained secret, and is sent as the verified flag next time. */
 void zrtp_set_verified(zrtp_t *z, int verified);
 
+const char *zrtp_key_agreement(const zrtp_t *z);   /* "EC25" or "DH3k", once chosen */
 int zrtp_is_secure(const zrtp_t *z);
 int zrtp_is_failed(const zrtp_t *z);
 const char *zrtp_sas(const zrtp_t *z);          /* 4 characters once known, else "" */
