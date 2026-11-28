@@ -44,16 +44,18 @@ private class JsonFile(context: Context, name: String) {
 
 enum class Direction { OUTGOING, INCOMING, MISSED }
 data class CallRecord(val id: String = UUID.randomUUID().toString(), val date: Long = System.currentTimeMillis(), val peer: String,
-                      val accountID: String?, val direction: Direction, val duration: Int, val callerName: String = "")
+                      val accountID: String?, val direction: Direction, val duration: Int, val callerName: String = "",
+                      /** How the call was encrypted: "" (not, or unknown), "srtp", "dtls", "zrtp", or "zrtp-verified" (the code was compared with this person). */
+                      val security: String = "")
 
 class CallLogStore(context: Context) {
     private val file = JsonFile(context, "calllog.json")
     private val _records = MutableStateFlow(file.read().let { a -> (0 until a.length()).map { i -> a.getJSONObject(i).let { o ->
         CallRecord(o.getString("id"), o.getLong("date"), o.getString("peer"), o.optString("accountID").ifEmpty { null },
-            Direction.valueOf(o.getString("direction")), o.optInt("duration"), o.optString("callerName")) } } })
+            Direction.valueOf(o.getString("direction")), o.optInt("duration"), o.optString("callerName"), o.optString("security")) } } })
     val records: StateFlow<List<CallRecord>> = _records
     private fun save() = file.write(JSONArray(_records.value.map { r -> JSONObject().put("id", r.id).put("date", r.date).put("peer", r.peer)
-        .put("accountID", r.accountID ?: "").put("direction", r.direction.name).put("duration", r.duration).put("callerName", r.callerName) }))
+        .put("accountID", r.accountID ?: "").put("direction", r.direction.name).put("duration", r.duration).put("callerName", r.callerName).put("security", r.security) }))
     fun add(r: CallRecord) { _records.value = (listOf(r) + _records.value).take(500); save() }
     fun delete(id: String) { _records.value = _records.value.filter { it.id != id }; save() }
     fun removeAll() { _records.value = emptyList(); save() }

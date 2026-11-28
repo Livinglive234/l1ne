@@ -101,14 +101,16 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
                 if (ci.active && old?.active != true && settings.autoRecord) toggleRecord(a)
                 updateAudio(); updateRingback()
                 if (ci.ended) {
-                    muted.value -= a; held.value -= a; zrtp.value -= a
+                    val zrtpEnded = zrtp.value[a]; val encEnded = encryption.value[a]
+                    muted.value -= a; held.value -= a; zrtp.value -= a; encryption.value -= a          // a finished call leaves nothing behind (call ids are reused, so the next call would start with its label)
                     val mine = old ?: ci; val byYou = a in userEnded; userEnded.remove(a)
                     val dir = when { !mine.incoming -> com.livenet.l1ne.data.Direction.OUTGOING
                         ci.connectedSecs > 0 || byYou -> com.livenet.l1ne.data.Direction.INCOMING
                         else -> com.livenet.l1ne.data.Direction.MISSED }
                     val target = outgoingTargets.remove(a)
                     unansweredAtChange.remove(a)
-                    val record = com.livenet.l1ne.data.CallRecord(peer = if (mine.incoming) mine.peerAddress else (store.account(ci.accountID ?: mine.accountID)?.withoutOutboundPrefix(mine.peerAddress) ?: mine.peerAddress), accountID = ci.accountID ?: mine.accountID, direction = dir, duration = ci.connectedSecs.toInt(), callerName = if (mine.incoming) com.livenet.l1ne.core.SipAddress.callerIdName(mine.remote) else "")
+                    val record = com.livenet.l1ne.data.CallRecord(peer = if (mine.incoming) mine.peerAddress else (store.account(ci.accountID ?: mine.accountID)?.withoutOutboundPrefix(mine.peerAddress) ?: mine.peerAddress), accountID = ci.accountID ?: mine.accountID, direction = dir, duration = ci.connectedSecs.toInt(), callerName = if (mine.incoming) com.livenet.l1ne.core.SipAddress.callerIdName(mine.remote) else "",
+                        security = when { ci.connectedSecs == 0L -> ""; encEnded == Security.ZRTP -> if (zrtpEnded?.verified == true) "zrtp-verified" else "zrtp"; encEnded == Security.DTLS -> "dtls"; encEnded == Security.SRTP -> "srtp"; else -> "" })
                     // A call that dies unanswered with a server/transport error right around a network change is redialled once.
                     // Android reports the dead connection and the new network in either order, so wait a moment before deciding.
                     if (!mine.incoming && ci.connectedSecs == 0L && !byYou && target != null && target.attempt == 0 && ci.status >= 500) {
@@ -217,6 +219,8 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     fun hangup(id: Int) { userEnded.add(id); if (started) Native.nHangup(id) }
     fun hangupAll() { _calls.value.forEach { userEnded.add(it.id) }; Native.nHangupAll() }
     fun dtmf(id: Int, d: String) = Native.nDtmf(id, d)
+    /** The mute button on a headset or the system call UI: make the call match it. */
+    fun setMuted(id: Int, on: Boolean) { if ((id in muted.value) != on) toggleMute(id) }
     fun toggleMute(id: Int) { val on = id !in muted.value; Native.nMute(id, on); muted.value = if (on) muted.value + id else muted.value - id }
     private val holdWanted = HashMap<Int, Boolean>()          // what the last tap on hold / resume asked for, until PJSIP has done it
     fun toggleHold(id: Int) = setHold(id, !(holdWanted[id] ?: (id in held.value)))

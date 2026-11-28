@@ -164,8 +164,14 @@ struct RecentsView: View {
                             HStack(spacing: 14) {
                                 avatar(r, name: n)
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(n).font(.body.weight(.medium))
-                                        .foregroundStyle(r.direction == .missed ? Theme.danger : Theme.text).lineLimit(1)
+                                    HStack(spacing: 5) {
+                                        Text(n).font(.body.weight(.medium))
+                                            .foregroundStyle(r.direction == .missed ? Theme.danger : Theme.text).lineLimit(1)
+                                        if let s = r.security, !s.isEmpty {         // encrypted; a seal when the code was compared with this person
+                                            Image(systemName: s.hasSuffix("verified") ? "checkmark.seal.fill" : "lock.fill").font(.caption).foregroundStyle(Theme.brand)
+                                                .accessibilityLabel(s.hasSuffix("verified") ? "Encrypted, code verified" : "Encrypted")
+                                        }
+                                    }
                                     if let num = numberUnder(r, title: n) { Text(num).font(.subheadline).foregroundStyle(Theme.muted).lineLimit(1) }
                                     HStack(spacing: 4) {
                                         Image(systemName: r.direction == .outgoing ? "arrow.up.right" : "arrow.down.left").font(.caption2.weight(.semibold))

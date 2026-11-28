@@ -8,6 +8,7 @@ struct CallRecord: Codable, Identifiable, Equatable {
     var accountID: UUID?
     var direction: Direction
     var duration: Int             // seconds connected
+    var security: String?         // how the call was encrypted: "srtp", "dtls", "zrtp", or "zrtp-verified" (the code was compared with this person); nil when not or unknown
     var callerName: String?       // the name the caller sent (caller ID), kept so the history shows it with the number underneath
 }
 

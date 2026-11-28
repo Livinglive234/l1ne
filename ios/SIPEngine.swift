@@ -684,6 +684,7 @@ final class SIPEngine: ObservableObject {
                 accountID: accountForPJ[ci.acc_id],
                 direction: outgoing ? .outgoing : (secs > 0 || byYou ? .incoming : .missed),          // declined by you is not a missed call
                 duration: secs,
+                security: secs == 0 ? nil : { switch encryption[call] { case .some(.zrtp): return zrtp[call]?.verified == true ? "zrtp-verified" : "zrtp"; case .some(.dtls): return "dtls"; case .some(.srtp): return "srtp"; default: return nil } }(),
                 callerName: outgoing ? nil : PhoneFormat.callerIDName(remote: remote)))
             }
             if let rec = recorders.removeValue(forKey: call) { pjsua_recorder_destroy(rec) }

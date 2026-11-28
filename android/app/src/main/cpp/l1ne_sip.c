@@ -172,7 +172,7 @@ JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nDelAccount(JNIEnv *e, j
 
 JNIEXPORT jint JNICALL Java_com_livenet_l1ne_sip_Native_nCall(JNIEnv *env, jclass c, jint acc, jstring juri) {
     (void)c; reg_thread(); const char *u = (*env)->GetStringUTFChars(env, juri, NULL); pj_str_t uri = pj_str((char *)u);
-    pjsua_call_setting cs; pjsua_call_setting_default(&cs); pjsua_call_id id = -1;
+    pjsua_call_setting cs; pjsua_call_setting_default(&cs); cs.txt_cnt = 0; pjsua_call_id id = -1;          /* audio only: no real-time-text stream in the offer (PJSIP defaults to one) */
     pj_status_t st = pjsua_call_make_call(acc, &uri, &cs, NULL, NULL, &id);
     (*env)->ReleaseStringUTFChars(env, juri, u); return st == PJ_SUCCESS ? id : -1;
 }

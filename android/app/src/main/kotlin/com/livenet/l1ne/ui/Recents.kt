@@ -55,7 +55,11 @@ fun RecentsScreen(open: (Dest) -> Unit) {
         }
         if (shown.isEmpty()) {
             EmptyState(Icons.Filled.History, if (missedOnly) "No missed calls" else "No recent calls", modifier = Modifier.fillMaxSize())
-        } else LazyColumn(Modifier.fillMaxSize()) {
+        } else {
+        // A call that is placed or received while you are at the top of the list moves you to the top again (the list otherwise keeps the old first row in view)
+        val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+        LaunchedEffect(shown.firstOrNull()?.id) { if (listState.firstVisibleItemIndex == 1 && listState.firstVisibleItemScrollOffset == 0) listState.scrollToItem(0) }
+        LazyColumn(Modifier.fillMaxSize(), state = listState) {
             items(shown, key = { it.id }) { r ->
                 SwipeToDelete({ app.callLog.delete(r.id) }) {
                 val name = nameOf(r); val missed = r.direction == Direction.MISSED
@@ -63,7 +67,10 @@ fun RecentsScreen(open: (Dest) -> Unit) {
                     verticalAlignment = Alignment.CenterVertically) {
                     Avatar(48.dp, initialsOf(name)); Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(name, fontWeight = FontWeight.Medium, color = if (missed) L1neColors.Danger else L1neColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(name, Modifier.weight(1f, fill = false), fontWeight = FontWeight.Medium, color = if (missed) L1neColors.Danger else L1neColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (r.security.isNotEmpty()) { Spacer(Modifier.width(6.dp)); Icon(if (r.security.endsWith("verified")) Icons.Filled.Verified else Icons.Filled.Lock, if (r.security.endsWith("verified")) "Encrypted, code verified" else "Encrypted", Modifier.size(14.dp), tint = L1neColors.Brand) }
+                        }
                         numberOf(r)?.let { Text(it, color = L1neColors.Muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1) }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(if (r.direction == Direction.OUTGOING) Icons.AutoMirrored.Filled.CallMade else Icons.AutoMirrored.Filled.CallReceived, null, Modifier.size(13.dp), tint = L1neColors.Muted)
@@ -76,6 +83,7 @@ fun RecentsScreen(open: (Dest) -> Unit) {
                 RowDivider()
                 }
             }
+        }
         }
     }
     if (confirm) AlertDialog({ confirm = false }, title = { Text("Delete all recent calls?") }, containerColor = L1neColors.SheetBg,

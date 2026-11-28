@@ -78,6 +78,8 @@ class L1neConnection(val callId: Int, private val app: L1neApplication) : Connec
     override fun onReject() { engine.hangup(callId); CallNotifications.cancelIncoming(app) }
     override fun onDisconnect() { engine.hangup(callId) }
     override fun onAbort() { engine.hangup(callId) }
+    /** A headset or car button was used to mute or unmute (Android 12 and later tell us). */
+    override fun onMuteStateChanged(isMuted: Boolean) { engine.setMuted(callId, isMuted) }
     override fun onHold() { if (callId !in engine.held.value) engine.toggleHold(callId) }
     override fun onUnhold() { if (callId in engine.held.value) engine.toggleHold(callId) }
     override fun onPlayDtmfTone(c: Char) { engine.dtmf(callId, c.toString()) }
