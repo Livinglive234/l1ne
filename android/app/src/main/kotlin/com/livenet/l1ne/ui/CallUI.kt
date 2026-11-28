@@ -79,10 +79,10 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
         Text(name, fontSize = 34.sp, fontWeight = FontWeight.SemiBold, color = CallText, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         Text(status, color = CallMuted, fontSize = 20.sp, modifier = Modifier.padding(top = 6.dp))
         if (live) when (enc[call.id]) {
-            SipEngine.Security.SRTP -> Label(Icons.Filled.Lock, "Encrypted by SRTP", CallBrand)
-            SipEngine.Security.DTLS -> Label(Icons.Filled.Lock, "Encrypted by DTLS-SRTP", CallBrand)
+            SipEngine.Security.SRTP -> Label(Icons.Filled.Lock, "Encrypted by SRTP (point to point)", CallBrand)
+            SipEngine.Security.DTLS -> Label(Icons.Filled.Lock, "Encrypted by DTLS-SRTP (point to point)", CallBrand)
             SipEngine.Security.ZRTP -> {
-                Label(Icons.Filled.Lock, "Encrypted by ZRTP", CallBrand)
+                Label(Icons.Filled.Lock, "Encrypted by ZRTP (end to end)", CallBrand)
                 zrtpState[call.id]?.let { z ->
                     Text("Code: ${z.code}" + if (z.verified) "  ·  verified" else "", color = CallText, fontSize = 15.sp, modifier = Modifier.padding(top = 4.dp))
                     if (z.cacheMismatch) Text("This is not the same secret as in earlier calls with this person. Read the code to each other; if it differs, hang up.", color = CallDanger, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 4.dp, start = 16.dp, end = 16.dp))

@@ -104,10 +104,16 @@ fun whenText(ms: Long): String {
     return "$day | ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(ms))}"
 }
 
+/** SRTP and DTLS-SRTP protect the audio between the phone and the PBX (point to point); ZRTP protects it between the two phones (end to end). */
+fun securityText(security: String): String? = when (security) {
+    "zrtp" -> "Encrypted end to end"; "zrtp-verified" -> "Encrypted end to end, verified"
+    "srtp", "dtls" -> "Encrypted point to point"; else -> null }
+
 private fun details(r: CallRecord, accounts: List<com.livenet.l1ne.core.Account>): String {
     val parts = ArrayList<String>()
     when { r.direction == Direction.MISSED -> parts.add("Missed"); r.duration > 0 -> parts.add("%d:%02d".format(r.duration / 60, r.duration % 60))
         else -> parts.add(if (r.direction == Direction.OUTGOING) "Not answered" else "Declined") }
     accountTitle(accounts, r.accountID)?.let { parts.add(it) }
+    securityText(r.security)?.let { parts.add(it) }
     return parts.joinToString(" · ")
 }

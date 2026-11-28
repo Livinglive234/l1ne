@@ -242,6 +242,12 @@ struct RecentsView: View {
         else if r.duration > 0 { parts.append(String(format: "%d:%02d", r.duration / 60, r.duration % 60)) }
         else { parts.append(r.direction == .outgoing ? "Not answered" : "Declined") }
         if store.accounts.count > 1, let a = r.accountID.flatMap({ store.account($0) }) { parts.append(a.title) }
+        switch r.security {          // SRTP and DTLS-SRTP protect the audio between the phone and the PBX (point to point); ZRTP between the two phones (end to end)
+        case "zrtp": parts.append("Encrypted end to end")
+        case "zrtp-verified": parts.append("Encrypted end to end, verified")
+        case "srtp", "dtls": parts.append("Encrypted point to point")
+        default: break
+        }
         return parts.joined(separator: " · ")
     }
 
@@ -346,9 +352,9 @@ struct CallScreen: View {
     private func securityLine(_ c: SIPEngine.CallInfo) -> (text: String, icon: String, color: Color)? {
         guard c.connected else { return nil }
         switch engine.encryption[c.id] ?? .unknown {
-        case .srtp: return ("Encrypted by SRTP", "lock.fill", Theme.brand)
-        case .dtls: return ("Encrypted by DTLS-SRTP", "lock.fill", Theme.brand)
-        case .zrtp: return ("Encrypted by ZRTP", "lock.fill", Theme.brand)
+        case .srtp: return ("Encrypted by SRTP (point to point)", "lock.fill", Theme.brand)
+        case .dtls: return ("Encrypted by DTLS-SRTP (point to point)", "lock.fill", Theme.brand)
+        case .zrtp: return ("Encrypted by ZRTP (end to end)", "lock.fill", Theme.brand)
         case .none:
             let a = c.accountID.flatMap { store.account($0) }
             return (a?.media == .zrtp ? "Not encrypted: the other side has no ZRTP" : "Not encrypted", "lock.open.fill", Theme.danger)
