@@ -187,6 +187,22 @@ object CallNotifications {
         runCatching { NotificationManagerCompat.from(ctx).notify(ID_INCOMING, n) }
         Ringer.start(ctx)
     }
+    /** A call that answered itself (auto answer): the incoming banner is replaced at once by one for the call in progress with the same full-screen intent, so the screen lights
+     *  and the call screen opens just as for a call you answered (cancelling the banner, as for a normal answer, would also cancel the full-screen intent before it fired). */
+    fun showAnswered(ctx: Context, callId: Int, name: String) {
+        Ringer.stop()
+        val intent = Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val open = PendingIntent.getActivity(ctx, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+        val person = androidx.core.app.Person.Builder().setName(name).setImportant(true).apply { runCatching { setIcon(callerAvatar(name)) } }.build()
+        val n = androidx.core.app.NotificationCompat.Builder(ctx, INCOMING).setSmallIcon(R.drawable.ic_stat_l1ne).setCategory(Notification.CATEGORY_CALL).setOngoing(true)
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_MAX).setVisibility(androidx.core.app.NotificationCompat.VISIBILITY_PUBLIC)
+            .setTimeoutAfter(20_000).setOnlyAlertOnce(true).setSilent(true)
+            .setFullScreenIntent(open, true).setContentIntent(open)
+            .setStyle(androidx.core.app.NotificationCompat.CallStyle.forOngoingCall(person, action(ctx, "hangup", callId))).build()
+        runCatching { NotificationManagerCompat.from(ctx).notify(ID_INCOMING, n) }
+        runCatching { ctx.startActivity(intent) }          // when the phone is unlocked and Android allows it, the call screen opens right away
+    }
+
     /** The round picture on the incoming-call banner: the caller's initials, or a plain person for a number, in L1ne's dark green.
      *  Without one, Samsung draws its own default avatar (a purple-blue circle) behind the app badge. */
     private fun callerAvatar(name: String): androidx.core.graphics.drawable.IconCompat {

@@ -236,7 +236,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
             if (_calls.value.none { it.id == id && !it.active && !it.ended }) return@postDelayed
             autoAnswered.value = autoAnswered.value + (id to acc.autoAnswerMic)
             if (!acc.autoAnswerMic) muteWhenActive.add(id)
-            answer(id); CallNotifications.cancelIncoming(app)
+            answer(id); CallNotifications.showAnswered(app, id, contactName(c))
             showNotice("Auto-answered a call from ${contactName(c)}. Your microphone is ${if (acc.autoAnswerMic) "ON: they can hear you" else "off: you can hear them, they cannot hear you"}.")
         }, 400)
     }
