@@ -217,6 +217,16 @@ final class WireTests: XCTestCase {
         let l = serverLog(); XCTAssertTrue(l.contains("UDP/TLS/RTP/SAVP") && l.contains("a=fingerprint"), l)
     }
     // Auto answer: only when the account has it on, the call asks for it, and the caller is allowed
+    func testRecentsGroupsCallsOfTheSameKindWithinAnHour() {
+        let now = Date()
+        func rec(_ peer: String, _ d: CallRecord.Direction, _ minsAgo: Double) -> CallRecord { CallRecord(date: now.addingTimeInterval(-minsAgo * 60), peer: peer, accountID: nil, direction: d, duration: 5) }
+        let sizes = { (r: [CallRecord]) in CallGroup.group(r).map(\.count) }
+        XCTAssertEqual(sizes([rec("1001", .outgoing, 1), rec("1001", .outgoing, 10), rec("1001", .outgoing, 20)]), [3])
+        XCTAssertEqual(sizes([rec("1001", .outgoing, 1), rec("1001", .incoming, 10), rec("1001", .outgoing, 20)]), [1, 1, 1], "an incoming call from the same number is separate")
+        XCTAssertEqual(sizes([rec("1001", .outgoing, 1), rec("1001", .outgoing, 120)]), [1, 1], "more than an hour apart")
+        XCTAssertEqual(sizes([rec("1001", .outgoing, 1), rec("1002", .outgoing, 2), rec("1001", .outgoing, 3)]), [1, 1, 1])
+        XCTAssertEqual(sizes([rec("1001", .missed, 1), rec("1001", .missed, 2), rec("1001", .incoming, 3)]), [2, 1])
+    }
     func testAnInterComCallIsNotAnsweredByDefault() throws {
         try registered(account("7100")); _ = http("/invite?user=7100&autoanswer=1")
         try waitFor("incoming call") { onlyCall?.incoming == true }; pause(1)

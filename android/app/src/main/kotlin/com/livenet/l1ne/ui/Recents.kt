@@ -39,6 +39,8 @@ fun RecentsScreen(open: (Dest) -> Unit) {
     // `contacts` (collected above) is what makes the names refresh; the list is only rebuilt when something it depends on changes
     val shown = remember(records, contacts, search, missedOnly) { records.filter { (!missedOnly || it.direction == Direction.MISSED) && (search.isEmpty() || nameOf(it).contains(search, true) || it.peer.contains(search, true) || it.callerName.contains(search, true)) } }
 
+    val groups = remember(shown) { com.livenet.l1ne.core.groupCalls(shown, { it.peer }, { it.direction.ordinal }, { it.date }) }
+
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(search, { search = it }, Modifier.weight(1f), singleLine = true, placeholder = { Text("Search") },
@@ -60,15 +62,16 @@ fun RecentsScreen(open: (Dest) -> Unit) {
         val listState = androidx.compose.foundation.lazy.rememberLazyListState()
         LaunchedEffect(shown.firstOrNull()?.id) { if (listState.firstVisibleItemIndex == 1 && listState.firstVisibleItemScrollOffset == 0) listState.scrollToItem(0) }
         LazyColumn(Modifier.fillMaxSize(), state = listState) {
-            items(shown, key = { it.id }) { r ->
-                SwipeToDelete({ app.callLog.delete(r.id) }) {
+            items(groups, key = { it[0].id }) { g ->
+                val r = g[0]
+                SwipeToDelete({ g.forEach { app.callLog.delete(it.id) } }) {
                 val name = nameOf(r); val missed = r.direction == Direction.MISSED
                 Row(Modifier.fillMaxWidth().clickable { open(Dest.Person(PersonTarget(name, r.peer, r.accountID))) }.padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     Avatar(48.dp, initialsOf(name)); Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(name, Modifier.weight(1f, fill = false), fontWeight = FontWeight.Medium, color = if (missed) L1neColors.Danger else L1neColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(if (g.size > 1) "$name (${g.size})" else name, Modifier.weight(1f, fill = false), fontWeight = FontWeight.Medium, color = if (missed) L1neColors.Danger else L1neColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         if (r.security.isNotEmpty()) { Spacer(Modifier.width(6.dp)); Icon(if (r.security.endsWith("verified")) Icons.Filled.Verified else Icons.Filled.Lock, if (r.security.endsWith("verified")) "Encrypted, code verified" else "Encrypted", Modifier.size(14.dp), tint = L1neColors.Brand) }
                         }
                         numberOf(r)?.let { Text(it, color = L1neColors.Muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1) }

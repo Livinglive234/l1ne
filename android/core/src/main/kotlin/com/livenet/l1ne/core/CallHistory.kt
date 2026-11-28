@@ -10,3 +10,14 @@ object CallHistory {
         return sameUser && (d1.isEmpty() || d2.isEmpty() || d1 == d2)
     }
 }
+
+/** Several calls in a row with the same person and of the same kind (outgoing, answered incoming or missed), each within an hour of the one before, are shown as one line.
+ *  `items` newest first; a call of another kind or with someone else in between starts a new group. */
+fun <T> groupCalls(items: List<T>, peer: (T) -> String, kind: (T) -> Int, time: (T) -> Long, withinMs: Long = 3_600_000): List<List<T>> {
+    val out = ArrayList<MutableList<T>>()
+    for (r in items) {
+        val last = out.lastOrNull()?.last()
+        if (last != null && kind(last) == kind(r) && CallHistory.sameParty(peer(last), peer(r)) && time(last) - time(r) <= withinMs) out.last().add(r) else out.add(mutableListOf(r))
+    }
+    return out
+}

@@ -45,6 +45,24 @@ extension CallRecord {
     }
 }
 
+/// Several calls in a row with the same person, of the same kind (outgoing, answered incoming or missed), each within an hour of the one before: shown as one line.
+struct CallGroup: Identifiable {
+    let records: [CallRecord]                    // newest first
+    var first: CallRecord { records[0] }
+    var id: UUID { first.id }
+    var count: Int { records.count }
+
+    /// `records` newest first. A call of another kind or with someone else in between starts a new group, like the iOS Phone app.
+    static func group(_ records: [CallRecord], within seconds: TimeInterval = 3600) -> [CallGroup] {
+        var out: [[CallRecord]] = []
+        for r in records {
+            if let last = out.last?.last, last.direction == r.direction, last.isWith(r.peer), last.date.timeIntervalSince(r.date) <= seconds { out[out.count - 1].append(r) }
+            else { out.append([r]) }
+        }
+        return out.map { CallGroup(records: $0) }
+    }
+}
+
 /// Call history, kept only on this phone.
 @MainActor
 final class CallLogStore: ObservableObject {

@@ -154,10 +154,11 @@ struct RecentsView: View {
     }
 
     private var listStack: some View {
-        let rows = shown                                 // filtered once per redraw (the empty-state check below reuses it)
+        let rows = CallGroup.group(shown)                // filtered and grouped once per redraw (the empty-state check below reuses it)
         return AppNavStack {
             List {
-                ForEach(rows) { r in
+                ForEach(rows) { g in
+                    let r = g.first
                     let n = name(r)                      // looked up once per row, not once for the button, the title and the picture
                     HStack(spacing: 14) {
                         Button { detail = PersonTarget(name: n, address: r.peer, accountID: r.accountID) } label: {
@@ -165,7 +166,7 @@ struct RecentsView: View {
                                 avatar(r, name: n)
                                 VStack(alignment: .leading, spacing: 3) {
                                     HStack(spacing: 5) {
-                                        Text(n).font(.body.weight(.medium))
+                                        Text(g.count > 1 ? "\(n) (\(g.count))" : n).font(.body.weight(.medium))
                                             .foregroundStyle(r.direction == .missed ? Theme.danger : Theme.text).lineLimit(1)
                                         if let s = r.security, !s.isEmpty {         // encrypted; a seal when the code was compared with this person
                                             Image(systemName: s.hasSuffix("verified") ? "checkmark.seal.fill" : "lock.fill").font(.caption).foregroundStyle(Theme.brand)
@@ -187,7 +188,7 @@ struct RecentsView: View {
                     }
                     .listRowBackground(Color.clear)
                     .listRowSeparatorTint(Theme.border)
-                    .swipeActions { Button(role: .destructive) { callLog.delete([r.id]) } label: { Label("Delete", systemImage: "trash") } }
+                    .swipeActions { Button(role: .destructive) { callLog.delete(g.records.map(\.id)) } label: { Label("Delete", systemImage: "trash") } }
                 }
             }
             .listStyle(.plain).hideScrollBackground()
