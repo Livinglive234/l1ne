@@ -105,10 +105,10 @@ data class Account(
     }
 
     companion object { fun defaultPort(t: Transport) = if (t == Transport.TLS) 5061 else 5060 }
-    /** Final touches for an account made from the short form (same as iOS finishNewAccount): the server text is parsed, the account is named after its display name, and SRTP (which needs TLS for its keys) is only kept on TLS. */
+    /** Final touches for an account made from the short form (same as iOS finishNewAccount): the server text is parsed, the account is named after its server (the address you typed, not your display name), and SRTP (which needs TLS for its keys) is only kept on TLS. */
     fun finishedNew(server: String): Account {
         var a = withServer(server)
-        if (a.label.isEmpty()) a = a.copy(label = a.displayName)
+        if (a.label.isEmpty()) a = a.copy(label = a.domain)
         if (a.transport != Transport.TLS && a.media == Media.SRTP_SDES) a = a.copy(media = Media.NONE, mediaMandatory = false)
         return a
     }

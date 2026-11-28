@@ -48,4 +48,9 @@ class AccountTest {
         assertEquals("sip:vm@other.org", acc { copy(voicemailURI = "sip:vm@other.org") }.voicemailTarget)
         assertNull(acc { copy(voicemailURI = "  ") }.voicemailTarget)
     }
+
+    @Test fun aNewAccountIsNamedAfterItsServerNotItsDisplayName() {
+        val a = Account(username = "7001", displayName = "frank").finishedNew("pbx.example.com")
+        assertEquals("pbx.example.com", a.label); assertEquals("frank", a.displayName)
+    }
 }

@@ -165,7 +165,7 @@ ns.setServer(" sip:pbx.example.com:5080 "); check(ns.domain == "pbx.example.com"
 ns.setServer("sips:pbx.example.com/extra;transport=tls"); check(ns.domain == "pbx.example.com", "path and parameters dropped")
 ns.setServer("[2001:db8::1]"); check(ns.domain == "[2001:db8::1]", "IPv6 literal left whole")
 var fin = Account(); fin.domain = "pbx.example.com:5061"; fin.displayName = "Alex Example"; fin.username = "7198"; fin.finishNewAccount()
-check(fin.domain == "pbx.example.com" && fin.port == 5061 && fin.label == "Alex Example" && fin.media == .srtpSDES, "new TLS account: parsed, named, SRTP kept")
+check(fin.domain == "pbx.example.com" && fin.port == 5061 && fin.label == "pbx.example.com" && fin.media == .srtpSDES, "new TLS account: parsed, named after its server (not the display name), SRTP kept")
 var udp = Account(); udp.changeTransport(to: .udp); udp.domain = "pbx.example.com"; udp.finishNewAccount()
 check(udp.media == .none && udp.mediaMandatory == false && udp.port == 5060, "new UDP account: no SDES (it needs TLS), port 5060")
 

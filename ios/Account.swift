@@ -56,10 +56,10 @@ struct Account: Codable, Identifiable, Equatable {
     }
 
     /// Final touches when a new account is created from the short form: the server text is parsed, the account is named
-    /// after its display name, and SRTP (which needs TLS for its keys) is only kept on TLS.
+    /// after its server (the address you typed, not your display name), and SRTP (which needs TLS for its keys) is only kept on TLS.
     mutating func finishNewAccount() {
         setServer(domain)
-        if label.isEmpty { label = displayName }
+        if label.isEmpty { label = domain }
         if transport != .tls && media == .srtpSDES { media = .none; mediaMandatory = false }
     }
 
