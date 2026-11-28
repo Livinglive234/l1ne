@@ -284,12 +284,15 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     /** ZRTP of a call: state 0 negotiating, 1 secure, 2 failed; the code to read out loud; whether it differs from earlier calls with this person. */
     data class ZrtpState(val state: Int, val code: String, val cacheMismatch: Boolean, val knownBefore: Boolean, val verified: Boolean)
     val zrtp = MutableStateFlow<Map<Int, ZrtpState>>(emptyMap())
+    /** A one-off message to show over whatever screen is up (a call that ended, and why). Clears itself. */
+    val notice = MutableStateFlow<String?>(null)
+    fun showNotice(text: String) { notice.value = text; main.postDelayed({ if (notice.value == text) notice.value = null }, 9000) }
     private fun zrtpChanged(call: Int, packed: String) {
         val f = packed.split("|"); if (f.size < 6) return
         val z = ZrtpState(f[0].toIntOrNull() ?: 0, f[1], f[2] == "1", f[3] == "1", f[4] == "1")
         zrtp.value = zrtp.value + (call to z)
         val acc = store.account(_calls.value.firstOrNull { it.id == call }?.accountID)
-        if (z.state == 2 && acc?.media == Media.ZRTP && acc.mediaMandatory) hangup(call)          // required, and the other side has no ZRTP (or it was refused): nothing was sent in the clear
+        if (z.state == 2 && acc?.media == Media.ZRTP && acc.mediaMandatory) { showNotice("The call was ended: the other side doesn't support ZRTP, and this account requires it."); hangup(call) }          // required, and the other side has no ZRTP (or it was refused): nothing was sent in the clear
     }
     /** The user compared the code with the other person: it matched (true), or it did not (false: this person's saved secret is dropped). */
     fun zrtpVerified(call: Int, matched: Boolean) { Native.nZrtpVerified(call, matched); zrtp.value[call]?.let { zrtp.value = zrtp.value + (call to it.copy(verified = matched, cacheMismatch = false)) } }

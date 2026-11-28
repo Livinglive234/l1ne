@@ -24,6 +24,14 @@ static int sock; static struct sockaddr_in remote; static int have_remote;
 static l1srtp_t rx, tx; static int have_rx, have_tx;
 
 static void out(void *u, const uint8_t *p, size_t n) { (void)u; if (have_remote) sendto(sock, p, n, 0, (struct sockaddr *)&remote, sizeof remote); }
+/* a small in-memory cache, so a second call from the same phone is recognized (key continuity), as a real phone would */
+static struct { uint8_t zid[12]; zrtp_cache_entry e; int used; } cache[8];
+static int cache_load(void *u, const uint8_t zid[12], zrtp_cache_entry *e) { (void)u; for (int i = 0; i < 8; i++) if (cache[i].used && !memcmp(cache[i].zid, zid, 12)) { *e = cache[i].e; return 1; } return 0; }
+static void cache_store(void *u, const uint8_t zid[12], const zrtp_cache_entry *e) {
+    (void)u; int k = -1; for (int i = 0; i < 8; i++) if (cache[i].used && !memcmp(cache[i].zid, zid, 12)) k = i;
+    for (int i = 0; i < 8 && k < 0; i++) if (!cache[i].used) k = i; if (k < 0) k = 0;
+    memcpy(cache[k].zid, zid, 12); cache[k].e = *e; cache[k].used = 1;
+}
 static void keys_rx(void *u, const zrtp_keys *k) { (void)u; l1srtp_init(&rx, k->rx.key, k->rx.salt, k->tag_len); have_rx = 1; }
 static void secure(void *u, const zrtp_keys *k) { (void)u; l1srtp_init(&tx, k->tx.key, k->tx.salt, k->tag_len); have_tx = 1; printf("zrtp-peer: secure\n"); fflush(stdout); }
 static void sas(void *u, const char *s, int known, int mismatch, int verified) { (void)u; printf("zrtp-peer: sas %s known=%d mismatch=%d verified=%d\n", s, known, mismatch, verified); fflush(stdout); }
@@ -35,7 +43,7 @@ int main(int argc, char **argv) {
     struct sockaddr_in a = { .sin_family = AF_INET, .sin_port = htons((uint16_t)port), .sin_addr.s_addr = htonl(INADDR_ANY) };
     if (bind(sock, (struct sockaddr *)&a, sizeof a) != 0) { perror("bind"); return 1; }
     uint8_t zid[12]; srand((unsigned)getpid()); for (int i = 0; i < 12; i++) zid[i] = (uint8_t)rand();
-    zrtp_callbacks cb = { .send = out, .keys_rx = keys_rx, .secure = secure, .sas = sas, .failed = failed };
+    zrtp_callbacks cb = { .send = out, .keys_rx = keys_rx, .secure = secure, .sas = sas, .failed = failed, .cache_load = cache_load, .cache_store = cache_store };
     zrtp_t *z = zrtp_new(&cb, zid, 0x70707070u);
     int started = 0, seq = 0, got = 0; uint32_t ts = 0;          /* a new caller (another source port) starts a new session */
     for (;;) {

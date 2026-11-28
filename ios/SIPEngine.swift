@@ -25,6 +25,12 @@ final class SIPEngine: ObservableObject {
     /// ZRTP of a call: state 0 negotiating, 1 secure, 2 failed; the code to read out loud; whether it differs from earlier calls with this person.
     struct ZrtpState: Equatable { var state: Int; var code: String; var cacheMismatch: Bool; var knownBefore: Bool; var verified: Bool }
     @Published var zrtp: [Int32: ZrtpState] = [:]
+    /// A one-off message to show over whatever screen is up (a call that ended, and why). Clears itself.
+    @Published var notice: String?
+    func showNotice(_ text: String) {
+        notice = text
+        Task { @MainActor [weak self] in try? await Task.sleep(nanoseconds: 9_000_000_000); if self?.notice == text { self?.notice = nil } }
+    }
 
     struct Codec: Identifiable, Equatable {
         var id: String            // "PCMU/8000/1"
@@ -292,7 +298,10 @@ final class SIPEngine: ObservableObject {
     fileprivate func zrtpChanged(call: Int32, _ z: ZrtpState) {
         zrtp[call] = z
         let account = calls.first { $0.id == call }?.accountID.flatMap { AccountStore.shared.account($0) }
-        if z.state == 2, account?.media == .zrtp, account?.mediaMandatory == true { hangup(call) }          // required, and the other side has none (or it was refused): nothing was sent in the clear
+        if z.state == 2, account?.media == .zrtp, account?.mediaMandatory == true {
+            showNotice("The call was ended: the other side doesn't support ZRTP, and this account requires it.")
+            hangup(call)
+        }          // required, and the other side has none (or it was refused): nothing was sent in the clear
     }
 
     /// The user compared the code with the other person: it matched, or it did not (then this person's saved secret is dropped).

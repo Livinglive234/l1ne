@@ -91,8 +91,8 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
                         TextButton({ engine.zrtpVerified(call.id, false) }) { Text("Doesn't match", color = CallDanger) } }
                 }
             }
-            SipEngine.Security.NONE -> Label(Icons.Filled.LockOpen, "Not encrypted", CallDanger)
-            else -> {} }
+            SipEngine.Security.NONE -> Label(Icons.Filled.LockOpen, if (app.store.account(call.accountID)?.media == com.livenet.l1ne.core.Media.ZRTP) "Not encrypted: the other side has no ZRTP" else "Not encrypted", CallDanger)
+            else -> if (app.store.account(call.accountID)?.media == com.livenet.l1ne.core.Media.ZRTP) Label(Icons.Filled.Lock, "Securing the call (ZRTP)…", CallMuted) }
         consults[call.id]?.let { original ->                       // an attended transfer: this call asks the new person, the caller is on hold
             Text("${allCalls.firstOrNull { it.id == original }?.let { app.contacts.nameFor(it) } ?: "The caller"} is on hold", color = CallMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 8.dp)) {

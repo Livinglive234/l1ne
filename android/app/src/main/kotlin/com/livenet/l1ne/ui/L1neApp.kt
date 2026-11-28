@@ -37,6 +37,10 @@ fun L1neApp() {
         CompositionLocalProvider(LocalAddAccount provides { adding = true }) { MainTabs() }
         if (adding) Surface(Modifier.fillMaxSize().pointerInput(Unit) {}, color = L1neColors.Bg) { WelcomeScreen(signingIn, { signingIn = it }, onClose = { adding = false }) }
     }
+    val notice by app.engine.notice.collectAsState()
+    notice?.let { n -> Box(Modifier.fillMaxSize().padding(top = 48.dp, start = 16.dp, end = 16.dp), contentAlignment = Alignment.TopCenter) {
+        Surface(shape = MaterialTheme.shapes.large, color = L1neColors.Surface, border = androidx.compose.foundation.BorderStroke(1.dp, L1neColors.Danger), modifier = Modifier.clickable { app.engine.notice.value = null }) {
+            Text(n, Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center) } } }
     val setup by app.pendingSetup.collectAsState()
     setup?.let { link -> LinkDialog(link) { app.pendingSetup.value = null } }
 }

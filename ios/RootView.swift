@@ -36,6 +36,14 @@ struct RootView: View {
         .environmentObject(dirs)
         .environmentObject(callLog)
         .environmentObject(router)
+        .overlay(alignment: .top) {
+            if let n = engine.notice {
+                Text(n).font(.footnote).multilineTextAlignment(.center).padding(12).frame(maxWidth: .infinity)
+                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12)).overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.danger.opacity(0.6)))
+                    .padding(.horizontal, 16).padding(.top, 8).onTapGesture { engine.notice = nil }.transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: engine.notice)
         .onOpenURL { url in
             if let s = url.scheme?.lowercased(), s == "sip" || s == "sips" {
                 router.pendingDial = AppRouter.dialTarget(fromSIP: url); router.tab = .keypad; router.callMinimized = true
@@ -335,8 +343,12 @@ struct CallScreen: View {
         case .srtp: return ("Encrypted by SRTP", "lock.fill", Theme.brand)
         case .dtls: return ("Encrypted by DTLS-SRTP", "lock.fill", Theme.brand)
         case .zrtp: return ("Encrypted by ZRTP", "lock.fill", Theme.brand)
-        case .none: return ("Not encrypted", "lock.open.fill", Theme.danger)
-        case .unknown: return nil
+        case .none:
+            let a = c.accountID.flatMap { store.account($0) }
+            return (a?.media == .zrtp ? "Not encrypted: the other side has no ZRTP" : "Not encrypted", "lock.open.fill", Theme.danger)
+        case .unknown:
+            let a = c.accountID.flatMap { store.account($0) }
+            return a?.media == .zrtp ? ("Securing the call (ZRTP)…", "lock.rotation", Theme.muted) : nil
         }
     }
 
