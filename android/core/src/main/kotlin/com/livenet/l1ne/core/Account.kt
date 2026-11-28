@@ -37,7 +37,20 @@ data class Account(
     val turnEnabled: Boolean = false,
     val stunServer: String = "",
     val turnUser: String = "",
+    /** Answer calls that ask for it (an intercom or page) without anyone pressing Answer. Off unless switched on; see [mayAutoAnswer] and the warnings in the editor. */
+    val autoAnswer: Boolean = false,
+    val autoAnswerMic: Boolean = false,       // the microphone is on when such a call is answered; off, the caller is heard but cannot hear back
+    val autoAnswerFrom: String = "",          // only these callers (extensions or numbers, separated by commas); empty = any caller whose call asks for it
 ) {
+    /** Whether a call from [callerUser] that asks to be answered automatically may be. A number matches by its digits (and its last ten), an extension exactly. */
+    fun mayAutoAnswer(callerUser: String): Boolean {
+        if (!autoAnswer) return false
+        val allowed = autoAnswerFrom.split(',', ';', '\n').map { it.trim() }.filter { it.isNotEmpty() }
+        if (allowed.isEmpty()) return true
+        val d = callerUser.filter { it.isDigit() }
+        return allowed.any { a -> val ad = a.filter { it.isDigit() }; a.equals(callerUser, true) || (ad.isNotEmpty() && ad == d) || (ad.length >= 10 && d.length >= 10 && ad.takeLast(10) == d.takeLast(10)) }
+    }
+
     val title: String get() = label.ifEmpty { domain }
     /** The name with the sign-in name after it, "pbx.example.com (7001)": tells two accounts on one server apart in menus and pickers. */
     val titleWithUser: String get() = if (username.isEmpty()) title else "$title ($username)"

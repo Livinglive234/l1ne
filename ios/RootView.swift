@@ -309,6 +309,10 @@ struct CallScreen: View {
                     Text(c.incoming ? "Incoming call" : c.state).font(.title3).foregroundStyle(Theme.muted)
                 }
                 if let line = securityLine(c) { Label(line.text, systemImage: line.icon).font(.footnote).foregroundStyle(line.color) }
+                if let mic = engine.autoAnswered[c.id] {
+                    Label(mic ? "Answered automatically · your microphone is ON" : "Answered automatically · your microphone is off", systemImage: "ear")
+                        .font(.footnote).foregroundStyle(mic ? Theme.danger : Theme.brand)
+                }
                 if engine.encryption[c.id] == .zrtp, let z = engine.zrtp[c.id] {             // the code to read out loud, compared with the other person
                     Text("Code: \(z.code)" + (z.verified ? "  ·  verified" : "")).font(.callout.monospaced())
                     if z.cacheMismatch {

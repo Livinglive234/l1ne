@@ -216,6 +216,35 @@ final class WireTests: XCTestCase {
         let a = try registered(account("7100", media: .srtpDTLS)); dial(a, "1001"); try waitServer("INVITE 1001")
         let l = serverLog(); XCTAssertTrue(l.contains("UDP/TLS/RTP/SAVP") && l.contains("a=fingerprint"), l)
     }
+    // Auto answer: only when the account has it on, the call asks for it, and the caller is allowed
+    func testAnInterComCallIsNotAnsweredByDefault() throws {
+        try registered(account("7100")); _ = http("/invite?user=7100&autoanswer=1")
+        try waitFor("incoming call") { onlyCall?.incoming == true }; pause(1)
+        XCTAssertEqual(onlyCall?.connected, false, "it keeps ringing: auto answer is off"); XCTAssertTrue(engine.autoAnswered.isEmpty)
+    }
+    func testAnInterComCallIsAnsweredWithTheMicrophoneOffWhenTheAccountAllowsIt() throws {
+        try registered(account("7100") { $0.autoAnswer = true }); _ = http("/invite?user=7100&autoanswer=1")
+        try waitFor("the call to be answered by itself") { onlyCall?.connected == true }
+        guard let id = onlyCall?.id else { return XCTFail("the call ended at once") }
+        XCTAssertEqual(engine.autoAnswered[id], false); try waitFor("the microphone to be off") { engine.muted.contains(id) }
+        XCTAssertNotNil(engine.notice, "the person is told")
+    }
+    func testAnInterComCallWithTheMicrophoneOnIsNotMuted() throws {
+        try registered(account("7100") { $0.autoAnswer = true; $0.autoAnswerMic = true }); _ = http("/invite?user=7100&autoanswer=1")
+        try waitFor("the call to be answered by itself") { onlyCall?.connected == true }
+        guard let id = onlyCall?.id else { return XCTFail("the call ended at once") }          // (the simulator's CallKit ends calls nobody touches, so look straight away)
+        XCTAssertEqual(engine.autoAnswered[id], true); XCTAssertFalse(engine.muted.contains(id))
+    }
+    func testAnInterComCallFromSomeoneNotOnTheListKeepsRinging() throws {
+        try registered(account("7100") { $0.autoAnswer = true; $0.autoAnswerFrom = "7001, 7002" }); _ = http("/invite?user=7100&autoanswer=1")
+        try waitFor("incoming call") { onlyCall?.incoming == true }; pause(1)
+        XCTAssertEqual(onlyCall?.connected, false); XCTAssertTrue(engine.autoAnswered.isEmpty)
+    }
+    func testAnOrdinaryCallIsNotAnsweredEvenWithAutoAnswerOn() throws {
+        try registered(account("7100") { $0.autoAnswer = true }); _ = http("/invite?user=7100")
+        try waitFor("incoming call") { onlyCall?.incoming == true }; pause(1)
+        XCTAssertEqual(onlyCall?.connected, false, "no auto-answer header, so it rings")
+    }
     func testRemovingAnAccountWhileItsCallIsStillRingingEndsTheCallAndDoesNotCrash() throws {
         let a = try registered(account("7100")); dial(a, "1004"); try waitServer("INVITE 1004"); try waitFor("the call") { !engine.calls.isEmpty }
         engine.unregister(a.id)                                        // PJSIP crashed when an account went away under a call that was still setting up

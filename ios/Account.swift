@@ -29,6 +29,10 @@ struct Account: Codable, Identifiable, Equatable {
     var plusTo00 = false              // send +… as 00…
     var voicemailURI = "*97"          // e.g. *97 or sip:*97@pbx
     var mwiEnabled = true             // subscribe to the message-waiting indicator
+    /// Answer calls that ask for it (an intercom or page) without anyone pressing Answer. Off unless switched on; see mayAutoAnswer and the warnings in the editor.
+    var autoAnswer = false
+    var autoAnswerMic = false         // the microphone is on when such a call is answered; off, the caller is heard but cannot hear back
+    var autoAnswerFrom = ""           // only these callers (extensions or numbers, separated by commas); empty = any caller whose call asks for it
     var iceEnabled = false
     var turnEnabled = false
     var stunServer = ""               // host[:port]
@@ -64,6 +68,18 @@ struct Account: Codable, Identifiable, Equatable {
     }
 
     var title: String { label.isEmpty ? domain : label }
+
+    /// Whether a call from `callerUser` that asks to be answered automatically may be. A number matches by its digits (and its last ten), an extension exactly.
+    func mayAutoAnswer(callerUser: String) -> Bool {
+        guard autoAnswer else { return false }
+        let allowed = autoAnswerFrom.components(separatedBy: CharacterSet(charactersIn: ",;\n")).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        if allowed.isEmpty { return true }
+        let d = callerUser.filter(\.isNumber)
+        return allowed.contains { a in
+            let ad = a.filter(\.isNumber)
+            return a.caseInsensitiveCompare(callerUser) == .orderedSame || (!ad.isEmpty && ad == d) || (ad.count >= 10 && d.count >= 10 && ad.suffix(10) == d.suffix(10))
+        }
+    }
     /// The name with the sign-in name after it, "pbx.example.com (7001)": tells two accounts on one server apart in menus and pickers.
     var titleWithUser: String { username.isEmpty ? title : "\(title) (\(username))" }
     var sipAddress: String { "sip:\(username)@\(domain)" }
@@ -129,7 +145,7 @@ struct Account: Codable, Identifiable, Equatable {
     enum CodingKeys: String, CodingKey {
         case id, label, displayName, domain, port, transport, registrarURI, outboundProxy, expires, enabled, media, mediaMandatory
         case username, authUser, contactsURL, pushGateway, dialStripPrefix, dialAddPrefix, outboundPrefix, intlPrefix, formatWithPrefix, plusTo00
-        case voicemailURI, mwiEnabled, iceEnabled, turnEnabled, stunServer, turnUser
+        case voicemailURI, mwiEnabled, iceEnabled, turnEnabled, stunServer, turnUser, autoAnswer, autoAnswerMic, autoAnswerFrom
     }
 
     /// Older saved accounts have fewer fields; every missing one takes its default.
@@ -164,6 +180,9 @@ struct Account: Codable, Identifiable, Equatable {
         turnEnabled = try c.decodeIfPresent(Bool.self, forKey: .turnEnabled) ?? def.turnEnabled
         stunServer = try c.decodeIfPresent(String.self, forKey: .stunServer) ?? def.stunServer
         turnUser = try c.decodeIfPresent(String.self, forKey: .turnUser) ?? def.turnUser
+        autoAnswer = try c.decodeIfPresent(Bool.self, forKey: .autoAnswer) ?? def.autoAnswer
+        autoAnswerMic = try c.decodeIfPresent(Bool.self, forKey: .autoAnswerMic) ?? def.autoAnswerMic
+        autoAnswerFrom = try c.decodeIfPresent(String.self, forKey: .autoAnswerFrom) ?? def.autoAnswerFrom
     }
 }
 

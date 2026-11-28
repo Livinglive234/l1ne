@@ -58,6 +58,14 @@ final class CallKitManager: NSObject, CXProviderDelegate {
         provider.reportNewIncomingCall(with: u, update: up) { _ in }
     }
 
+    /// Answers an incoming call from the app itself (auto answer), through CallKit so the system call screen and the audio session stay in step.
+    func answerFromApp(_ id: Int32) {
+        guard let u = uuids[id] else { SIPEngine.shared.answer(id); return }
+        controller.request(CXTransaction(action: CXAnswerCallAction(call: u))) { err in
+            if err != nil { Task { @MainActor in SIPEngine.shared.answer(id) } }
+        }
+    }
+
     func reportOutgoing(_ id: Int32, name: String, address: String) {
         #if DEBUG
         if ProcessInfo.processInfo.environment["L1NE_NOCALLKIT"] != nil { return }     // tests/mock: the simulator's CallKit ends unanswered calls

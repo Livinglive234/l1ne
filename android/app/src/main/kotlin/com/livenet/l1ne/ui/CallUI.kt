@@ -43,7 +43,7 @@ private val CallDanger = Color(0xFFE04646)
 @Composable
 fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimized: (Boolean) -> Unit, open: (Dest) -> Unit) {
     val app = LocalApp.current
-    val muted by engine.muted.collectAsState(); val held by engine.held.collectAsState(); val recording by engine.recording.collectAsState(); val transferNotes by engine.transferNote.collectAsState(); val zrtpState by engine.zrtp.collectAsState(); val consults by engine.consults.collectAsState(); val allCalls by engine.calls.collectAsState()
+    val muted by engine.muted.collectAsState(); val held by engine.held.collectAsState(); val recording by engine.recording.collectAsState(); val transferNotes by engine.transferNote.collectAsState(); val zrtpState by engine.zrtp.collectAsState(); val autoAnswered by engine.autoAnswered.collectAsState(); val consults by engine.consults.collectAsState(); val allCalls by engine.calls.collectAsState()
     val quality by engine.quality.collectAsState(); val numbers by engine.qualityNumbers.collectAsState(); val enc by engine.encryption.collectAsState()
     val contacts by app.contacts.contacts.collectAsState()
     val routes by engine.routes.collectAsState()
@@ -93,6 +93,7 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
             }
             SipEngine.Security.NONE -> Label(Icons.Filled.LockOpen, if (app.store.account(call.accountID)?.media == com.livenet.l1ne.core.Media.ZRTP) "Not encrypted: the other side has no ZRTP" else "Not encrypted", CallDanger)
             else -> if (app.store.account(call.accountID)?.media == com.livenet.l1ne.core.Media.ZRTP) Label(Icons.Filled.Lock, "Securing the call (ZRTP)…", CallMuted) }
+        autoAnswered[call.id]?.let { mic -> Label(Icons.Filled.Hearing, if (mic) "Answered automatically · your microphone is ON" else "Answered automatically · your microphone is off", if (mic) CallDanger else CallBrand) }
         consults[call.id]?.let { original ->                       // an attended transfer: this call asks the new person, the caller is on hold
             Text("${allCalls.firstOrNull { it.id == original }?.let { app.contacts.nameFor(it) } ?: "The caller"} is on hold", color = CallMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 8.dp)) {

@@ -277,7 +277,7 @@ fun AccountEditorScreen(id: String?, onSubmit: ((Account, String) -> Unit)? = nu
     var a by remember { mutableStateOf(existing ?: Account()) }
     var secret by remember { mutableStateOf("") }; var turnSecret by remember { mutableStateOf("") }
     var server by remember { mutableStateOf(if (isNew) "" else a.domain) }
-    var confirmRemove by remember { mutableStateOf(false) }
+    var confirmRemove by remember { mutableStateOf(false) }; var confirmAuto by remember { mutableStateOf<String?>(null) }          // "on" or "mic": a warning to accept first
     val reg by app.engine.registration.collectAsState(); val checks by app.engine.messagingCheck.collectAsState(); val notes by app.engine.messagingNote.collectAsState()
     BackHandler(onBack = onBack)
 
@@ -343,6 +343,15 @@ fun AccountEditorScreen(id: String?, onSubmit: ((Account, String) -> Unit)? = nu
                 SectionHeader("Voicemail")
                 Card { Field("Voicemail number or address", a.voicemailURI, { a = a.copy(voicemailURI = it) }); SwitchRow("Message waiting indicator (MWI)", a.mwiEnabled) { a = a.copy(mwiEnabled = it) } }
                 FooterText("What to dial to reach your voicemail. PBXes differ: *97 on FreePBX, 8500 or *86 on others, or a full address like sip:voicemail@example.com. Leave it empty to hide the voicemail button.")
+                SectionHeader("Auto answer")
+                Card {
+                    SwitchRow("Answer intercom calls automatically", a.autoAnswer) { if (it) confirmAuto = "on" else a = a.copy(autoAnswer = false, autoAnswerMic = false) }
+                    if (a.autoAnswer) {
+                        RowDivider(); SwitchRow("Turn my microphone on", a.autoAnswerMic) { if (it) confirmAuto = "mic" else a = a.copy(autoAnswerMic = false) }
+                        Field("Only from (extensions or numbers, separated by commas)", a.autoAnswerFrom, { a = a.copy(autoAnswerFrom = it) })
+                    }
+                }
+                FooterText(com.livenet.l1ne.core.AutoAnswerWarning.footer)
                 SectionHeader("Media")
                 Card { @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class) androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {          // four choices: whole chips wrap to a second line on a narrow phone
                     FilterChip(a.media == Media.NONE, { a = a.copy(media = Media.NONE) }, label = { Text("None") }); FilterChip(a.media == Media.SRTP_SDES, { a = a.copy(media = Media.SRTP_SDES) }, label = { Text("SRTP") }); FilterChip(a.media == Media.SRTP_DTLS, { a = a.copy(media = Media.SRTP_DTLS) }, label = { Text("DTLS-SRTP") }); FilterChip(a.media == Media.ZRTP, { a = a.copy(media = Media.ZRTP) }, label = { Text("ZRTP", maxLines = 1, softWrap = false) }) }
@@ -358,6 +367,11 @@ fun AccountEditorScreen(id: String?, onSubmit: ((Account, String) -> Unit)? = nu
             }
         }
     }
+    confirmAuto?.let { kind -> AlertDialog({ confirmAuto = null }, containerColor = L1neColors.SheetBg,
+        title = { Text(if (kind == "on") "Turn on auto answer?" else "Turn the microphone on for auto-answered calls?", color = L1neColors.Text) },
+        text = { Text(if (kind == "on") com.livenet.l1ne.core.AutoAnswerWarning.enable else com.livenet.l1ne.core.AutoAnswerWarning.microphone, color = L1neColors.Muted) },
+        confirmButton = { TextButton({ a = if (kind == "on") a.copy(autoAnswer = true) else a.copy(autoAnswerMic = true); confirmAuto = null }) { Text(if (kind == "on") "Turn on" else "Turn the microphone on", color = L1neColors.Danger) } },
+        dismissButton = { TextButton({ confirmAuto = null }) { Text("Cancel") } }) }
     if (confirmRemove) AlertDialog({ confirmRemove = false }, containerColor = L1neColors.SheetBg, title = { Text("Remove ${a.title}?") }, text = { Text("Its chats and call history on this phone are deleted too.") },
         confirmButton = { TextButton({ app.removeAccountCompletely(a.id); confirmRemove = false; onBack() }) { Text("Remove account", color = L1neColors.Danger) } }, dismissButton = { TextButton({ confirmRemove = false }) { Text("Cancel") } })
 }

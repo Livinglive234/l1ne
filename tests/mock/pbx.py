@@ -15,7 +15,7 @@ instance covers every scenario:
 A tiny HTTP control port lets a test see and steer it:
   GET /log            everything the server saw, one line each
   GET /clear          forget the log
-  GET /invite?user=7100          ring the registered phone (an incoming call)
+  GET /invite?user=7100          ring the registered phone (an incoming call); add &autoanswer=1 for an intercom call that asks to be answered by itself
   GET /text?user=7100&text=hi    send the registered phone a text message
 
 usage: pbx.py [--host 0.0.0.0] [--sip-port 5060] [--stun-port 3478] [--http-port 8099] [--zrtp-peer /path/to/zrtp_peer]
@@ -223,18 +223,18 @@ async def http(reader, writer):
     u = urlparse(line.split()[1]) if line else urlparse("/"); q = {k: v[0] for k, v in parse_qs(u.query).items()}; out = "ok"
     if u.path == "/log": out = "\n".join(LOG) + "\n"
     elif u.path == "/clear": LOG.clear()
-    elif u.path == "/invite": out = await invite(q.get("user", "7100"))
+    elif u.path == "/invite": out = await invite(q.get("user", "7100"), q.get("autoanswer") == "1")
     elif u.path == "/text": out = await text(q.get("user", "7100"), q.get("text", "hello"))
     writer.write(f"HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(out.encode())}\r\n\r\n{out}".encode()); await writer.drain(); writer.close()
 
-async def invite(user):
+async def invite(user, auto=False):
     if user not in registered: return "not registered"
     target, send, me = registered[user]; cid = uuid.uuid4().hex; frm = f"<sip:7777@mockpbx>;tag={uuid.uuid4().hex[:8]}"
     host = re.search(r"@([^:;>]+)", target).group(1)
     sdp = "v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\ns=mock\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\nm=audio 40002 RTP/AVP 0\r\na=rtpmap:0 PCMU/8000\r\n"
     dialogs[cid] = {"ours": True, "target": target, "from": frm}
     await send(f"INVITE {target} SIP/2.0\r\nVia: SIP/2.0/TCP {me}:{args.sip_port};branch=z9hG4bK-{uuid.uuid4().hex[:10]}\r\nMax-Forwards: 70\r\nFrom: \"Mock Caller\" {frm}\r\n"
-               f"To: <sip:{user}@mockpbx>\r\nCall-ID: {cid}\r\nCSeq: 1 INVITE\r\nContact: <sip:7777@{me}:{args.sip_port};transport=tcp>\r\nContent-Type: application/sdp\r\nContent-Length: {len(sdp)}\r\n\r\n{sdp}")
+               f"To: <sip:{user}@mockpbx>\r\nCall-ID: {cid}\r\nCSeq: 1 INVITE\r\nContact: <sip:7777@{me}:{args.sip_port};transport=tcp>\r\n" + ("Alert-Info: <http://mock/intercom>;info=alert-autoanswer\r\nCall-Info: <sip:mock>;answer-after=0\r\n" if auto else "") + f"Content-Type: application/sdp\r\nContent-Length: {len(sdp)}\r\n\r\n{sdp}")
     log("-> INVITE to phone (incoming call)", user); return "invited"
 
 async def text(user, body):

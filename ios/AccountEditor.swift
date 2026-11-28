@@ -12,6 +12,7 @@ struct AccountEditor: View {
     @State private var secret = ""
     @State private var turnSecret = ""
     @State private var confirmRemove = false
+    @State private var pendingAuto: String?            // "on" or "mic": a warning to accept before the switch changes
     @State private var copied = false
 
     private var isNew: Bool { store.account(account.id) == nil }
@@ -48,6 +49,14 @@ struct AccountEditor: View {
                     }
                 } message: { Text("Its chats and call history on this phone are deleted too.") }
                 .onAppear { secret = ""; turnSecret = "" }
+                .alert("Turn on auto answer?", isPresented: Binding(get: { pendingAuto == "on" }, set: { if !$0 && pendingAuto == "on" { pendingAuto = nil } })) {
+                    Button("Turn on", role: .destructive) { account.autoAnswer = true; pendingAuto = nil }
+                    Button("Cancel", role: .cancel) { pendingAuto = nil }
+                } message: { Text(AutoAnswerWarning.enable) }
+                .alert("Turn the microphone on for auto-answered calls?", isPresented: Binding(get: { pendingAuto == "mic" }, set: { if !$0 && pendingAuto == "mic" { pendingAuto = nil } })) {
+                    Button("Turn the microphone on", role: .destructive) { account.autoAnswerMic = true; pendingAuto = nil }
+                    Button("Cancel", role: .cancel) { pendingAuto = nil }
+                } message: { Text(AutoAnswerWarning.microphone) }
         }
     }
 
@@ -170,6 +179,17 @@ struct AccountEditor: View {
             } header: { Text("Voicemail") } footer: {
                 Text("What to dial to reach your voicemail. PBXes differ: *97 on FreePBX, 8500 or *86 on others, or a full address like sip:voicemail@example.com. Leave it empty to hide the voicemail button. The indicator shows how many new messages the server reports.")
             }
+            .listRowBackground(Theme.surface)
+
+            Section {
+                Toggle("Answer intercom calls automatically", isOn: Binding(get: { account.autoAnswer }, set: { on in
+                    if on { pendingAuto = "on" } else { account.autoAnswer = false; account.autoAnswerMic = false } }))
+                if account.autoAnswer {
+                    Toggle("Turn my microphone on", isOn: Binding(get: { account.autoAnswerMic }, set: { on in
+                        if on { pendingAuto = "mic" } else { account.autoAnswerMic = false } }))
+                    TextField("Only from (extensions or numbers, separated by commas)", text: $account.autoAnswerFrom).plainInput()
+                }
+            } header: { Text("Auto answer") } footer: { Text(AutoAnswerWarning.footer) }
             .listRowBackground(Theme.surface)
 
             Section {

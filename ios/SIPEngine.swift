@@ -164,8 +164,9 @@ final class SIPEngine: ObservableObject {
         var cfg = pjsua_config()
         pjsua_config_default(&cfg)
         cfg.max_calls = 4
-        cfg.cb.on_incoming_call = { acc, call, _ in
-            Task { @MainActor in SIPEngine.shared.incoming(call: call) }
+        cfg.cb.on_incoming_call = { acc, call, rdata in
+            let auto = l1ne_invite_auto_answer(rdata) != 0          // the INVITE asks to be answered by itself (an intercom or page)
+            Task { @MainActor in SIPEngine.shared.incoming(call: call, autoAnswerAsked: auto) }
         }
         cfg.cb.on_call_state = { call, _ in
             // The call id is invalid once this callback returns, so read the info now.
@@ -673,11 +674,33 @@ final class SIPEngine: ObservableObject {
         recording.insert(id)
     }
 
-    private func incoming(call: pjsua_call_id) {
+    private func incoming(call: pjsua_call_id, autoAnswerAsked: Bool = false) {
         // Tell the caller we are ringing (180), or send early media (183) if that is switched on.
         pjsua_call_answer(call, AppSettings.shared.allowOutgoingEarlyMedia ? 183 : 180, nil, nil)
         refresh(call: call, incoming: true)
         if let c = calls.first(where: { $0.id == call }) { CallKitManager.shared.reportIncoming(call, name: c.remote, address: c.address) }
+        if autoAnswerAsked { maybeAutoAnswer(call) }
+    }
+
+    /// Calls this phone answered by itself (an intercom or page), and whether its microphone was turned on for them. See Account.autoAnswer.
+    @Published var autoAnswered: [Int32: Bool] = [:]
+    private var muteWhenConnected = Set<Int32>()
+
+    /// The INVITE asks to be answered automatically. Only when the account allows it for this caller, and never over another call (answering would put it on hold).
+    private func maybeAutoAnswer(_ id: Int32) {
+        guard let c = calls.first(where: { $0.id == id }), let acc = c.accountID.flatMap({ AccountStore.shared.account($0) }) else { return }
+        let who = VCard.sipAddress(Self.uriPart(c.remote)).map { String($0.split(separator: "@").first ?? "") } ?? Self.displayName(from: c.remote)
+        guard acc.mayAutoAnswer(callerUser: who) else { SipLog.shared.add("[auto-answer] \(who) asks for it, not allowed on \(acc.title): ringing as usual"); return }
+        guard calls.count == 1 else { SipLog.shared.add("[auto-answer] not while another call is going on: ringing as usual"); return }
+        SipLog.shared.add("[auto-answer] answering \(who) on \(acc.title), microphone \(acc.autoAnswerMic ? "on" : "off")")
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard let self, let c = self.calls.first(where: { $0.id == id }), !c.connected else { return }
+            self.autoAnswered[id] = acc.autoAnswerMic
+            if !acc.autoAnswerMic { self.muteWhenConnected.insert(id) }
+            CallKitManager.shared.answerFromApp(id)
+            self.showNotice("Auto-answered a call from \(c.remote). Your microphone is \(acc.autoAnswerMic ? "ON: they can hear you" : "off: you can hear them, they cannot hear you").")
+        }
     }
 
     private func refresh(call: pjsua_call_id, incoming: Bool?, info: pjsua_call_info? = nil) {
@@ -712,7 +735,7 @@ final class SIPEngine: ObservableObject {
             calls.removeAll { $0.id == call }
             callEnded(call)
             CallKitManager.shared.reportEnded(call)
-            encryption[call] = nil; quality[call] = nil; zrtp[call] = nil
+            encryption[call] = nil; quality[call] = nil; zrtp[call] = nil; autoAnswered[call] = nil; muteWhenConnected.remove(call)
             consultEnded(call); transferNote[call] = nil
             if currentCallID == call { currentCallID = calls.first?.id }
             if calls.isEmpty { speaker = false; statsTask?.cancel(); statsTask = nil }
@@ -734,7 +757,7 @@ final class SIPEngine: ObservableObject {
             waiting: ci.state == PJSIP_INV_STATE_CALLING || ci.state == PJSIP_INV_STATE_EARLY)
         if let i = calls.firstIndex(where: { $0.id == call }) { if calls[i] != entry { calls[i] = entry } } else { calls.append(entry) }      // no redraw when nothing changed
         if currentCallID == nil || !calls.contains(where: { $0.id == currentCallID }) { currentCallID = call }
-        if connected { startStats(); CallKitManager.shared.reportConnected(call, outgoing: !(entry.incoming)) }
+        if connected { startStats(); CallKitManager.shared.reportConnected(call, outgoing: !(entry.incoming)); if muteWhenConnected.remove(call) != nil { toggleMute(call) } }
         updateRingback()
     }
 

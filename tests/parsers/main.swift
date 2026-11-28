@@ -41,6 +41,12 @@ check(!RingbackRule.wanted(outgoing: true, answered: true, waiting: true, accept
       && !RingbackRule.wanted(outgoing: true, answered: false, waiting: false, acceptEarlyMedia: false) && !RingbackRule.wanted(outgoing: true, answered: false, waiting: true, acceptEarlyMedia: true), "none once answered, for incoming calls, when not waiting, or when the PBX's early media is let through")
 
 
+// auto answer: off unless switched on; an allow list matches extensions exactly and numbers by their digits
+var aa = Account(); check(!aa.mayAutoAnswer(callerUser: "7001"), "auto answer is off by default")
+aa.autoAnswer = true; check(aa.mayAutoAnswer(callerUser: "7001"), "on with no list: any caller that asks")
+aa.autoAnswerFrom = "7001, (651) 760-4266"
+check(aa.mayAutoAnswer(callerUser: "7001") && !aa.mayAutoAnswer(callerUser: "7002") && aa.mayAutoAnswer(callerUser: "16517604266") && !aa.mayAutoAnswer(callerUser: "6125550142"), "the list lets in the listed extension and number only")
+
 // caller ID kept in the history
 check(PhoneFormat.callerIDName(remote: "\"Ada Lovelace\" <sip:6125550142@pbx.example.com>") == "Ada Lovelace", "a caller's name is kept")
 check(PhoneFormat.callerIDName(remote: "\"6125550142\" <sip:6125550142@pbx.example.com>") == "" && PhoneFormat.callerIDName(remote: "\"(612) 555-0142\" <sip:6125550142@pbx.example.com>") == "", "a name that is only the number again is not kept")

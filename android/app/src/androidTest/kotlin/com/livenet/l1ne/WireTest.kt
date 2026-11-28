@@ -195,6 +195,7 @@ class WireTest {
     /** The speaker button: audio moves to the speaker through Telecom, and back to the earpiece. */
     @Test fun theSpeakerButtonSwitchesTheAudioToTheSpeakerAndBack() {
         val telecom = (InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as com.livenet.l1ne.L1neApplication).telecom
+        com.livenet.l1ne.core.SipLog.clear()          // the log keeps the last 2500 entries; earlier tests would otherwise have pushed this one's lines out
         val a = registered(account("7100")); dial(a, "1001"); waitFor("answered") { onlyCall()?.active == true }
         waitFor("Telecom to offer the speaker") { telecom.routes.value.supported and android.telecom.CallAudioState.ROUTE_SPEAKER != 0 }
         main { engine.setSpeaker(true) }; waitFor("the speaker is the active route") { telecom.routes.value.speaker }
@@ -217,6 +218,34 @@ class WireTest {
     @Test fun sdesOffersSrtpWithKeys() { val a = registered(account("7100", media = Media.SRTP_SDES)); dial(a, "1001"); waitServer("INVITE 1001"); val l = serverLog(); assertTrue("a=crypto:" in l && "AES_CM_128_HMAC_SHA1" in l, l.lines().first { "INVITE 1001" in it }) }   // optional SRTP offers keys on plain RTP/AVP; a mandatory (RTP/SAVP) offer needs TLS
     @Test fun dtlsOffersAFingerprint() { val a = registered(account("7100", media = Media.SRTP_DTLS)); dial(a, "1001"); waitServer("INVITE 1001"); val l = serverLog(); assertTrue("UDP/TLS/RTP/SAVP" in l && "a=fingerprint" in l) }
     // ZRTP, against tests/zrtp/zrtp_peer.c (started by the mock PBX on its media port)
+    // Auto answer: only when the account has it on, the call asks for it, and the caller is allowed
+    @Test fun anIntercomCallIsNotAnsweredByDefault() {
+        registered(account("7100")); http("/invite?user=7100&autoanswer=1")
+        waitFor("incoming call") { engine.calls.value.singleOrNull()?.incoming == true }; Thread.sleep(2000)
+        assertFalse(engine.calls.value.single().active, "it keeps ringing: auto answer is off"); assertTrue(engine.autoAnswered.value.isEmpty())
+    }
+    @Test fun anIntercomCallIsAnsweredWithTheMicrophoneOffWhenTheAccountAllowsIt() {
+        registered(account("7100") { it.copy(autoAnswer = true) }); http("/invite?user=7100&autoanswer=1")
+        waitFor("the call to be answered by itself") { engine.calls.value.singleOrNull()?.active == true }
+        val id = engine.calls.value.single().id
+        assertEquals(false, engine.autoAnswered.value[id]); waitFor("the microphone to be off") { id in engine.muted.value }
+        assertNotNull(engine.notice.value, "the person is told")
+    }
+    @Test fun anIntercomCallWithTheMicrophoneOnIsNotMuted() {
+        registered(account("7100") { it.copy(autoAnswer = true, autoAnswerMic = true) }); http("/invite?user=7100&autoanswer=1")
+        waitFor("the call to be answered by itself") { engine.calls.value.singleOrNull()?.active == true }; Thread.sleep(1000)
+        val id = engine.calls.value.single().id; assertEquals(true, engine.autoAnswered.value[id]); assertFalse(id in engine.muted.value)
+    }
+    @Test fun anIntercomCallFromSomeoneNotOnTheListKeepsRinging() {
+        registered(account("7100") { it.copy(autoAnswer = true, autoAnswerFrom = "7001, 7002") }); http("/invite?user=7100&autoanswer=1")
+        waitFor("incoming call") { engine.calls.value.singleOrNull()?.incoming == true }; Thread.sleep(2000)
+        assertFalse(engine.calls.value.single().active); assertTrue(engine.autoAnswered.value.isEmpty())
+    }
+    @Test fun anOrdinaryCallIsNotAnsweredEvenWithAutoAnswerOn() {
+        registered(account("7100") { it.copy(autoAnswer = true) }); http("/invite?user=7100")
+        waitFor("incoming call") { engine.calls.value.singleOrNull()?.incoming == true }; Thread.sleep(2000)
+        assertFalse(engine.calls.value.single().active, "no auto-answer header, so it rings")
+    }
     @Test fun zrtpAgreesKeysAndBothSidesShowTheSameCode() {
         val a = registered(account("7100", media = Media.ZRTP)); dial(a, "1001"); waitServer("INVITE 1001")
         assertTrue("a=zrtp-hash:1.10" in serverLog(), "the offer says we speak ZRTP")

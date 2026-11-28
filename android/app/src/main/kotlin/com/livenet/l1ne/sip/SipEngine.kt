@@ -99,10 +99,12 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
                 if (type == "incoming" && started) Native.nAnswer(a, if (settings.allowOutgoingEarlyMedia) 183 else 180)
                 _calls.value = if (ci.ended) _calls.value.filter { it.id != a } else if (old == null) _calls.value + ci else _calls.value.map { if (it.id == a) ci.copy(accountID = old.accountID) else it }
                 if (ci.active && old?.active != true && settings.autoRecord) toggleRecord(a)
+                if (ci.active && old?.active != true && muteWhenActive.remove(a)) setMuted(a, true)          // auto-answered with the microphone off
+                if (type == "incoming" && f.getOrNull(6) == "1") maybeAutoAnswer(a)
                 updateAudio(); updateRingback()
                 if (ci.ended) {
                     val zrtpEnded = zrtp.value[a]; val encEnded = encryption.value[a]
-                    muted.value -= a; held.value -= a; zrtp.value -= a; encryption.value -= a          // a finished call leaves nothing behind (call ids are reused, so the next call would start with its label)
+                    muted.value -= a; held.value -= a; zrtp.value -= a; encryption.value -= a; autoAnswered.value -= a; muteWhenActive.remove(a)          // a finished call leaves nothing behind (call ids are reused, so the next call would start with its label)
                     val mine = old ?: ci; val byYou = a in userEnded; userEnded.remove(a)
                     val dir = when { !mine.incoming -> com.livenet.l1ne.data.Direction.OUTGOING
                         ci.connectedSecs > 0 || byYou -> com.livenet.l1ne.data.Direction.INCOMING
@@ -219,6 +221,26 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     fun hangup(id: Int) { userEnded.add(id); if (started) Native.nHangup(id) }
     fun hangupAll() { _calls.value.forEach { userEnded.add(it.id) }; Native.nHangupAll() }
     fun dtmf(id: Int, d: String) = Native.nDtmf(id, d)
+    /** Calls this phone answered by itself (an intercom or page), and whether its microphone was turned on for them. See Account.autoAnswer. */
+    val autoAnswered = MutableStateFlow<Map<Int, Boolean>>(emptyMap())
+    private val muteWhenActive = HashSet<Int>()
+
+    /** The INVITE asks to be answered automatically. Only when the account allows it for this caller, and never over another call (answering would put it on hold). */
+    private fun maybeAutoAnswer(id: Int) {
+        val c = _calls.value.firstOrNull { it.id == id && it.incoming } ?: return
+        val acc = store.account(c.accountID) ?: return
+        if (!acc.mayAutoAnswer(c.number)) { com.livenet.l1ne.core.SipLog.add("[auto-answer] call ${c.number} asks for it, not allowed on ${acc.title}: ringing as usual"); return }
+        if (_calls.value.any { it.id != id }) { com.livenet.l1ne.core.SipLog.add("[auto-answer] not while another call is going on: ringing as usual"); return }
+        com.livenet.l1ne.core.SipLog.add("[auto-answer] answering ${c.number} on ${acc.title}, microphone ${if (acc.autoAnswerMic) "on" else "off"}")
+        main.postDelayed({
+            if (_calls.value.none { it.id == id && !it.active && !it.ended }) return@postDelayed
+            autoAnswered.value = autoAnswered.value + (id to acc.autoAnswerMic)
+            if (!acc.autoAnswerMic) muteWhenActive.add(id)
+            answer(id); CallNotifications.cancelIncoming(app)
+            showNotice("Auto-answered a call from ${contactName(c)}. Your microphone is ${if (acc.autoAnswerMic) "ON: they can hear you" else "off: you can hear them, they cannot hear you"}.")
+        }, 400)
+    }
+
     /** The mute button on a headset or the system call UI: make the call match it. */
     fun setMuted(id: Int, on: Boolean) { if ((id in muted.value) != on) toggleMute(id) }
     fun toggleMute(id: Int) { val on = id !in muted.value; Native.nMute(id, on); muted.value = if (on) muted.value + id else muted.value - id }

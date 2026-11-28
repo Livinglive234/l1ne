@@ -2,7 +2,9 @@ package com.livenet.l1ne.core
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class AccountTest {
     private fun acc(block: Account.() -> Account = { this }) = Account(username = "7101", domain = "pbx.example.com").block()
@@ -52,5 +54,12 @@ class AccountTest {
     @Test fun aNewAccountIsNamedAfterItsServerNotItsDisplayName() {
         val a = Account(username = "7001", displayName = "frank").finishedNew("pbx.example.com")
         assertEquals("pbx.example.com", a.label); assertEquals("frank", a.displayName)
+    }
+
+    @Test fun autoAnswerIsOffUnlessSwitchedOnAndTheListLimitsWho() {
+        assertFalse(Account().mayAutoAnswer("7001"))
+        val on = Account(autoAnswer = true); assertTrue(on.mayAutoAnswer("7001"))
+        val listed = on.copy(autoAnswerFrom = "7001, (651) 760-4266")
+        assertTrue(listed.mayAutoAnswer("7001")); assertFalse(listed.mayAutoAnswer("7002")); assertTrue(listed.mayAutoAnswer("16517604266")); assertFalse(listed.mayAutoAnswer("6125550142"))
     }
 }

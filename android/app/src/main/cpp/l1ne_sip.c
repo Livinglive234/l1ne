@@ -32,12 +32,14 @@ static void cstr(pj_str_t s, char *out, size_t n) { size_t l = s.slen < (pj_ssiz
 static pj_str_t pjdup(const char *c) { pj_str_t o; pj_strdup2_with_null(g_pool, &o, c); return o; }
 static void reg_thread(void) { if (!pj_thread_is_registered()) { static pj_thread_desc d[8]; static int i; pj_thread_t *t; pj_thread_register("jni", d[i++ % 8], &t); } }
 
+#include "l1ne_autoanswer.h"
+static int g_auto[PJSUA_MAX_CALLS];            /* the INVITE asked to be answered automatically (an intercom or page) */
 static void send_call(pjsua_call_id id, const char *type) {
     pjsua_call_info ci; if (pjsua_call_get_info(id, &ci) != 0) return;
     char remote[256], lbl[128], s2[512];
     cstr(ci.remote_info, remote, sizeof remote); cstr(ci.last_status_text, lbl, sizeof lbl);
-    /* s2: role|lastStatus|reason|connectedSeconds|media|mediaActive */
-    snprintf(s2, sizeof s2, "%d|%d|%s|%ld|%d|%d", (int)ci.role, (int)ci.last_status, lbl, (long)ci.connect_duration.sec, (int)ci.media_status, (int)ci.acc_id);
+    /* s2: role|lastStatus|reason|connectedSeconds|media|account|asksForAutoAnswer */
+    snprintf(s2, sizeof s2, "%d|%d|%s|%ld|%d|%d|%d", (int)ci.role, (int)ci.last_status, lbl, (long)ci.connect_duration.sec, (int)ci.media_status, (int)ci.acc_id, id >= 0 && id < PJSUA_MAX_CALLS ? g_auto[id] : 0);
     emit(type, id, (int)ci.state, remote, s2);
 }
 /* A muted call must stay muted when PJSIP reports a state or media change (hold/resume, re-INVITE): the microphone is only reconnected for calls not muted. */
@@ -54,7 +56,7 @@ JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nZrtpCache(JNIEnv *env, 
     (void)c; const char *s = (*env)->GetStringUTFChars(env, p, NULL); strncpy(g_zrtp_path, s, sizeof g_zrtp_path - 1); (*env)->ReleaseStringUTFChars(env, p, s);
 }
 JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nZrtpVerified(JNIEnv *e, jclass c, jint call, jboolean on) { (void)e; (void)c; reg_thread(); l1ne_zrtp_call_verified(call, on ? 1 : 0); }
-static void on_incoming(pjsua_acc_id acc, pjsua_call_id call, pjsip_rx_data *rd) { (void)rd; (void)acc; if (call >= 0 && call < PJSUA_MAX_CALLS) g_muted[call] = 0; send_call(call, "incoming"); }
+static void on_incoming(pjsua_acc_id acc, pjsua_call_id call, pjsip_rx_data *rd) { (void)acc; if (call >= 0 && call < PJSUA_MAX_CALLS) { g_muted[call] = 0; g_auto[call] = l1ne_invite_auto_answer(rd); } send_call(call, "incoming"); }
 static void on_call_state(pjsua_call_id call, pjsip_event *e) {
     (void)e; pjsua_call_info ci;
     if (pjsua_call_get_info(call, &ci) == 0 && ci.state == PJSIP_INV_STATE_CONFIRMED && ci.media_status == PJSUA_CALL_MEDIA_ACTIVE && ci.conf_slot >= 0) { mic_connect(call, ci.conf_slot); }   /* belt and braces */
