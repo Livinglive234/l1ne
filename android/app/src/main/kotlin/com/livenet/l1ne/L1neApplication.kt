@@ -29,7 +29,13 @@ class L1neApplication : Application() {
     lateinit var settings: com.livenet.l1ne.data.AppSettings
     /** Takes an account out for good: its registration, its chats and call history on this phone, and the account itself.
      *  The editor and the swipe in the Accounts list both end here, so they always do the same thing. */
-    fun removeAccountCompletely(id: String) { engine.unregister(id); messages.removeAccount(id); callLog.removeAccount(id); store.remove(id) }
+    /** Takes an account out for good: its registration, chats and call history, the contacts and directory sources it brought in (its vCard link, CardDAV or LDAP), and the account itself. */
+    fun removeAccountCompletely(id: String) {
+        engine.unregister(id); messages.removeAccount(id); callLog.removeAccount(id)
+        directories.sources.value.filter { it.accountID == id }.forEach { contacts.deleteSource(it.tag); directories.remove(it.id) }
+        contacts.removeImports(id)
+        store.remove(id)
+    }
 
     override fun onCreate() {
         super.onCreate()

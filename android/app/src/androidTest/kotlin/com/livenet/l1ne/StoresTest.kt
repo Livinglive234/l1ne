@@ -67,6 +67,13 @@ class StoresTest {
 
     private fun vcard(vararg e: Pair<String, String>, skipped: Int = 0) = VCard.Result(e.map { VCard.Entry(it.first, it.second) }, skipped)
 
+    @Test fun removingAnAccountRemovesTheContactsItImportedButNotTypedOnes() {
+        val c = ContactsStore(ctx); c.removeAll()
+        c.merge(vcard("Imported" to "7001@pbx.example.com"), "acc"); c.merge(vcard("Other PBX" to "7002@other.example.com"), "other"); c.add("Typed", "7003@pbx.example.com", "acc")
+        c.removeImports("acc")
+        assertEquals(listOf("Other PBX", "Typed"), c.contacts.value.map { it.name }.sorted())
+    }
+
     @Test fun importsNeverOverwriteWhatYouTypedIn() {
         val c = ContactsStore(ctx)
         assertTrue(c.add("My Jordan", "7201@pbx.example.com", null))

@@ -85,6 +85,8 @@ class ContactsStore(context: Context) {
         val (list, summary) = ContactBook.replaceSource(_contacts.value, tag, result, account); commit(list); return summary
     }
     fun removeLinkImports(): Int { val n = _contacts.value.size; commit(_contacts.value.filterNot { it.imported && (it.source == null || it.source == "link") }); return n - _contacts.value.size }
+    /** Removes the contacts imported for an account (from its vCard link or a directory), when the account is removed. Contacts you typed in stay. */
+    fun removeImports(accountID: String) = commit(_contacts.value.filterNot { it.accountID == accountID && it.imported })
     fun deleteSource(tag: String) = commit(_contacts.value.filter { it.source != tag })
     val hasLinkImports get() = _contacts.value.any { it.imported && (it.source == null || it.source == "link") }
     fun add(name: String, address: String, account: String?): Boolean {

@@ -215,3 +215,13 @@ MainActor.assumeIsolated {
     check(old?.first?.favorite == nil, "a contact saved before favorites existed still loads")
 }
 
+// removing an account takes the contacts it imported with it, and leaves the ones you typed
+MainActor.assumeIsolated {
+    let cs = ContactsStore(url: URL(fileURLWithPath: NSTemporaryDirectory() + "rm-\(UUID().uuidString).json"))
+    let acc = UUID(), other = UUID()
+    _ = cs.merge(VCard.Result(entries: [VCard.Entry(name: "Imported", address: "7001@pbx.example.com")], skipped: 0), account: acc)
+    _ = cs.merge(VCard.Result(entries: [VCard.Entry(name: "Other PBX", address: "7002@other.example.com")], skipped: 0), account: other)
+    _ = cs.add(name: "Typed", address: "7003@pbx.example.com", account: acc)
+    cs.removeImports(forAccount: acc)
+    check(cs.contacts.map(\.name).sorted() == ["Other PBX", "Typed"], "removing an account removes the contacts it imported, not typed ones or another account's")
+}

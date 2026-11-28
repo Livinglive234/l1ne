@@ -95,6 +95,12 @@ final class ContactsStore: ObservableObject {
         return n - contacts.count
     }
 
+    /// Removes the contacts that were imported for an account (from its vCard link or a directory), when the account is removed. Contacts you typed in stay.
+    func removeImports(forAccount id: UUID) {
+        contacts.removeAll { $0.accountID == id && $0.imported }
+        persist()
+    }
+
     /// Removes every contact that came from one synced directory (when you delete the directory).
     func delete(source tag: String) { contacts.removeAll { $0.source == tag }; persist() }
 
