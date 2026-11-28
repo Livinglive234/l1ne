@@ -94,13 +94,21 @@ struct zt {
     pjmedia_transport base; pjmedia_transport *slave; pj_bool_t del_base; pj_pool_t *pool;
     void *s_user; void *s_ref; void (*s_rtp_cb)(void *, void *, pj_ssize_t); void (*s_rtp_cb2)(pjmedia_tp_cb_param *); void (*s_rtcp_cb)(void *, void *, pj_ssize_t);
     pj_lock_t *lock; pj_timer_entry timer; pj_bool_t destroyed;
-    zrtp_t *z; int call_id, mandatory, started, ssrc_known;
+    zrtp_t *z; int call_id, mandatory, started, ssrc_known; unsigned seq;
     l1srtp_t tx, rx; int have_tx, have_rx;
     l1ne_zrtp_info info; int notify;
     outpkt q[MAXQ]; int qn;
 };
 
-static struct zt *g_by_call[PJSUA_MAX_CALLS];
+/* The live transports. A call can have more than one over its life (pjsua may create the media transport again), so they are found by call id,
+ * newest first, rather than by a fixed slot per call. */
+#define MAXLIVE 16
+static struct zt *g_live[MAXLIVE]; static unsigned g_seq;
+static struct zt *find_by_call(int call_id) {
+    struct zt *best = NULL;
+    for (int i = 0; i < MAXLIVE; i++) if (g_live[i] && g_live[i]->call_id == call_id && (!best || g_live[i]->seq > best->seq)) best = g_live[i];
+    return best;
+}
 
 static pj_timer_heap_t *theap(void) { return pjsip_endpt_get_timer_heap(pjsua_get_pjsip_endpt()); }
 
@@ -250,7 +258,7 @@ static pj_status_t zt_destroy(pjmedia_transport *tp) {
     struct zt *t = (struct zt *)tp;
     pj_lock_acquire(t->lock); t->destroyed = PJ_TRUE; pj_lock_release(t->lock);
     pj_timer_heap_t *th = theap(); if (th) pj_timer_heap_cancel_if_active(th, &t->timer, 0);
-    for (int i = 0; i < PJSUA_MAX_CALLS; i++) if (g_by_call[i] == t) g_by_call[i] = NULL;
+    pj_mutex_lock(G.lock); for (int i = 0; i < MAXLIVE; i++) if (g_live[i] == t) g_live[i] = NULL; pj_mutex_unlock(G.lock);
     if (t->del_base) pjmedia_transport_close(t->slave);
     if (t->base.grp_lock) pj_grp_lock_dec_ref(t->base.grp_lock); else zt_on_destroy(t);
     return PJ_SUCCESS;
@@ -278,17 +286,19 @@ pjmedia_transport *l1ne_zrtp_on_create_media_transport(pjsua_call_id call_id, un
     t->z = zrtp_new(&cb, G.zid, (uint32_t)rnd[0] << 24 | rnd[1] << 16 | rnd[2] << 8 | rnd[3]);
     if (!t->z) { pj_pool_release(pool); return base; }
     if (base->grp_lock) { t->base.grp_lock = base->grp_lock; pj_grp_lock_add_ref(base->grp_lock); pj_grp_lock_add_handler(base->grp_lock, pool, t, &zt_on_destroy); }
-    if (call_id >= 0 && call_id < PJSUA_MAX_CALLS) g_by_call[call_id] = t;
+    pj_mutex_lock(G.lock); t->seq = ++g_seq;
+    for (int i = 0; i < MAXLIVE; i++) if (!g_live[i]) { g_live[i] = t; break; }
+    pj_mutex_unlock(G.lock);
     PJ_LOG(4, (THIS_FILE, "call %d: ZRTP %s", call_id, t->mandatory ? "required" : "when the other side has it"));
     return &t->base;
 }
 
 int l1ne_zrtp_call_info(int call_id, l1ne_zrtp_info *out) {
-    if (call_id < 0 || call_id >= PJSUA_MAX_CALLS || !g_by_call[call_id]) return 0;
-    struct zt *t = g_by_call[call_id]; pj_lock_acquire(t->lock); *out = t->info; pj_lock_release(t->lock); return 1;
+    pj_mutex_lock(G.lock); struct zt *t = find_by_call(call_id); if (!t) { pj_mutex_unlock(G.lock); return 0; }
+    pj_lock_acquire(t->lock); *out = t->info; pj_lock_release(t->lock); pj_mutex_unlock(G.lock); return 1;
 }
 
 void l1ne_zrtp_call_verified(int call_id, int verified) {
-    if (call_id < 0 || call_id >= PJSUA_MAX_CALLS || !g_by_call[call_id]) return;
-    struct zt *t = g_by_call[call_id]; pj_lock_acquire(t->lock); zrtp_set_verified(t->z, verified); t->info.verified = verified; pj_lock_release(t->lock);
+    pj_mutex_lock(G.lock); struct zt *t = find_by_call(call_id); if (!t) { pj_mutex_unlock(G.lock); return; }
+    pj_lock_acquire(t->lock); zrtp_set_verified(t->z, verified); t->info.verified = verified; pj_lock_release(t->lock); pj_mutex_unlock(G.lock);
 }

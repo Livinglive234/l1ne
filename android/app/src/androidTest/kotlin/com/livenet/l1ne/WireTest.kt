@@ -222,6 +222,7 @@ class WireTest {
         assertTrue("a=zrtp-hash:1.10" in serverLog(), "the offer says we speak ZRTP")
         waitFor("ZRTP secure on our side") { engine.zrtp.value.values.firstOrNull()?.state == 1 }
         waitServer("zrtp-peer: secure")
+        waitFor("the call screen to show ZRTP (what the label is built from)", 8) { engine.encryption.value.values.firstOrNull() == com.livenet.l1ne.sip.SipEngine.Security.ZRTP }
         val code = engine.zrtp.value.values.first().code
         assertEquals(4, code.length); assertTrue("zrtp-peer: sas $code" in serverLog(), "both sides show the same code ($code)\n${serverLog()}")
     }
@@ -234,6 +235,7 @@ class WireTest {
         val a = registered(account("7100", media = Media.ZRTP)); dial(a, "1007"); waitServer("INVITE 1007")
         waitFor("ZRTP to be given up", 25) { engine.zrtp.value.values.firstOrNull()?.state == 2 }
         assertEquals(1, engine.calls.value.size, "the call goes on")
+        waitFor("the call screen to say it is not encrypted", 8) { engine.encryption.value.values.firstOrNull() == com.livenet.l1ne.sip.SipEngine.Security.NONE }
     }
     @Test fun aDisabledCodecIsNotOffered() {
         val all = engine.availableCodecs().map { it.id }; assertTrue(all.any { it.startsWith("PCMA/") })

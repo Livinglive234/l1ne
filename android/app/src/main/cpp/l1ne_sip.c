@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pjsua-lib/pjsua.h>
-#include <android/log.h>
 
 #define THIS_FILE "l1ne_sip"
 static JavaVM *g_vm;
