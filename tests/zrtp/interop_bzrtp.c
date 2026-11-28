@@ -19,12 +19,15 @@ static void a_send(void *u, const uint8_t *p, size_t n) { (void)u; sent++; if (d
 static void a_rx_cb(void *u, const zrtp_keys *k) { (void)u; a_rx = *k; }
 static void a_sec(void *u, const zrtp_keys *k) { (void)u; a_tx = *k; a_secure = 1; }
 static void a_sas_cb(void *u, const char *s, int a, int b, int c) { (void)u; (void)a; (void)b; (void)c; strcpy(a_sas, s); }
+static int a_cleared;
+static void a_clear(void *u, int by) { (void)u; a_cleared = by ? 2 : 1; }
 static void a_fail(void *u, zrtp_failure w, int c) { (void)u; a_failed = 1; printf("   A failed: %d code %x\n", w, c); }
 
 /* --- bzrtp (B) --- */
 static int b_secure; static char b_sas[8]; static uint8_t b_self_key[16], b_self_salt[14], b_peer_key[16], b_peer_salt[14]; static int b_tag, b_role = -1;
 static int b_send(void *u, const uint8_t *p, uint16_t n) { (void)u; sent++; if (drop_mod && sent % drop_mod == 0) return 0; memcpy(to_a[a_t % 64].d, p, n); to_a[a_t % 64].n = n; a_t++; return 0; }
-static int b_status(void *u, const uint8_t l, const uint8_t id, const char *m) { (void)u; if (l <= 1) printf("   B status %d/%d: %s\n", l, id, m ? m : ""); return 0; }
+static int b_peer_req, b_peer_ack;
+static int b_status(void *u, const uint8_t l, const uint8_t id, const char *m) { (void)u; if (id == 4) b_peer_req = 1; if (id == 5) b_peer_ack = 1; if (l <= 1) printf("   B status %d/%d: %s\n", l, id, m ? m : ""); return 0; }
 static int b_secrets(void *u, const bzrtpSrtpSecrets_t *s, uint8_t part) {
     (void)u; if (part & ZRTP_SRTP_SECRETS_FOR_SENDER) { memcpy(b_self_key, s->selfSrtpKey, 16); memcpy(b_self_salt, s->selfSrtpSalt, 14); }
     if (part & ZRTP_SRTP_SECRETS_FOR_RECEIVER) { memcpy(b_peer_key, s->peerSrtpKey, 16); memcpy(b_peer_salt, s->peerSrtpSalt, 14); }
@@ -38,11 +41,11 @@ int main(int argc, char **argv) {
     for (int r = 0; r < rounds; r++) {
         drop_mod = r % 3 == 2 ? 4 : 0; sent = 0; T = 1000; b_h = b_t = a_h = a_t = 0; a_secure = a_failed = b_secure = 0; a_sas[0] = 0; b_sas[0] = 0;
         uint8_t zid[12]; memset(zid, 0x77 + r, 12);
-        zrtp_callbacks cb = { .send = a_send, .keys_rx = a_rx_cb, .secure = a_sec, .sas = a_sas_cb, .failed = a_fail, .now_ms = now_cb };
-        zrtp_t *a = zrtp_new(&cb, zid, 0x1111);
+        zrtp_callbacks cb = { .send = a_send, .keys_rx = a_rx_cb, .secure = a_sec, .sas = a_sas_cb, .failed = a_fail, .cleared = a_clear, .now_ms = now_cb };
+        zrtp_t *a = zrtp_new_ex(&cb, zid, 0x1111, ZRTP_ALLOW_CLEAR);
         bzrtpContext_t *b = bzrtp_createBzrtpContext(); bzrtpCallbacks_t bc; memset(&bc, 0, sizeof bc);
         bc.bzrtp_statusMessage = b_status; bc.bzrtp_messageLevel = BZRTP_MESSAGE_ERROR; bc.bzrtp_sendData = b_send; bc.bzrtp_srtpSecretsAvailable = b_secrets; bc.bzrtp_startSrtpSession = b_start; bc.bzrtp_contextReadyForExportedKeys = b_ready;
-        int rc1 = bzrtp_setCallbacks(b, &bc); int rc2 = bzrtp_initBzrtpContext(b, 0x2222); int rc3 = bzrtp_setClientData(b, 0x2222, NULL);
+        int rc1 = bzrtp_setCallbacks(b, &bc); int rc2 = bzrtp_initBzrtpContext(b, 0x2222); int rc3 = bzrtp_setClientData(b, 0x2222, NULL); { int fr = bzrtp_setFlags(b, BZRTP_SELF_ACCEPT_GOCLEAR, 1); if (r == 0 && fr != 0) printf("   GoClear is not built into this bzrtp (setFlags returned %x)\n", fr); }
         if (r == 0) printf("   setCallbacks %x init %x clientData %x\n", rc1, rc2, rc3);
         /* bzrtp has no cache here, and wants a self ZID: cacheless runtime */
         zrtp_start(a); int rc4 = bzrtp_startChannelEngine(b, 0x2222); if (r == 0) printf("   start %x\n", rc4);
@@ -52,10 +55,22 @@ int main(int argc, char **argv) {
  if (r == 0 && a_h < 8) { printf("   B->A %.8s len %d crc %s\n", p->d + 20, p->n, zrtp_crc32c(p->d, p->n - 4) == (uint32_t)(p->d[p->n-4] << 24 | p->d[p->n-3] << 16 | p->d[p->n-2] << 8 | p->d[p->n-1]) ? "ok" : "BAD"); } zrtp_recv(a, p->d, p->n); }
             zrtp_poll(a); bzrtp_iterate(b, 0x2222, T);
         }
-        printf("   packets: to_b=%d to_a=%d\n", b_t, a_t); int keys_ok = a_secure && b_secure && !memcmp(a_tx.tx.key, b_peer_key, 16) && !memcmp(a_tx.tx.salt, b_peer_salt, 14) && !memcmp(a_tx.rx.key, b_self_key, 16) && !memcmp(a_tx.rx.salt, b_self_salt, 14);
+        a_cleared = 0; b_peer_req = b_peer_ack = 0; int phase_ok = 1; int dir = r % 2; int saw_req = 0;
+        if (a_secure && b_secure) {
+            int bz = dir == 1 ? bzrtp_sendGoClear(b, 0x2222) : 0; int sentok = dir == 0 ? zrtp_go_clear(a) : (bz == 0); if (r < 2) printf("   can_go_clear(A)=%d bzrtp_sendGoClear rc=%x\n", zrtp_can_go_clear(a), bz);
+            for (int step = 0; step < 2500; step++, T += 10) {
+                while (b_h < b_t) { pk *p = &to_b[b_h++ % 64]; bzrtp_processMessage(b, 0x2222, p->d, p->n); }
+                while (a_h < a_t) { pk *p = &to_a[a_h++ % 64]; zrtp_recv(a, p->d, p->n); }
+                zrtp_poll(a); bzrtp_iterate(b, 0x2222, T);
+                if (b_peer_req) { saw_req = 1; if (dir == 0) bzrtp_confirmGoClear(b, 0x2222); b_peer_req = 0; }
+            }
+            phase_ok = sentok && (dir == 0 ? a_cleared == 2 : a_cleared == 1);
+            printf("   goclear %s: sent=%d a_cleared=%d bzrtp saw request=%d ack=%d -> %s\n", dir == 0 ? "A->bzrtp" : "bzrtp->A", sentok, a_cleared, saw_req, b_peer_ack, phase_ok ? "ok" : "BAD");
+        }
+        int keys_ok = a_secure && b_secure && !memcmp(a_tx.tx.key, b_peer_key, 16) && !memcmp(a_tx.tx.salt, b_peer_salt, 14) && !memcmp(a_tx.rx.key, b_self_key, 16) && !memcmp(a_tx.rx.salt, b_self_salt, 14);
         int sas_ok = !strncmp(a_sas, b_sas, 4);
-        printf("round %2d%s: secure A=%d B=%d keys %s SAS %s/%s (%s) role of bzrtp=%d tag=%d (mine %d)\n", r, drop_mod ? " (lossy)" : "", a_secure, b_secure, keys_ok ? "match" : "DIFFER", a_sas, b_sas, sas_ok ? "match" : "DIFFER", keys_ok && sas_ok ? "ok" : "BAD", b_role, b_tag, a_tx.tag_len);
-        if (keys_ok && sas_ok) ok++; else bad++;
+        printf("[%s] round %2d%s: secure A=%d B=%d keys %s SAS %s/%s (%s) role of bzrtp=%d tag=%d (mine %d)\n", zrtp_key_agreement(a), r, drop_mod ? " (lossy)" : "", a_secure, b_secure, keys_ok ? "match" : "DIFFER", a_sas, b_sas, sas_ok ? "match" : "DIFFER", keys_ok && sas_ok ? "ok" : "BAD", b_role, b_tag, a_tx.tag_len);
+        if (keys_ok && sas_ok && phase_ok) ok++; else bad++;
         zrtp_free(a); bzrtp_destroyBzrtpContext(b, 0x2222);
     }
     printf("%d ok, %d bad\n", ok, bad); return bad != 0;
