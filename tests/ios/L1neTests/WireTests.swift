@@ -216,6 +216,12 @@ final class WireTests: XCTestCase {
         let a = try registered(account("7100", media: .srtpDTLS)); dial(a, "1001"); try waitServer("INVITE 1001")
         let l = serverLog(); XCTAssertTrue(l.contains("UDP/TLS/RTP/SAVP") && l.contains("a=fingerprint"), l)
     }
+    func testRemovingAnAccountWhileItsCallIsStillRingingEndsTheCallAndDoesNotCrash() throws {
+        let a = try registered(account("7100")); dial(a, "1004"); try waitServer("INVITE 1004"); try waitFor("the call") { !engine.calls.isEmpty }
+        engine.unregister(a.id)                                        // PJSIP crashed when an account went away under a call that was still setting up
+        try waitFor("the call to end") { engine.calls.isEmpty }
+        let again = try registered(account("7101")); dial(again, "1001"); try waitServer("INVITE 1001")        // and the engine still works
+    }
     // ZRTP, against tests/zrtp/zrtp_peer.c (started by the mock PBX on its media port): the keys are agreed on the media path, both sides show the same code, and SRTP flows
     func testZrtpAgreesKeysAndMediaFlows() throws {
         let a = try registered(account("7100", media: .zrtp)); dial(a, "1001"); try waitServer("INVITE 1001")

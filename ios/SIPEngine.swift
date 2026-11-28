@@ -360,10 +360,30 @@ final class SIPEngine: ObservableObject {
 
     func unregister(_ id: UUID) {
         guard let pj = pjAccounts.removeValue(forKey: id) else { return }
+        // PJSIP can crash if an account is deleted while one of its calls is still setting up its media (ICE). Those calls are hung up first and the
+        // account is deleted the moment the last of them is gone (see callEnded), or after three seconds at the latest. Calls already answered do not wait.
+        let connecting = Set(calls.filter { $0.accountID == id && !$0.connected }.map(\.id))
         accountForPJ[pj] = nil
-        pjsua_acc_del(pj)
         registration[id] = nil
         voicemail[id] = nil
+        guard !connecting.isEmpty else { pjsua_acc_del(pj); return }
+        pendingDeletes.append((pj, connecting))
+        for c in connecting { hangup(c) }
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard let self, let i = self.pendingDeletes.firstIndex(where: { $0.pj == pj }) else { return }
+            self.pendingDeletes.remove(at: i); pjsua_acc_del(pj)
+        }
+    }
+
+    private var pendingDeletes: [(pj: pjsua_acc_id, waiting: Set<Int32>)] = []
+
+    /// A call is gone: accounts waiting for it can be deleted now.
+    private func callEnded(_ call: Int32) {
+        for i in pendingDeletes.indices.reversed() {
+            pendingDeletes[i].waiting.remove(call)
+            if pendingDeletes[i].waiting.isEmpty { let pj = pendingDeletes.remove(at: i).pj; pjsua_acc_del(pj) }
+        }
     }
 
     /// Re-applies every account (after the Wi-Fi rule, IPv6 or a settings change).
@@ -690,6 +710,7 @@ final class SIPEngine: ObservableObject {
             if let rec = recorders.removeValue(forKey: call) { pjsua_recorder_destroy(rec) }
             recording.remove(call); muted.remove(call); held.remove(call)
             calls.removeAll { $0.id == call }
+            callEnded(call)
             CallKitManager.shared.reportEnded(call)
             encryption[call] = nil; quality[call] = nil; zrtp[call] = nil
             consultEnded(call); transferNote[call] = nil
