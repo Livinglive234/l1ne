@@ -37,8 +37,35 @@ static void secure(void *u, const zrtp_keys *k) { (void)u; l1srtp_init(&tx, k->t
 static void sas(void *u, const char *s, int known, int mismatch, int verified) { (void)u; printf("zrtp-peer: sas %s known=%d mismatch=%d verified=%d\n", s, known, mismatch, verified); fflush(stdout); }
 static void failed(void *u, zrtp_failure w, int code) { (void)u; printf("zrtp-peer: failed %d code %x\n", w, code); fflush(stdout); }
 
+/* "plain" mode (a peer with no ZRTP): answers whoever sends it RTP with an 880 Hz tone in the clear, so you can hear that such a call goes on */
+static int plain_peer(int port) {
+    int sk = socket(AF_INET, SOCK_DGRAM, 0); int one = 1; setsockopt(sk, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+    struct sockaddr_in a = { .sin_family = AF_INET, .sin_port = htons((uint16_t)port), .sin_addr.s_addr = htonl(INADDR_ANY) };
+    if (bind(sk, (struct sockaddr *)&a, sizeof a) != 0) { perror("bind"); return 1; }
+    struct sockaddr_in to; int have = 0, seq = 0, phase = 0, got = 0; uint32_t ts = 0; struct timespec last = {0, 0};
+    for (;;) {
+        struct pollfd p = { sk, POLLIN, 0 };
+        if (poll(&p, 1, 20) > 0) {
+            uint8_t buf[1600]; struct sockaddr_in from; socklen_t fl = sizeof from; ssize_t n = recvfrom(sk, buf, sizeof buf, 0, (struct sockaddr *)&from, &fl);
+            if (n > 0) {
+                if (!have || from.sin_port != to.sin_port) { to = from; have = 1; seq = 0; got = 0; printf("zrtp-peer: plain peer: a caller is sending media\n"); fflush(stdout); }
+                if (zrtp_is_zrtp(buf, (size_t)n)) { if (got++ == 0) { printf("zrtp-peer: plain peer: got a ZRTP Hello and ignored it (no ZRTP here)\n"); fflush(stdout); } }
+            }
+        }
+        struct timespec nowt; clock_gettime(CLOCK_MONOTONIC, &nowt);
+        if (have && (nowt.tv_sec - last.tv_sec) * 1000 + (nowt.tv_nsec - last.tv_nsec) / 1000000 >= 20) {
+            uint8_t pkt[172]; pkt[0] = 0x80; pkt[1] = 0; pkt[2] = seq >> 8; pkt[3] = (uint8_t)seq; seq++;
+            pkt[4] = ts >> 24; pkt[5] = ts >> 16; pkt[6] = ts >> 8; pkt[7] = (uint8_t)ts; ts += 160; pkt[8] = 0x71; pkt[9] = 0x71; pkt[10] = 0x71; pkt[11] = 0x71;
+            for (int i = 0; i < 160; i++) pkt[12 + i] = ulaw((int16_t)(6000 * sin(2 * 3.14159265 * 880 * phase++ / 8000.0)));
+            if (phase > 80000) phase = 0;
+            sendto(sk, pkt, sizeof pkt, 0, (struct sockaddr *)&to, sizeof to); last = nowt;
+        }
+    }
+}
+
 int main(int argc, char **argv) {
     int port = argc > 1 ? atoi(argv[1]) : 40000;
+    if (argc > 2 && !strcmp(argv[2], "plain")) return plain_peer(port);
     sock = socket(AF_INET, SOCK_DGRAM, 0); int one = 1; setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
     struct sockaddr_in a = { .sin_family = AF_INET, .sin_port = htons((uint16_t)port), .sin_addr.s_addr = htonl(INADDR_ANY) };
     if (bind(sock, (struct sockaddr *)&a, sizeof a) != 0) { perror("bind"); return 1; }

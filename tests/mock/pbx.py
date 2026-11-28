@@ -6,7 +6,7 @@ instance covers every scenario:
   REGISTER   7100 / 7101 / ... any extension: digest login, password "secret" (a wrong password gets 403)
              7104: 404 (unknown extension)   7105: 503 (server down)   7106: never answers
   INVITE     1001 answers (200 OK, SDP: first offered codec, SRTP echoed if offered)   1002: 486 Busy   1003: 183 early media, then 200
-             1004: rings (180) forever   1005: 404   1006: 603 Decline   1007: answers with media on a port nobody listens on (a peer with no ZRTP, no RTP)
+             1004: rings (180) forever   1005: 404   1006: 603 Decline   1007: answers with media on port 40001: a peer with no ZRTP that plays a higher tone in the clear (when --zrtp-peer is given)
              anything else: answered like 1001; its media goes to port 40000, where --zrtp-peer (tests/zrtp/zrtp_peer.c) speaks ZRTP when it is started
              re-INVITE (hold/resume) is answered and logged with its direction; BYE, REFER (with progress reports; a transfer to 7404 fails), INFO, CANCEL, MESSAGE, SUBSCRIBE are answered
   SUBSCRIBE  message-summary: 200, then a NOTIFY with 3 new voicemails
@@ -251,10 +251,11 @@ async def main():
     await loop.create_datagram_endpoint(Stun, local_addr=(args.host, args.stun_port))
     await asyncio.start_server(http, args.host, args.http_port)
     if args.zrtp_peer:                                   # a media peer that speaks ZRTP on 40000; what it prints goes into the log
-        proc = await asyncio.create_subprocess_exec(args.zrtp_peer, "40000", stdout=asyncio.subprocess.PIPE)
-        async def pump():
-            while (line := await proc.stdout.readline()): log(line.decode().strip())
-        asyncio.create_task(pump())
+        for port, mode in (("40000", ""), ("40001", "plain")):         # 40001 is 1007's media: a peer with no ZRTP that answers in the clear with a higher tone
+            proc = await asyncio.create_subprocess_exec(*[a for a in (args.zrtp_peer, port, mode) if a], stdout=asyncio.subprocess.PIPE)
+            async def pump(pr=proc):
+                while (line := await pr.stdout.readline()): log(line.decode().strip())
+            asyncio.create_task(pump())
     log(f"mock PBX: SIP tcp+udp {args.sip_port}, STUN udp {args.stun_port}, control http {args.http_port}")
     await asyncio.Event().wait()
 

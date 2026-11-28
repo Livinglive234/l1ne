@@ -14,7 +14,7 @@ python3 "$HERE/pbx.py" --zrtp-peer /tmp/l1ne-zrtp-peer > /tmp/l1ne-pbx.log 2>&1 
 cat <<EOF
 Mock PBX running at $IP
   server $IP   port 5060   transport UDP   extension 7100   password secret   Media: ZRTP
-  dial 1001 (ZRTP peer with a tone).  1007 answers but has no ZRTP (to see the fallback).
+  dial 1001 (ZRTP peer, 440 Hz tone).  1007 has no ZRTP: it plays a higher tone (880 Hz) in the clear, so you can hear the call carry on once ZRTP gives up.
   macOS may ask to allow incoming connections for python and zrtp_peer: allow them.
 What the PBX saw (Ctrl-C to stop):
 EOF
