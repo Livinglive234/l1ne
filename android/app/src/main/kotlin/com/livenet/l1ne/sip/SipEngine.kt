@@ -452,7 +452,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
         val pm = app.getSystemService(android.os.PowerManager::class.java)
         if (!pm.isWakeLockLevelSupported(android.os.PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) return
         val r = telecom?.routes?.value
-        val onEar = _calls.value.any { !it.ended } && (r == null || r.active == android.telecom.CallAudioState.ROUTE_EARPIECE) && audio.isSpeakerphoneOn.not()
+        val onEar = _calls.value.any { it.active || (!it.incoming && !it.ended) } &&          /* answered, or a call you placed: not a call that is still ringing for you to answer */ (r == null || r.active == android.telecom.CallAudioState.ROUTE_EARPIECE) && audio.isSpeakerphoneOn.not()
         if (onEar) { if (proximity == null) proximity = pm.newWakeLock(android.os.PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "l1ne:proximity").also { it.setReferenceCounted(false) }; if (proximity?.isHeld != true) proximity?.acquire(4 * 3600 * 1000L) }
         else proximity?.let { if (it.isHeld) it.release() }
     }
