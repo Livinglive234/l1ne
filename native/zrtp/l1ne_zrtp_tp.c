@@ -83,7 +83,8 @@ int l1ne_zrtp_init(const char *cache_path, l1ne_zrtp_listener listener, void *us
 
 /* ---------- accounts ---------- */
 
-static int g_mode[PJSUA_MAX_ACC];
+static int g_mode[PJSUA_MAX_ACC], g_opts[PJSUA_MAX_ACC];
+void l1ne_zrtp_set_account_options(int acc_id, int opts) { if (acc_id >= 0 && acc_id < PJSUA_MAX_ACC) g_opts[acc_id] = opts; }
 void l1ne_zrtp_set_account_mode(int acc_id, int mode) { if (acc_id >= 0 && acc_id < PJSUA_MAX_ACC) g_mode[acc_id] = mode; }
 
 /* ---------- the transport ---------- */
@@ -96,7 +97,7 @@ struct zt {
     pj_lock_t *lock; pj_timer_entry timer; pj_bool_t destroyed;
     zrtp_t *z; int call_id, mandatory, started, ssrc_known; unsigned seq;
     l1srtp_t tx, rx; int have_tx, have_rx;
-    l1ne_zrtp_info info; int notify;
+    l1ne_zrtp_info info; int notify; int clear_state;
     outpkt q[MAXQ]; int qn;
 };
 
@@ -119,6 +120,10 @@ static void cb_secure(void *u, const zrtp_keys *k) { struct zt *t = u; l1srtp_in
 static void cb_sas(void *u, const char *sas, int known, int mismatch, int verified) {
     struct zt *t = u; snprintf(t->info.sas, sizeof t->info.sas, "%s", sas); t->info.known_before = known; t->info.cache_mismatch = mismatch; t->info.verified = verified;
 }
+static void cb_cleared(void *u, int by_us) {            /* the keys are wiped; media stays stopped until the app continues, unless we asked for it */
+    struct zt *t = u; memset(&t->tx, 0, sizeof t->tx); memset(&t->rx, 0, sizeof t->rx); t->have_tx = t->have_rx = 0;
+    t->info.state = 3; t->clear_state = by_us ? 2 : 1; t->info.clear_state = t->clear_state; t->info.cleared_by_us = by_us; t->notify = 1;
+}
 static void cb_failed(void *u, zrtp_failure why, int code) { struct zt *t = u; (void)code; t->info.state = 2; t->info.failure = (int)why; t->notify = 1; }
 
 static void schedule(struct zt *t, int ms);
@@ -128,7 +133,7 @@ static void flush(struct zt *t) {
     outpkt local[MAXQ]; int n; l1ne_zrtp_info info; int notify, ms;
     pj_lock_acquire(t->lock);
     ms = t->destroyed ? -1 : zrtp_poll(t->z);                  /* sends what is due (queued below) and may change the state */
-    n = t->qn; memcpy(local, t->q, (size_t)n * sizeof local[0]); t->qn = 0; info = t->info; notify = t->notify; t->notify = 0;
+    n = t->qn; memcpy(local, t->q, (size_t)n * sizeof local[0]); t->qn = 0; info = t->info; info.can_go_clear = !t->mandatory && zrtp_can_go_clear(t->z); notify = t->notify; t->notify = 0;
     pj_lock_release(t->lock);
     for (int i = 0; i < n; i++) pjmedia_transport_send_rtp(t->slave, local[i].d, local[i].n);
     if (notify && G.listener) G.listener(G.user, t->call_id, &info);
@@ -156,6 +161,7 @@ static void zt_rtp_cb2(pjmedia_tp_cb_param *param) {
     }
     pjmedia_tp_cb_param p2 = *param; p2.user_data = t->s_user;
     pj_lock_acquire(t->lock);
+    if (t->clear_state == 1) { pj_lock_release(t->lock); return; }
     if (t->have_rx) {                                       /* keys agreed: only packets that authenticate go on; anything in the clear is dropped */
         size_t len = n;
         if (l1srtp_unprotect(&t->rx, pkt, &len) != 0) { pj_lock_release(t->lock); return; }
@@ -170,6 +176,7 @@ static void zt_rtcp_cb(void *user_data, void *pkt, pj_ssize_t size) {
     struct zt *t = user_data; if (!t || t->destroyed || !t->s_rtcp_cb) return;
     size_t len = size > 0 ? (size_t)size : 0;
     pj_lock_acquire(t->lock);
+    if (t->clear_state == 1) { pj_lock_release(t->lock); return; }
     if (t->have_rx) { if (l1srtp_unprotect_rtcp(&t->rx, pkt, &len) != 0) { pj_lock_release(t->lock); return; } }
     else if (t->mandatory) { pj_lock_release(t->lock); return; }
     pj_lock_release(t->lock);
@@ -202,7 +209,7 @@ static pj_status_t zt_send_rtp(pjmedia_transport *tp, const void *pkt, pj_size_t
         int rc = l1srtp_protect(&t->tx, buf, &len, sizeof buf); pj_lock_release(t->lock);
         return rc == 0 ? pjmedia_transport_send_rtp(t->slave, buf, len) : PJ_EINVAL;
     }
-    int drop = t->mandatory; pj_lock_release(t->lock);
+    int drop = t->mandatory || t->clear_state == 1; pj_lock_release(t->lock);
     return drop ? PJ_SUCCESS : pjmedia_transport_send_rtp(t->slave, pkt, size);       /* required: nothing leaves in the clear */
 }
 
@@ -211,7 +218,7 @@ static pj_status_t zt_send_rtcp(pjmedia_transport *tp, const void *pkt, pj_size_
     if (size < 8 || size + L1SRTP_MAX_OVERHEAD > sizeof buf) return PJ_ETOOBIG;
     pj_lock_acquire(t->lock);
     if (t->have_tx) { size_t len = size; memcpy(buf, pkt, size); int rc = l1srtp_protect_rtcp(&t->tx, buf, &len, sizeof buf); pj_lock_release(t->lock); return rc == 0 ? pjmedia_transport_send_rtcp(t->slave, buf, len) : PJ_EINVAL; }
-    int drop = t->mandatory; pj_lock_release(t->lock);
+    int drop = t->mandatory || t->clear_state == 1; pj_lock_release(t->lock);
     return drop ? PJ_SUCCESS : pjmedia_transport_send_rtcp(t->slave, pkt, size);
 }
 
@@ -220,7 +227,7 @@ static pj_status_t zt_send_rtcp2(pjmedia_transport *tp, const pj_sockaddr_t *add
     if (size < 8 || size + L1SRTP_MAX_OVERHEAD > sizeof buf) return PJ_ETOOBIG;
     pj_lock_acquire(t->lock);
     if (t->have_tx) { size_t len = size; memcpy(buf, pkt, size); int rc = l1srtp_protect_rtcp(&t->tx, buf, &len, sizeof buf); pj_lock_release(t->lock); return rc == 0 ? pjmedia_transport_send_rtcp2(t->slave, addr, addr_len, buf, len) : PJ_EINVAL; }
-    int drop = t->mandatory; pj_lock_release(t->lock);
+    int drop = t->mandatory || t->clear_state == 1; pj_lock_release(t->lock);
     return drop ? PJ_SUCCESS : pjmedia_transport_send_rtcp2(t->slave, addr, addr_len, pkt, size);
 }
 
@@ -281,9 +288,12 @@ pjmedia_transport *l1ne_zrtp_on_create_media_transport(pjsua_call_id call_id, un
     t->base.type = (pjmedia_transport_type)(PJMEDIA_TRANSPORT_TYPE_USER + 2); t->base.op = &zt_op;
     pj_lock_create_recursive_mutex(pool, "zrtp", &t->lock);
     pj_timer_entry_init(&t->timer, 0, t, &on_timer);
-    zrtp_callbacks cb = { .user = t, .send = cb_send, .keys_rx = cb_keys_rx, .secure = cb_secure, .sas = cb_sas, .failed = cb_failed, .cache_load = cache_load_cb, .cache_store = cache_store_cb };
+    zrtp_callbacks cb = { .user = t, .send = cb_send, .keys_rx = cb_keys_rx, .secure = cb_secure, .sas = cb_sas, .failed = cb_failed, .cleared = cb_cleared, .cache_load = cache_load_cb, .cache_store = cache_store_cb };
     uint8_t rnd[4]; RAND_bytes(rnd, 4);
-    t->z = zrtp_new(&cb, G.zid, (uint32_t)rnd[0] << 24 | rnd[1] << 16 | rnd[2] << 8 | rnd[3]);
+    int o = g_opts[ci.acc_id >= 0 && ci.acc_id < PJSUA_MAX_ACC ? ci.acc_id : 0], zo = 0;
+    if (o & 1) zo |= ZRTP_ENABLE_EC;
+    if ((o & 2) && !t->mandatory) zo |= ZRTP_ALLOW_CLEAR;                        /* a required-ZRTP call never accepts going unencrypted */
+    t->z = zrtp_new_ex(&cb, G.zid, (uint32_t)rnd[0] << 24 | rnd[1] << 16 | rnd[2] << 8 | rnd[3], zo);
     if (!t->z) { pj_pool_release(pool); return base; }
     if (base->grp_lock) { t->base.grp_lock = base->grp_lock; pj_grp_lock_add_ref(base->grp_lock); pj_grp_lock_add_handler(base->grp_lock, pool, t, &zt_on_destroy); }
     pj_mutex_lock(G.lock); t->seq = ++g_seq;
@@ -295,10 +305,22 @@ pjmedia_transport *l1ne_zrtp_on_create_media_transport(pjsua_call_id call_id, un
 
 int l1ne_zrtp_call_info(int call_id, l1ne_zrtp_info *out) {
     pj_mutex_lock(G.lock); struct zt *t = find_by_call(call_id); if (!t) { pj_mutex_unlock(G.lock); return 0; }
-    pj_lock_acquire(t->lock); *out = t->info; pj_lock_release(t->lock); pj_mutex_unlock(G.lock); return 1;
+    pj_lock_acquire(t->lock); *out = t->info; out->can_go_clear = !t->mandatory && zrtp_can_go_clear(t->z); pj_lock_release(t->lock); pj_mutex_unlock(G.lock); return 1;
 }
 
 void l1ne_zrtp_call_verified(int call_id, int verified) {
     pj_mutex_lock(G.lock); struct zt *t = find_by_call(call_id); if (!t) { pj_mutex_unlock(G.lock); return; }
     pj_lock_acquire(t->lock); zrtp_set_verified(t->z, verified); t->info.verified = verified; pj_lock_release(t->lock); pj_mutex_unlock(G.lock);
+}
+
+int l1ne_zrtp_call_go_clear(int call_id) {
+    pj_mutex_lock(G.lock); struct zt *t = find_by_call(call_id); if (!t || t->mandatory) { pj_mutex_unlock(G.lock); return 0; }
+    pj_lock_acquire(t->lock); int ok = zrtp_go_clear(t->z); pj_lock_release(t->lock); pj_mutex_unlock(G.lock);
+    if (ok) flush(t);
+    return ok;
+}
+
+void l1ne_zrtp_call_resume_clear(int call_id) {
+    pj_mutex_lock(G.lock); struct zt *t = find_by_call(call_id); if (!t) { pj_mutex_unlock(G.lock); return; }
+    pj_lock_acquire(t->lock); if (t->clear_state == 1) { t->clear_state = 2; t->info.clear_state = 2; } pj_lock_release(t->lock); pj_mutex_unlock(G.lock);
 }

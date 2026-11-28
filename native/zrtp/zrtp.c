@@ -6,6 +6,7 @@
 #include <openssl/param_build.h>
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
+#include <openssl/ec.h>
 #include <openssl/rand.h>
 #include <stdlib.h>
 #include <string.h>

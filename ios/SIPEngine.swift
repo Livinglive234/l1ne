@@ -23,7 +23,7 @@ final class SIPEngine: ObservableObject {
     enum CallSecurity { case srtp, dtls, zrtp, none, unknown }
 
     /// ZRTP of a call: state 0 negotiating, 1 secure, 2 failed; the code to read out loud; whether it differs from earlier calls with this person.
-    struct ZrtpState: Equatable { var state: Int; var code: String; var cacheMismatch: Bool; var knownBefore: Bool; var verified: Bool }
+    struct ZrtpState: Equatable { var state: Int; var code: String; var cacheMismatch: Bool; var knownBefore: Bool; var verified: Bool; var canGoClear = false; var clearState = 0; var clearedByUs = false }
     @Published var zrtp: [Int32: ZrtpState] = [:]
     /// A one-off message to show over whatever screen is up (a call that ended, and why). Clears itself.
     @Published var notice: String?
@@ -156,7 +156,7 @@ final class SIPEngine: ObservableObject {
         l1ne_zrtp_init(cacheURL.path, { _, call, info in                       // the secrets kept from earlier calls: never backed up
             guard let i = info?.pointee else { return }
             let code = withUnsafePointer(to: i.sas) { $0.withMemoryRebound(to: CChar.self, capacity: 5) { String(cString: $0) } }
-            let z = ZrtpState(state: Int(i.state), code: code, cacheMismatch: i.cache_mismatch != 0, knownBefore: i.known_before != 0, verified: i.verified != 0)
+            let z = ZrtpState(state: Int(i.state), code: code, cacheMismatch: i.cache_mismatch != 0, knownBefore: i.known_before != 0, verified: i.verified != 0, canGoClear: i.can_go_clear != 0, clearState: Int(i.clear_state), clearedByUs: i.cleared_by_us != 0)
             Task { @MainActor in SIPEngine.shared.zrtpChanged(call: Int32(call), z) }
         }, nil)
         var values = URLResourceValues(); values.isExcludedFromBackup = true; try? cacheURL.setResourceValues(values)
@@ -341,6 +341,7 @@ final class SIPEngine: ObservableObject {
         pjAccounts[account.id] = accID
         accountForPJ[accID] = account.id
         l1ne_zrtp_set_account_mode(accID, account.media == .zrtp ? (account.mediaMandatory ? 2 : 1) : 0)
+        l1ne_zrtp_set_account_options(accID, account.zrtpAllowClear && account.media == .zrtp && !account.mediaMandatory ? 2 : 0)
         registration[account.id] = "Registering…"
     }
 
@@ -352,6 +353,11 @@ final class SIPEngine: ObservableObject {
             hangup(call)
         }          // required, and the other side has none (or it was refused): nothing was sent in the clear
     }
+
+    /// Switch a ZRTP call to unencrypted on purpose (only when the other side has said it accepts that).
+    @discardableResult func goUnencrypted(_ call: Int32) -> Bool { l1ne_zrtp_call_go_clear(call) != 0 }
+    /// The other side switched the call to unencrypted: carry on without encryption. (Hanging up is the other choice.)
+    func continueUnencrypted(_ call: Int32) { l1ne_zrtp_call_resume_clear(call); if var z = zrtp[call] { z.clearState = 2; zrtp[call] = z } }
 
     /// The user compared the code with the other person: it matched, or it did not (then this person's saved secret is dropped).
     func zrtpVerified(_ call: Int32, matched: Bool) {
@@ -791,8 +797,9 @@ final class SIPEngine: ObservableObject {
                 // "none" is only certain when the account asked for no encryption; otherwise leave it unknown
                 var zi = l1ne_zrtp_info()
                 let zrtpOn = l1ne_zrtp_call_info(c.id, &zi) != 0 && zi.state == 1
+                let zrtpCleared = zrtp[c.id]?.state == 3
                 let zrtpFailed = account?.media == .zrtp && zrtp[c.id]?.state == 2
-                encryption[c.id] = zrtpOn ? .zrtp : srtp ? (dtls ? .dtls : .srtp) : (account?.media == Account.Media.none || zrtpFailed ? CallSecurity.none : .unknown)
+                encryption[c.id] = zrtpCleared ? .none : zrtpOn ? .zrtp : srtp ? (dtls ? .dtls : .srtp) : (account?.media == Account.Media.none || zrtpFailed ? CallSecurity.none : .unknown)
             }
             var st = pjsua_stream_stat()
             if pjsua_call_get_stream_stat(c.id, 0, &st) == 0 {

@@ -23,6 +23,9 @@ object Native {
     @JvmStatic external fun nDtmf(call: Int, digits: String)
     @JvmStatic external fun nMute(call: Int, on: Boolean)
     @JvmStatic external fun nZrtpCache(path: String)                 // the file with this install's ZID and the secrets kept from earlier calls; call before nInit
+    @JvmStatic external fun nZrtpOptions(acc: Int, opts: Int)          // bit 1: elliptic-curve key agreement; bit 2: accept a switch to unencrypted from the other side
+    @JvmStatic external fun nZrtpGoClear(call: Int): Boolean            // ask to switch the call to unencrypted; false when not allowed
+    @JvmStatic external fun nZrtpResumeClear(call: Int)                 // continue a call the other side switched to unencrypted
     @JvmStatic external fun nZrtpVerified(call: Int, on: Boolean)    // the user compared the code (true), or it did not match (false)
     @JvmStatic external fun nHold(call: Int, on: Boolean): Boolean
     @JvmStatic external fun nIpChange()

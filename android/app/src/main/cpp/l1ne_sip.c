@@ -49,12 +49,15 @@ static void mic_connect(pjsua_call_id call, int slot) { pjsua_conf_connect(slot,
 #include "l1ne_zrtp_tp.h"
 static char g_zrtp_path[512];
 static void zrtp_listener(void *u, int call, const l1ne_zrtp_info *i) {
-    (void)u; char s[64]; snprintf(s, sizeof s, "%d|%s|%d|%d|%d|%d", i->state, i->sas, i->cache_mismatch, i->known_before, i->verified, i->failure);
+    (void)u; char s[80]; snprintf(s, sizeof s, "%d|%s|%d|%d|%d|%d|%d|%d|%d", i->state, i->sas, i->cache_mismatch, i->known_before, i->verified, i->failure, i->can_go_clear, i->clear_state, i->cleared_by_us);
     emit("zrtp", call, i->state, s, "");
 }
 JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nZrtpCache(JNIEnv *env, jclass c, jstring p) {
     (void)c; const char *s = (*env)->GetStringUTFChars(env, p, NULL); strncpy(g_zrtp_path, s, sizeof g_zrtp_path - 1); (*env)->ReleaseStringUTFChars(env, p, s);
 }
+JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nZrtpOptions(JNIEnv *e, jclass c, jint acc, jint opts) { (void)e; (void)c; l1ne_zrtp_set_account_options(acc, opts); }
+JNIEXPORT jboolean JNICALL Java_com_livenet_l1ne_sip_Native_nZrtpGoClear(JNIEnv *e, jclass c, jint call) { (void)e; (void)c; reg_thread(); return l1ne_zrtp_call_go_clear(call) ? JNI_TRUE : JNI_FALSE; }
+JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nZrtpResumeClear(JNIEnv *e, jclass c, jint call) { (void)e; (void)c; reg_thread(); l1ne_zrtp_call_resume_clear(call); }
 JNIEXPORT void JNICALL Java_com_livenet_l1ne_sip_Native_nZrtpVerified(JNIEnv *e, jclass c, jint call, jboolean on) { (void)e; (void)c; reg_thread(); l1ne_zrtp_call_verified(call, on ? 1 : 0); }
 static void on_incoming(pjsua_acc_id acc, pjsua_call_id call, pjsip_rx_data *rd) { (void)acc; if (call >= 0 && call < PJSUA_MAX_CALLS) { g_muted[call] = 0; g_auto[call] = l1ne_invite_auto_answer(rd); } send_call(call, "incoming"); }
 static void on_call_state(pjsua_call_id call, pjsip_event *e) {

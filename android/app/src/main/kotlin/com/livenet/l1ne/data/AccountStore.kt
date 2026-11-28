@@ -77,7 +77,7 @@ class AccountStore(context: Context) {
             .put("authUser", a.authUser).put("contactsUrl", a.contactsUrl).put("dialStripPrefix", a.dialStripPrefix).put("dialAddPrefix", a.dialAddPrefix).put("outboundPrefix", a.outboundPrefix)
             .put("intlPrefix", a.intlPrefix).put("formatWithPrefix", a.formatWithPrefix).put("plusTo00", a.plusTo00).put("voicemailURI", a.voicemailURI)
             .put("mwiEnabled", a.mwiEnabled).put("iceEnabled", a.iceEnabled).put("turnEnabled", a.turnEnabled).put("stunServer", a.stunServer).put("turnUser", a.turnUser)
-            .put("autoAnswer", a.autoAnswer).put("autoAnswerMic", a.autoAnswerMic).put("autoAnswerFrom", a.autoAnswerFrom)
+            .put("zrtpAllowClear", a.zrtpAllowClear).put("autoAnswer", a.autoAnswer).put("autoAnswerMic", a.autoAnswerMic).put("autoAnswerFrom", a.autoAnswerFrom)
     }).toString()
 
     private fun load(): List<Account> = runCatching {
@@ -93,7 +93,7 @@ class AccountStore(context: Context) {
                 intlPrefix = o.optString("intlPrefix"), formatWithPrefix = o.optBoolean("formatWithPrefix"), plusTo00 = o.optBoolean("plusTo00"),
                 voicemailURI = o.optString("voicemailURI", "*97"), mwiEnabled = o.optBoolean("mwiEnabled", true), iceEnabled = o.optBoolean("iceEnabled"),
                 turnEnabled = o.optBoolean("turnEnabled"), stunServer = o.optString("stunServer"), turnUser = o.optString("turnUser"),
-                autoAnswer = o.optBoolean("autoAnswer"), autoAnswerMic = o.optBoolean("autoAnswerMic"), autoAnswerFrom = o.optString("autoAnswerFrom"))
+                zrtpAllowClear = o.optBoolean("zrtpAllowClear"), autoAnswer = o.optBoolean("autoAnswer"), autoAnswerMic = o.optBoolean("autoAnswerMic"), autoAnswerFrom = o.optString("autoAnswerFrom"))
         } }
     }.getOrDefault(emptyList())
 }

@@ -89,9 +89,21 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
                     if (!z.verified) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
                         TextButton({ engine.zrtpVerified(call.id, true) }) { Text("Code matches") }
                         TextButton({ engine.zrtpVerified(call.id, false) }) { Text("Doesn't match", color = CallDanger) } }
+                    if (z.canGoClear) { var ask by remember(call.id) { mutableStateOf(false) }
+                        TextButton({ ask = true }) { Text("Continue without encryption", color = CallDanger) }
+                        if (ask) AlertDialog(onDismissRequest = { ask = false }, title = { Text("Stop encrypting this call?") },
+                            text = { Text("Everything said from now on can be heard by anyone on the network between you. Only do this if you have a reason.") },
+                            confirmButton = { TextButton({ ask = false; engine.goUnencrypted(call.id) }) { Text("Continue without encryption", color = CallDanger) } },
+                            dismissButton = { TextButton({ ask = false }) { Text("Keep it encrypted") } }) }
                 }
             }
-            SipEngine.Security.NONE -> Label(Icons.Filled.LockOpen, if (app.store.account(call.accountID)?.media == com.livenet.l1ne.core.Media.ZRTP) "Not encrypted: the other side has no ZRTP" else "Not encrypted", CallDanger)
+            SipEngine.Security.NONE -> if (zrtpState[call.id]?.state == 3) {
+                Label(Icons.Filled.LockOpen, if (zrtpState[call.id]?.clearedByUs == true) "Not encrypted (you switched it off)" else "Not encrypted (the other side switched it off)", CallDanger)
+                if (zrtpState[call.id]?.clearState == 1) AlertDialog(onDismissRequest = {}, title = { Text("The other side wants to stop encrypting") },
+                    text = { Text("They asked to continue this call without encryption. Nothing is being sent until you decide. Anyone on the network could hear the rest of the call.") },
+                    confirmButton = { TextButton({ engine.continueUnencrypted(call.id) }) { Text("Continue unencrypted", color = CallDanger) } },
+                    dismissButton = { TextButton({ engine.hangup(call.id) }) { Text("Hang up") } })
+            } else Label(Icons.Filled.LockOpen, if (app.store.account(call.accountID)?.media == com.livenet.l1ne.core.Media.ZRTP) "Not encrypted: the other side has no ZRTP" else "Not encrypted", CallDanger)
             else -> if (app.store.account(call.accountID)?.media == com.livenet.l1ne.core.Media.ZRTP) Label(Icons.Filled.Lock, "Securing the call (ZRTP)…", CallMuted) }
         autoAnswered[call.id]?.let { mic -> Label(Icons.Filled.Hearing, if (mic) "Answered automatically · your microphone is ON" else "Answered automatically · your microphone is off", if (mic) CallDanger else CallBrand) }
         consults[call.id]?.let { original ->                       // an attended transfer: this call asks the new person, the caller is on hold

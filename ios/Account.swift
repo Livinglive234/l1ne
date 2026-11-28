@@ -31,6 +31,7 @@ struct Account: Codable, Identifiable, Equatable {
     var mwiEnabled = true             // subscribe to the message-waiting indicator
     /// Answer calls that ask for it (an intercom or page) without anyone pressing Answer. Off unless switched on; see mayAutoAnswer and the warnings in the editor.
     var autoAnswer = false
+    var zrtpAllowClear = false        // ZRTP only: let the other side switch a call to unencrypted (GoClear); off unless asked for, never with required encryption
     var autoAnswerMic = false         // the microphone is on when such a call is answered; off, the caller is heard but cannot hear back
     var autoAnswerFrom = ""           // only these callers (extensions or numbers, separated by commas); empty = any caller whose call asks for it
     var iceEnabled = false
@@ -145,7 +146,7 @@ struct Account: Codable, Identifiable, Equatable {
     enum CodingKeys: String, CodingKey {
         case id, label, displayName, domain, port, transport, registrarURI, outboundProxy, expires, enabled, media, mediaMandatory
         case username, authUser, contactsURL, pushGateway, dialStripPrefix, dialAddPrefix, outboundPrefix, intlPrefix, formatWithPrefix, plusTo00
-        case voicemailURI, mwiEnabled, iceEnabled, turnEnabled, stunServer, turnUser, autoAnswer, autoAnswerMic, autoAnswerFrom
+        case voicemailURI, mwiEnabled, iceEnabled, turnEnabled, stunServer, turnUser, autoAnswer, autoAnswerMic, autoAnswerFrom, zrtpAllowClear
     }
 
     /// Older saved accounts have fewer fields; every missing one takes its default.
@@ -182,6 +183,7 @@ struct Account: Codable, Identifiable, Equatable {
         turnUser = try c.decodeIfPresent(String.self, forKey: .turnUser) ?? def.turnUser
         autoAnswer = try c.decodeIfPresent(Bool.self, forKey: .autoAnswer) ?? def.autoAnswer
         autoAnswerMic = try c.decodeIfPresent(Bool.self, forKey: .autoAnswerMic) ?? def.autoAnswerMic
+        zrtpAllowClear = try c.decodeIfPresent(Bool.self, forKey: .zrtpAllowClear) ?? def.zrtpAllowClear
         autoAnswerFrom = try c.decodeIfPresent(String.self, forKey: .autoAnswerFrom) ?? def.autoAnswerFrom
     }
 }

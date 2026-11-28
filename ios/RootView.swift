@@ -274,6 +274,7 @@ struct CallScreen: View {
     @State private var showTransfer = false
     @State private var showCalls = false
     @State private var showMore = false
+    @State private var askGoClear: Int32?
 
     var body: some View {
         if let c = engine.currentCall { screen(c) } else { CallColors.bg(gray).ignoresSafeArea() }
@@ -319,6 +320,17 @@ struct CallScreen: View {
                             Button("Doesn't match") { engine.zrtpVerified(c.id, matched: false) }.buttonStyle(.bordered).tint(Theme.danger)
                         }
                     }
+                    if z.canGoClear { Button("Continue without encryption", role: .destructive) { askGoClear = c.id }.font(.footnote) }
+                }
+                if let z = engine.zrtp[c.id], z.state == 3, z.clearState == 1 {         // the other side switched it off: nothing is sent until the user decides
+                    VStack(spacing: 8) {
+                        Text("The other side wants to stop encrypting. They asked to continue this call without encryption; nothing is sent until you decide. Anyone on the network could hear the rest of the call.")
+                            .font(.caption).multilineTextAlignment(.center).foregroundStyle(Theme.danger)
+                        HStack(spacing: 12) {
+                            Button("Continue unencrypted") { engine.continueUnencrypted(c.id) }.buttonStyle(.bordered).tint(Theme.danger)
+                            Button("Hang up") { engine.hangup(c.id) }.buttonStyle(.borderedProminent)
+                        }
+                    }
                 }
                 if let original = engine.consults[c.id] {            // an attended transfer: this call asks the new person, the caller is on hold
                     Text("\(engine.calls.first { $0.id == original }?.remote ?? "The caller") is on hold").font(.footnote).foregroundStyle(Theme.muted)
@@ -344,6 +356,10 @@ struct CallScreen: View {
         .fullScreenCover(isPresented: $showKeypad) { DTMFScreen(call: c.id).environmentObject(engine).preferredColorScheme(.dark) }
         .sheet(isPresented: $showTransfer) { TransferSheet(call: c).environmentObject(engine).environmentObject(store).environmentObject(ContactsStore.shared) }
         .sheet(isPresented: $showCalls) { CallsListSheet().environmentObject(engine) }
+        .alert("Stop encrypting this call?", isPresented: Binding(get: { askGoClear != nil }, set: { if !$0 { askGoClear = nil } })) {
+            Button("Continue without encryption", role: .destructive) { if let id = askGoClear { engine.goUnencrypted(id) }; askGoClear = nil }
+            Button("Keep it encrypted", role: .cancel) { askGoClear = nil }
+        } message: { Text("Everything said from now on can be heard by anyone on the network between you. Only do this if you have a reason.") }
         .sheet(isPresented: $showMore) { moreSheet(c).sheetCard(.height(300)).preferredColorScheme(.dark) }
     }
 
@@ -355,6 +371,7 @@ struct CallScreen: View {
         case .zrtp: return ("Encrypted by ZRTP (end to end)", "lock.fill", Theme.brand)
         case .none:
             let a = c.accountID.flatMap { store.account($0) }
+            if let z = engine.zrtp[c.id], z.state == 3 { return (z.clearedByUs ? "Not encrypted (you switched it off)" : "Not encrypted (the other side switched it off)", "lock.open.fill", Theme.danger) }
             return (a?.media == .zrtp ? "Not encrypted: the other side has no ZRTP" : "Not encrypted", "lock.open.fill", Theme.danger)
         case .unknown:
             let a = c.accountID.flatMap { store.account($0) }

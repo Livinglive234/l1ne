@@ -21,6 +21,8 @@ data class Account(
     val enabled: Boolean = true,
     val media: Media = Media.SRTP_SDES,
     val mediaMandatory: Boolean = true,
+    /** ZRTP only: let the other side switch a call to unencrypted (GoClear). Off unless asked for; never with required encryption. */
+    val zrtpAllowClear: Boolean = false,
     val username: String = "",
     val authUser: String = "",
     val contactsUrl: String = "",

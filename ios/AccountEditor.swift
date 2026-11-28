@@ -200,6 +200,9 @@ struct AccountEditor: View {
                     Text("ZRTP").tag(Account.Media.zrtp)
                 }
                 Toggle("Media encryption mandatory", isOn: $account.mediaMandatory).disabled(account.media == .none)
+                if account.media == .zrtp {
+                    Toggle("Allow switching a call to unencrypted", isOn: $account.zrtpAllowClear).disabled(account.mediaMandatory)
+                }
             } header: { Text("Media") } footer: {
                 Text(account.media == .srtpSDES && account.transport != .tls
                      ? "SRTP sends its keys inside the call setup, so it only works over TLS. With UDP or TCP choose DTLS-SRTP or None."

@@ -143,6 +143,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
             maxOf(60, a.expires), a.mwiEnabled, settings.allowIPv6, a.stunServer, a.iceEnabled, a.turnEnabled, a.turnUser, store.turnSecret(a.id))
         if (id < 0) { setReg(a.id, "Could not add account (error ${-id})"); return }
         pjAcc[a.id] = id; accOfPJ[id] = a.id
+        Native.nZrtpOptions(id, if (a.zrtpAllowClear && a.media == Media.ZRTP && !a.mediaMandatory) 2 else 0)
         setReg(a.id, "Registering…")
     }
 
@@ -308,18 +309,22 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     enum class Security { UNKNOWN, NONE, SRTP, DTLS, ZRTP }
 
     /** ZRTP of a call: state 0 negotiating, 1 secure, 2 failed; the code to read out loud; whether it differs from earlier calls with this person. */
-    data class ZrtpState(val state: Int, val code: String, val cacheMismatch: Boolean, val knownBefore: Boolean, val verified: Boolean)
+    data class ZrtpState(val state: Int, val code: String, val cacheMismatch: Boolean, val knownBefore: Boolean, val verified: Boolean, val canGoClear: Boolean = false, val clearState: Int = 0, val clearedByUs: Boolean = false)
     val zrtp = MutableStateFlow<Map<Int, ZrtpState>>(emptyMap())
     /** A one-off message to show over whatever screen is up (a call that ended, and why). Clears itself. */
     val notice = MutableStateFlow<String?>(null)
     fun showNotice(text: String) { notice.value = text; main.postDelayed({ if (notice.value == text) notice.value = null }, 9000) }
     private fun zrtpChanged(call: Int, packed: String) {
         val f = packed.split("|"); if (f.size < 6) return
-        val z = ZrtpState(f[0].toIntOrNull() ?: 0, f[1], f[2] == "1", f[3] == "1", f[4] == "1")
+        val z = ZrtpState(f[0].toIntOrNull() ?: 0, f[1], f[2] == "1", f[3] == "1", f[4] == "1", f.getOrNull(6) == "1", f.getOrNull(7)?.toIntOrNull() ?: 0, f.getOrNull(8) == "1")
         zrtp.value = zrtp.value + (call to z)
         val acc = store.account(_calls.value.firstOrNull { it.id == call }?.accountID)
         if (z.state == 2 && acc?.media == Media.ZRTP && acc.mediaMandatory) { showNotice("The call was ended: the other side doesn't support ZRTP, and this account requires it."); hangup(call) }          // required, and the other side has no ZRTP (or it was refused): nothing was sent in the clear
     }
+    /** Switch a ZRTP call to unencrypted on purpose (only when the other side has said it accepts that). */
+    fun goUnencrypted(call: Int): Boolean = Native.nZrtpGoClear(call)
+    /** The other side switched the call to unencrypted: carry on without encryption. (Hanging up is the other choice.) */
+    fun continueUnencrypted(call: Int) { Native.nZrtpResumeClear(call); zrtp.value[call]?.let { zrtp.value = zrtp.value + (call to it.copy(clearState = 2)) } }
     /** The user compared the code with the other person: it matched (true), or it did not (false: this person's saved secret is dropped). */
     fun zrtpVerified(call: Int, matched: Boolean) { Native.nZrtpVerified(call, matched); zrtp.value[call]?.let { zrtp.value = zrtp.value + (call to it.copy(verified = matched, cacheMismatch = false)) } }
     val encryption = MutableStateFlow<Map<Int, Security>>(emptyMap())
@@ -331,7 +336,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
             val loss = CallQuality.lossPercent(lost, pkts)
             quality.value = quality.value + (c.id to CallQuality.bars(loss, jitter, rtt)); qualityNumbers.value = qualityNumbers.value + (c.id to QualityNumbers(loss, jitter, rtt))
             val acc = store.account(c.accountID)
-            encryption.value = encryption.value + (c.id to if (f.getOrNull(6) == "1") Security.ZRTP else if (f[4] == "1") (if (f[5] == "1") Security.DTLS else Security.SRTP) else if (acc?.media == Media.NONE || (acc?.media == Media.ZRTP && zrtp.value[c.id]?.state == 2)) Security.NONE else Security.UNKNOWN)
+            encryption.value = encryption.value + (c.id to if (zrtp.value[c.id]?.state == 3) Security.NONE else if (f.getOrNull(6) == "1") Security.ZRTP else if (f[4] == "1") (if (f[5] == "1") Security.DTLS else Security.SRTP) else if (acc?.media == Media.NONE || (acc?.media == Media.ZRTP && zrtp.value[c.id]?.state == 2)) Security.NONE else Security.UNKNOWN)
         }
     }
     fun switchTo(id: Int) { _calls.value.filter { it.id != id && it.active && it.id !in held.value }.forEach { toggleHold(it.id) }; if (id in held.value) toggleHold(id); currentId.value = id }
