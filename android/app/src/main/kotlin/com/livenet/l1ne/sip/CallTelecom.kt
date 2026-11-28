@@ -19,7 +19,9 @@ import com.livenet.l1ne.R
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /** What the system tells us about audio routes: which one is active and which exist (speaker, earpiece, Bluetooth, wired headset). */
-data class AudioRoutes(val active: Int = CallAudioState.ROUTE_EARPIECE, val supported: Int = CallAudioState.ROUTE_EARPIECE or CallAudioState.ROUTE_SPEAKER) {
+data class AudioRoutes(val active: Int = CallAudioState.ROUTE_EARPIECE, val supported: Int = CallAudioState.ROUTE_EARPIECE or CallAudioState.ROUTE_SPEAKER,
+                       /** Names of the connected Bluetooth devices (AirPods, a car, a headset), and the one in use. Empty when the phone does not say. */
+                       val bluetoothNames: List<String> = emptyList(), val activeBluetooth: String? = null) {
     val bluetooth get() = supported and CallAudioState.ROUTE_BLUETOOTH != 0
     val headset get() = supported and CallAudioState.ROUTE_WIRED_HEADSET != 0
     val speaker get() = active == CallAudioState.ROUTE_SPEAKER
@@ -63,7 +65,7 @@ class CallTelecom(private val app: Context) {
         connections.remove(callId)?.let { it.setDisconnected(DisconnectCause(if (byRemote) DisconnectCause.REMOTE else DisconnectCause.LOCAL)); it.destroy() }
         CallNotifications.cancelIncoming(app)
     }
-    fun setRoute(route: Int) { connections.values.firstOrNull()?.requestRoute(route) ?: com.livenet.l1ne.core.SipLog.add("[audio] route $route requested but there is no Telecom connection") }
+    fun setRoute(route: Int, device: String? = null) { connections.values.firstOrNull()?.requestRoute(route, device) ?: com.livenet.l1ne.core.SipLog.add("[audio] route $route requested but there is no Telecom connection") }
 
     companion object { const val EXTRA_CALL = "l1ne.call"; const val EXTRA_NAME = "l1ne.name" }
 }
@@ -83,7 +85,12 @@ class L1neConnection(val callId: Int, private val app: L1neApplication) : Connec
         CallNotifications.showIncoming(app, callId, app.engine.displayName(callId)) }
     @Deprecated("Telecom still calls this on older Android versions")
     override fun onCallAudioStateChanged(state: CallAudioState?) {
-        state?.let { publish(it.route, it.supportedRouteMask, "CallAudioState") }
+        state?.let {
+            // the device's name needs the Bluetooth permission on newer Android; without it the plain "Bluetooth" row is shown
+            val bt = runCatching { it.activeBluetoothDevice?.name }.getOrNull()
+            val all = runCatching { if (android.os.Build.VERSION.SDK_INT >= 28) it.supportedBluetoothDevices.mapNotNull { d -> d.name } else emptyList() }.getOrDefault(emptyList())
+            publish(it.route, it.supportedRouteMask, "CallAudioState", all.ifEmpty { listOfNotNull(bt) }, bt.takeIf { _ -> it.route == CallAudioState.ROUTE_BLUETOOTH })
+        }
     }
 
     // Android 14 and later report the audio routes as "call endpoints" (and the older callback above may not be used there).
@@ -97,7 +104,9 @@ class L1neConnection(val callId: Int, private val app: L1neApplication) : Connec
     @androidx.annotation.RequiresApi(34)
     private fun publishEndpoints() {
         val active = endpoint?.let { routeOf(it.endpointType) } ?: return
-        publish(active, endpoints.fold(active) { mask, e -> mask or routeOf(e.endpointType) }, "CallEndpoint")
+        val names = endpoints.filter { it.endpointType == android.telecom.CallEndpoint.TYPE_BLUETOOTH }.map { it.endpointName.toString() }
+        val activeBt = endpoint?.takeIf { it.endpointType == android.telecom.CallEndpoint.TYPE_BLUETOOTH }?.endpointName?.toString()
+        publish(active, endpoints.fold(active) { mask, e -> mask or routeOf(e.endpointType) }, "CallEndpoint", names, activeBt)
     }
     @androidx.annotation.RequiresApi(34)
     private fun routeOf(type: Int) = when (type) {
@@ -108,15 +117,15 @@ class L1neConnection(val callId: Int, private val app: L1neApplication) : Connec
         else -> 0
     }
 
-    private fun publish(route: Int, supported: Int, from: String) {
+    private fun publish(route: Int, supported: Int, from: String, btNames: List<String> = emptyList(), activeBt: String? = null) {
         com.livenet.l1ne.core.SipLog.add("[audio] route is now $route, available $supported ($from)")
-        app.telecom.routes.value = AudioRoutes(route, supported); app.engine.updateProximity()
+        app.telecom.routes.value = AudioRoutes(route, supported, btNames.distinct(), activeBt); app.engine.updateProximity()
     }
 
     /** Moves the call's audio (speaker, earpiece, Bluetooth, headset): through the call endpoints on Android 14 and later, the older way before that or when the phone offers no such endpoint. */
-    fun requestRoute(route: Int) {
+    fun requestRoute(route: Int, device: String? = null) {
         if (android.os.Build.VERSION.SDK_INT >= 34) {
-            val target = endpoints.firstOrNull { routeOf(it.endpointType) == route }
+            val target = endpoints.firstOrNull { routeOf(it.endpointType) == route && (device == null || it.endpointName.toString() == device) } ?: endpoints.firstOrNull { routeOf(it.endpointType) == route }
             if (target != null) {
                 com.livenet.l1ne.core.SipLog.add("[audio] asking for route $route (${target.endpointName})")
                 requestCallEndpointChange(target, app.mainExecutor, object : android.os.OutcomeReceiver<Void, android.telecom.CallEndpointException> {

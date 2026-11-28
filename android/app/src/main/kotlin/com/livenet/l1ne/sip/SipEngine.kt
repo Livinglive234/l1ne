@@ -453,6 +453,8 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
     }
     /** Audio output: through Telecom when it owns the call (so Bluetooth and headsets work), else the plain speaker switch. */
     fun setRoute(route: Int) { if (telecom?.connections?.isNotEmpty() == true) telecom!!.setRoute(route) else audio.isSpeakerphoneOn = route == android.telecom.CallAudioState.ROUTE_SPEAKER }
+    /** Moves the call to one named Bluetooth device. */
+    fun setBluetooth(name: String) { telecom?.takeIf { it.connections.isNotEmpty() }?.setRoute(android.telecom.CallAudioState.ROUTE_BLUETOOTH, name) }
     fun setSpeaker(on: Boolean) = setRoute(if (on) android.telecom.CallAudioState.ROUTE_SPEAKER else android.telecom.CallAudioState.ROUTE_EARPIECE)
     val routes get() = telecom!!.routes
 

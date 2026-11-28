@@ -108,7 +108,7 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
         if (live || !call.incoming) {
             val rows = listOf(
                 listOf(Btn(Icons.Filled.MicOff, "mute", call.id in muted, live) { engine.toggleMute(call.id) }, Btn(Icons.Filled.Dialpad, "keypad", false, live) { pad = true }, Btn(if (routes.active == android.telecom.CallAudioState.ROUTE_BLUETOOTH) Icons.Filled.Bluetooth else if (routes.active == android.telecom.CallAudioState.ROUTE_WIRED_HEADSET) Icons.Filled.Headset else Icons.AutoMirrored.Filled.VolumeUp,
-                    when (routes.active) { android.telecom.CallAudioState.ROUTE_BLUETOOTH -> "bluetooth"; android.telecom.CallAudioState.ROUTE_WIRED_HEADSET -> "headset"; else -> "speaker" }, speaker, true) {
+                    when (routes.active) { android.telecom.CallAudioState.ROUTE_BLUETOOTH -> routes.activeBluetooth ?: "bluetooth"; android.telecom.CallAudioState.ROUTE_WIRED_HEADSET -> "headset"; else -> "speaker" }, speaker, true) {
                     if (routes.bluetooth || routes.headset) routeMenu = true else engine.setSpeaker(!speaker) }),
                 listOf(Btn(Icons.Filled.Add, "add call", false, live) { app.pendingDial.value = ""; setMinimized(true)  /* Keypad tab, empty */ }, Btn(if (call.id in held) Icons.Filled.PlayArrow else Icons.Filled.Pause, if (call.id in held) "resume" else "hold", call.id in held, live) { engine.toggleHold(call.id) }, Btn(Icons.Filled.MoreHoriz, "more", false, true) { more = true }))
             rows.forEach { r -> Row(Modifier.fillMaxWidth().padding(bottom = 26.dp * cs()), horizontalArrangement = Arrangement.SpaceEvenly) { r.forEach { RoundBtn(it) } } }
@@ -140,7 +140,8 @@ fun CallScreen(call: CallInfo, engine: SipEngine, minimized: Boolean, setMinimiz
             val ra = android.telecom.CallAudioState.ROUTE_EARPIECE; val rs = android.telecom.CallAudioState.ROUTE_SPEAKER; val rb = android.telecom.CallAudioState.ROUTE_BLUETOOTH; val rh = android.telecom.CallAudioState.ROUTE_WIRED_HEADSET
             if (routes.supported and ra != 0) MoreRow(Icons.Filled.PhoneInTalk, if (routes.active == ra) "Phone  ✓" else "Phone", true) { routeMenu = false; engine.setRoute(ra) }
             MoreRow(Icons.AutoMirrored.Filled.VolumeUp, if (routes.active == rs) "Speaker  ✓" else "Speaker", true) { routeMenu = false; engine.setRoute(rs) }
-            if (routes.bluetooth) MoreRow(Icons.Filled.Bluetooth, if (routes.active == rb) "Bluetooth  ✓" else "Bluetooth", true) { routeMenu = false; engine.setRoute(rb) }
+            if (routes.bluetooth && routes.bluetoothNames.isEmpty()) MoreRow(Icons.Filled.Bluetooth, if (routes.active == rb) "Bluetooth  ✓" else "Bluetooth", true) { routeMenu = false; engine.setRoute(rb) }
+            if (routes.bluetooth) routes.bluetoothNames.forEach { n -> MoreRow(Icons.Filled.Bluetooth, if (routes.active == rb && routes.activeBluetooth == n) "$n  ✓" else n, true) { routeMenu = false; engine.setBluetooth(n) } }
             if (routes.headset) MoreRow(Icons.Filled.Headset, if (routes.active == rh) "Headset  ✓" else "Headset", true) { routeMenu = false; engine.setRoute(rh) }
         }
     }
