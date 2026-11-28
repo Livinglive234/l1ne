@@ -29,6 +29,15 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) handle(intent)          // not again after a rotation
         val app = application as L1neApplication
         requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.POST_NOTIFICATIONS), 1)
+        // tests/mock/run-ui-goclear.sh, debuggable builds only: one live account on the mock PBX (this computer, as the emulator sees it), ZRTP with the switch to unencrypted allowed, and a call to 1001
+        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0 && intent.getStringExtra("l1ne_seed") == "mock-zrtp") {
+            val m = com.livenet.l1ne.core.Account(label = "Mock PBX", domain = "10.0.2.2", username = "7100", media = com.livenet.l1ne.core.Media.ZRTP, mediaMandatory = false, zrtpAllowClear = true)
+                .withTransport(com.livenet.l1ne.core.Transport.TCP)
+            app.store.accounts.value.filter { it.label == "Mock PBX" }.forEach { app.store.remove(it.id) }
+            app.store.save(m, "secret")
+            app.engine.start(); app.engine.registerMissing()
+            window.decorView.postDelayed({ app.engine.call("1001", m) }, 3000)
+        }
         app.engine.start(); app.engine.registerMissing()
         if (app.settings.keepAlive && app.store.accounts.value.isNotEmpty()) com.livenet.l1ne.sip.KeepAliveService.start(this)
         lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.RESUMED) {           // directory syncs run while L1ne is open

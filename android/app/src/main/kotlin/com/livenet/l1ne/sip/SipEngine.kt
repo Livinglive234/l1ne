@@ -318,6 +318,7 @@ class SipEngine(private val app: Context, private val store: AccountStore, priva
         val f = packed.split("|"); if (f.size < 6) return
         val z = ZrtpState(f[0].toIntOrNull() ?: 0, f[1], f[2] == "1", f[3] == "1", f[4] == "1", f.getOrNull(6) == "1", f.getOrNull(7)?.toIntOrNull() ?: 0, f.getOrNull(8) == "1")
         zrtp.value = zrtp.value + (call to z)
+        if (z.state == 3) encryption.value = encryption.value + (call to Security.NONE)          // switched to unencrypted: the screen says so at once, not at the next statistics round
         val acc = store.account(_calls.value.firstOrNull { it.id == call }?.accountID)
         if (z.state == 2 && acc?.media == Media.ZRTP && acc.mediaMandatory) { showNotice("The call was ended: the other side doesn't support ZRTP, and this account requires it."); hangup(call) }          // required, and the other side has no ZRTP (or it was refused): nothing was sent in the clear
     }

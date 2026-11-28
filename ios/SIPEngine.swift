@@ -347,6 +347,7 @@ final class SIPEngine: ObservableObject {
 
     fileprivate func zrtpChanged(call: Int32, _ z: ZrtpState) {
         zrtp[call] = z
+        if z.state == 3 { encryption[call] = CallSecurity.none }          // switched to unencrypted: the screen says so at once, not at the next statistics round
         let account = calls.first { $0.id == call }?.accountID.flatMap { AccountStore.shared.account($0) }
         if z.state == 2, account?.media == .zrtp, account?.mediaMandatory == true {
             showNotice("The call was ended: the other side doesn't support ZRTP, and this account requires it.")
