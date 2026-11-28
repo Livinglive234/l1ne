@@ -20,7 +20,10 @@ struct ContactsView: View {
             let f = c.name.first.map { String($0).uppercased() } ?? "#"
             return f.rangeOfCharacter(from: .letters) != nil ? f : "#"
         }
-        return g.keys.sorted { $0 == "#" ? false : ($1 == "#" ? true : $0 < $1) }.map { ($0, g[$0]!) }
+        let letters = g.keys.sorted { $0 == "#" ? false : ($1 == "#" ? true : $0 < $1) }.map { ($0, g[$0]!) }
+        // starred contacts are listed first as well (and stay in their letter), unless you are searching
+        let stars = search.isEmpty ? shown.filter { $0.favorite == true } : []
+        return stars.isEmpty ? letters : [("★ Favorites", stars)] + letters
     }
 
     private func initials(_ name: String) -> String {

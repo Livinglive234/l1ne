@@ -3,7 +3,7 @@ package com.livenet.l1ne.core
 import java.util.UUID
 
 data class Contact(val id: String = UUID.randomUUID().toString(), val name: String, val address: String, val accountID: String? = null,
-                   val imported: Boolean = false, val source: String? = null) {
+                   val imported: Boolean = false, val source: String? = null, val favorite: Boolean = false) {
     val user: String get() = address.substringBefore('@')
 }
 data class ImportSummary(var added: Int = 0, var updated: Int = 0, var kept: Int = 0, var skipped: Int = 0, var removed: Int = 0)

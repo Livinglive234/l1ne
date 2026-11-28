@@ -8,6 +8,7 @@ struct Contact: Codable, Identifiable, Equatable {
     var address: String           // user@domain
     var accountID: UUID?          // which account dials it; nil = the first account
     var imported = false
+    var favorite: Bool?           // starred: listed first in Contacts
     var source: String?           // "link", "file", "picker", or "dir:<id>" for a synced directory; nil = typed in
 
     var user: String { String(address.split(separator: "@").first ?? "") }
@@ -71,6 +72,13 @@ final class ContactsStore: ObservableObject {
                 s.added += 1
             }
         }
+    }
+
+    /// Stars or unstars the contact with this address; one that is not saved yet is saved first.
+    func setFavorite(address: String, name: String, account: UUID?, _ on: Bool) {
+        if !contacts.contains(where: { $0.address.lowercased() == address.lowercased() }) { _ = add(name: name, address: address, account: account) }
+        for i in contacts.indices where contacts[i].address.lowercased() == address.lowercased() { contacts[i].favorite = on }
+        persist()
     }
 
     private func sortAndPersist() {

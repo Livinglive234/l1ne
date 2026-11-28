@@ -67,8 +67,11 @@ fun ContactsScreen(open: (Dest) -> Unit) {
     }
 
     val grouped = remember(contacts, search) {
-        contacts.filter { search.isEmpty() || it.name.contains(search, true) || it.address.contains(search, true) }
-            .groupBy { it.name.firstOrNull()?.takeIf { c -> c.isLetter() }?.uppercase() ?: "#" }.toSortedMap()
+        val shown = contacts.filter { search.isEmpty() || it.name.contains(search, true) || it.address.contains(search, true) }
+        val letters = shown.groupBy { it.name.firstOrNull()?.takeIf { c -> c.isLetter() }?.uppercase() ?: "#" }.toSortedMap()
+        // starred contacts are listed first as well (and stay in their letter), unless you are searching
+        val stars = if (search.isEmpty()) shown.filter { it.favorite } else emptyList()
+        if (stars.isEmpty()) letters else linkedMapOf("★ Favorites" to stars).also { it.putAll(letters) }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -91,7 +94,7 @@ fun ContactsScreen(open: (Dest) -> Unit) {
         else LazyColumn(Modifier.fillMaxSize()) {
             grouped.forEach { (letter, items) ->
                 item(key = "h$letter") { Text(letter, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), color = L1neColors.Brand, fontWeight = FontWeight.SemiBold) }
-                items(items, key = { it.id }) { c ->
+                items(items, key = { "$letter/${it.id}" }) { c ->
                     SwipeToDelete({ app.contacts.remove(c.id) }) {
                     Row(Modifier.fillMaxWidth().clickable { open(Dest.Person(PersonTarget(c.name, c.address, c.accountID))) }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Avatar(48.dp, initialsOf(c.name), L1neColors.Brand.copy(alpha = 0.14f)); Spacer(Modifier.width(14.dp))
@@ -159,7 +162,7 @@ private fun LinkImportDialog(onClose: () -> Unit, report: (String) -> Unit) {
 fun PersonScreen(p: PersonTarget, open: (Dest) -> Unit, onBack: (() -> Unit)?) {
     val app = LocalApp.current
     val contacts by app.contacts.contacts.collectAsState(); val accounts by app.store.accounts.collectAsState()
-    val saved = contacts.any { it.address.equals(p.address, true) }
+    val saved = contacts.any { it.address.equals(p.address, true) }; val favorite = contacts.any { it.favorite && it.address.equals(p.address, true) }
     val account = accounts.firstOrNull { it.id == p.accountID } ?: app.store.selected
     var added by remember { mutableStateOf(false) }
     PageScaffold("", onBack) { pad ->
@@ -169,6 +172,7 @@ fun PersonScreen(p: PersonTarget, open: (Dest) -> Unit, onBack: (() -> Unit)?) {
             Text(p.name, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
             Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                 Action(Icons.Filled.Call, "call") { app.engine.call(p.address, account) }
+                Action(if (favorite) Icons.Filled.Star else Icons.Filled.StarBorder, "favorite") { app.contacts.setFavorite(p.address, p.name, p.accountID, !favorite) }
                 if (p.address.contains("@")) Action(Icons.AutoMirrored.Filled.Message, "message") { account?.let { open(Dest.Thread(it.id, p.address)) } }
             }
             Card(Modifier.padding(top = 4.dp)) {

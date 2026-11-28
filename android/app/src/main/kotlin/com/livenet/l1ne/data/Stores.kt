@@ -71,11 +71,11 @@ typealias ImportSummary = com.livenet.l1ne.core.ImportSummary
 class ContactsStore(context: Context) {
     private val file = JsonFile(context, "contacts.json")
     private val _contacts = MutableStateFlow(file.read().let { a -> (0 until a.length()).map { i -> a.getJSONObject(i).let { o ->
-        Contact(o.getString("id"), o.getString("name"), o.getString("address"), o.optString("accountID").ifEmpty { null }, o.optBoolean("imported"), o.optString("source").ifEmpty { null }) } } })
+        Contact(o.getString("id"), o.getString("name"), o.getString("address"), o.optString("accountID").ifEmpty { null }, o.optBoolean("imported"), o.optString("source").ifEmpty { null }, o.optBoolean("favorite")) } } })
     val contacts: StateFlow<List<Contact>> = _contacts
     private fun commit(l: List<Contact>) { _contacts.value = l.sortedBy { it.name.lowercase() }
         file.write(JSONArray(_contacts.value.map { c -> JSONObject().put("id", c.id).put("name", c.name).put("address", c.address)
-            .put("accountID", c.accountID ?: "").put("imported", c.imported).put("source", c.source ?: "") })) }
+            .put("accountID", c.accountID ?: "").put("imported", c.imported).put("source", c.source ?: "").put("favorite", c.favorite) })) }
 
     /** The rules are in core's ContactBook; this only keeps the list and saves it. */
     fun merge(result: VCard.Result, account: String?, source: String = "link"): ImportSummary {
@@ -90,6 +90,11 @@ class ContactsStore(context: Context) {
     fun add(name: String, address: String, account: String?): Boolean {
         val a = VCard.sipAddress("sip:" + address.replace("sip:", "")) ?: return false
         commit(_contacts.value + Contact(name = name.ifEmpty { a }, address = a, accountID = account)); return true
+    }
+    /** Stars or unstars the contact with this address; one that is not saved yet is saved first. */
+    fun setFavorite(address: String, name: String, account: String?, on: Boolean) {
+        if (_contacts.value.none { it.address.equals(address, true) }) add(name, address, account)
+        commit(_contacts.value.map { if (it.address.equals(address, true)) it.copy(favorite = on) else it })
     }
     fun update(c: Contact) = commit(_contacts.value.map { if (it.id == c.id) c else it })
     fun remove(id: String) = commit(_contacts.value.filter { it.id != id })

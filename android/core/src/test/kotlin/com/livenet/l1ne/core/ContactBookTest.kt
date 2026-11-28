@@ -18,6 +18,12 @@ class ContactBookTest {
         assertEquals("acc", list.last().accountID); assertTrue(list.last().imported)
     }
 
+    @Test fun aStarSurvivesADirectoryRename() {
+        val start = listOf(c("Old name", "7002@pbx", imported = true, source = "dir:1").copy(favorite = true))
+        val (list, _) = ContactBook.replaceSource(start, "dir:1", result("New name", "7002@pbx"), "acc")
+        assertEquals("New name", list.single().name); assertTrue(list.single().favorite)
+    }
+
     @Test fun aDuplicateInsideOneImportHitsTheEntryJustAdded() {
         val (list, s) = ContactBook.merge(emptyList(), result("First", "7005@pbx", "Second", "7005@pbx"), null, "link")
         assertEquals(1, list.size); assertEquals(1, s.added); assertEquals(1, s.updated)            // the second entry renames the import that was just added

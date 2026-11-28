@@ -197,3 +197,15 @@ MainActor.assumeIsolated {
 
 print(failed == 0 ? "ALL PASSED" : "\(failed) FAILED")
 exit(failed == 0 ? 0 : 1)
+
+// favorites survive a directory rename and old saved contacts (no favorite key) still load
+MainActor.assumeIsolated {
+    let cs = ContactsStore(url: URL(fileURLWithPath: NSTemporaryDirectory() + "fav-\(UUID().uuidString).json"))
+    _ = cs.add(name: "Old name", address: "7002@pbx.example.com", account: nil)
+    cs.setFavorite(address: "7002@PBX.example.com", name: "x", account: nil, true)
+    _ = cs.replaceSource("dir:1", result: VCard.Result(entries: [VCard.Entry(name: "New name", address: "7002@pbx.example.com")], skipped: 0), account: nil)
+    check(cs.contacts.count == 1 && cs.contacts[0].favorite == true, "a star is kept")
+    let old = try? JSONDecoder().decode([Contact].self, from: Data(#"[{"id":"0F0E0D0C-0B0A-0908-0706-050403020100","name":"A","address":"7001@pbx","imported":false}]"#.utf8))
+    check(old?.first?.favorite == nil, "a contact saved before favorites existed still loads")
+}
+
