@@ -14,6 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.CallMade
+import androidx.compose.material.icons.automirrored.filled.CallReceived
 import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -162,6 +164,7 @@ private fun LinkImportDialog(onClose: () -> Unit, report: (String) -> Unit) {
 fun PersonScreen(p: PersonTarget, open: (Dest) -> Unit, onBack: (() -> Unit)?) {
     val app = LocalApp.current
     val contacts by app.contacts.contacts.collectAsState(); val accounts by app.store.accounts.collectAsState()
+    val callRecords by app.callLog.records.collectAsState()
     val saved = contacts.any { it.address.equals(p.address, true) }; val favorite = contacts.any { it.favorite && it.address.equals(p.address, true) }
     val account = accounts.firstOrNull { it.id == p.accountID } ?: app.store.selected
     var added by remember { mutableStateOf(false) }
@@ -180,6 +183,26 @@ fun PersonScreen(p: PersonTarget, open: (Dest) -> Unit, onBack: (() -> Unit)?) {
                     Text("SIP address", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
                     SelectionContainer { Text(p.address) }
                     if (accounts.size > 1 && account != null) Text("via ${account.titleWithUser}", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
+                }
+            }
+            // every call with this person, newest first, each with how it went and how it was encrypted
+            val history = remember(callRecords, p.address) { callRecords.filter { com.livenet.l1ne.core.CallHistory.sameParty(it.peer, p.address) }.take(60) }
+            if (history.isNotEmpty()) Card {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Call history", style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted)
+                    history.forEachIndexed { i, r ->
+                        val missed = r.direction == com.livenet.l1ne.data.Direction.MISSED
+                        Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(if (r.direction == com.livenet.l1ne.data.Direction.OUTGOING) Icons.AutoMirrored.Filled.CallMade else Icons.AutoMirrored.Filled.CallReceived, null, Modifier.size(13.dp), tint = L1neColors.Muted)
+                                Spacer(Modifier.width(4.dp)); Text(whenText(r.date), color = if (missed) L1neColors.Danger else L1neColors.Text)
+                                if (r.security.isNotEmpty()) { Spacer(Modifier.width(6.dp)); Icon(if (r.security.endsWith("verified")) Icons.Filled.Verified else Icons.Filled.Lock, null, Modifier.size(14.dp), tint = L1neColors.Brand) }
+                            }
+                            Text(details(r, accounts), style = MaterialTheme.typography.bodySmall, color = if (missed) L1neColors.Danger.copy(alpha = 0.85f) else L1neColors.Muted)
+                            securityText(r.security)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = L1neColors.Muted) }
+                        }
+                        if (i < history.lastIndex) RowDivider()
+                    }
                 }
             }
             if (p.address.contains("@") && !saved) TextButton({ if (app.contacts.add(p.name, p.address, p.accountID)) added = true }, enabled = !added) { Text(if (added) "Added" else "Add to contacts", color = L1neColors.Brand) }

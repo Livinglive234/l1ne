@@ -36,6 +36,7 @@ struct ContactDetailView: View {
     @EnvironmentObject var store: AccountStore
     @EnvironmentObject var contacts: ContactsStore
     @EnvironmentObject var router: AppRouter
+    @EnvironmentObject var callLog: CallLogStore
     let person: PersonTarget
     @State private var added = false
 
@@ -48,7 +49,7 @@ struct ContactDetailView: View {
     }
 
     var body: some View {
-        VStack(spacing: 22) {
+        ScrollView { VStack(spacing: 22) {
             ZStack {
                 Circle().fill(Theme.brand.opacity(0.14))
                 if initials.isEmpty { Image(systemName: "person.fill").font(.system(size: 44)).foregroundStyle(Theme.muted) }
@@ -76,16 +77,54 @@ struct ContactDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading).padding()
             .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14)).padding(.horizontal)
 
+            history
+
             if person.address.contains("@") && !saved {
                 Button(added ? "Added" : "Add to contacts") {
                     if contacts.add(name: person.name, address: person.address, account: person.accountID) { added = true }
                 }.disabled(added).foregroundStyle(Theme.brand)
             }
-            Spacer()
+            Spacer(minLength: 20)
+        }
         }
         .frame(maxWidth: .infinity)
         .mainBackground()
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// Every call with this person, newest first, each with how it went and how it was encrypted.
+    @ViewBuilder private var history: some View {
+        let records = Array(callLog.records.filter { $0.isWith(person.address) }.prefix(60))
+        if !records.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Call history").font(.footnote).foregroundStyle(Theme.muted).padding(.bottom, 6)
+                ForEach(records) { r in
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Image(systemName: r.direction == .outgoing ? "arrow.up.right" : "arrow.down.left").font(.caption2.weight(.semibold))
+                            Text(r.whenText).font(.subheadline)
+                            if r.security?.isEmpty == false { Image(systemName: r.security?.hasSuffix("verified") == true ? "checkmark.seal.fill" : "lock.fill").font(.caption).foregroundStyle(Theme.brand) }
+                        }
+                        .foregroundStyle(r.direction == .missed ? Theme.danger : Theme.text)
+                        Text(historyStatus(r)).font(.caption).foregroundStyle(r.direction == .missed ? Theme.danger.opacity(0.85) : Theme.muted)
+                        if let s = r.securityDescription { Text(s).font(.caption).foregroundStyle(Theme.muted) }
+                    }
+                    .padding(.vertical, 8)
+                    if r.id != records.last?.id { Divider().overlay(Theme.border) }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading).padding()
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14)).padding(.horizontal)
+        }
+    }
+
+    private func historyStatus(_ r: CallRecord) -> String {
+        var parts: [String] = []
+        if r.direction == .missed { parts.append("Missed") }
+        else if r.duration > 0 { parts.append(String(format: "%d:%02d", r.duration / 60, r.duration % 60)) }
+        else { parts.append(r.direction == .outgoing ? "Not answered" : "Declined") }
+        if store.accounts.count > 1, let a = r.accountID.flatMap({ store.account($0) }) { parts.append(a.title) }
+        return parts.joined(separator: " · ")
     }
 
     private func action(_ icon: String, _ label: String, _ run: @escaping () -> Void) -> some View {

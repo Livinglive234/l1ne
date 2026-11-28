@@ -12,6 +12,39 @@ struct CallRecord: Codable, Identifiable, Equatable {
     var callerName: String?       // the name the caller sent (caller ID), kept so the history shows it with the number underneath
 }
 
+extension CallRecord {
+    /// "Today | 12:37 PM", "Yesterday | 9:10 PM", "11/13 | 10:41 AM": the day and the time of the call.
+    var whenText: String {
+        let cal = Calendar.current
+        let day = cal.isDateInToday(date) ? "Today" : cal.isDateInYesterday(date) ? "Yesterday" : date.formatted(.dateTime.month(.defaultDigits).day())
+        return "\(day) | \(date.formatted(date: .omitted, time: .shortened))"
+    }
+
+    /// How the call was encrypted, in words. SRTP and DTLS-SRTP protect the audio between the phone and the PBX (point to point); ZRTP between the two phones (end to end).
+    var securityDescription: String? {
+        switch security {
+        case "zrtp": return "Encrypted end to end (ZRTP)"
+        case "zrtp-verified": return "Encrypted end to end (ZRTP), code verified"
+        case "srtp": return "Encrypted point to point (SRTP)"
+        case "dtls": return "Encrypted point to point (DTLS-SRTP)"
+        default: return nil
+        }
+    }
+
+    /// Whether this call was with the same person as `address`: the same extension or number on the same server (a missing server matches any).
+    func isWith(_ address: String) -> Bool {
+        func parts(_ x: String) -> (String, String) {
+            let t = x.trimmingCharacters(in: .whitespaces).lowercased().replacingOccurrences(of: "sips:", with: "").replacingOccurrences(of: "sip:", with: "")
+            let p = t.split(separator: "@", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+            return (p.first ?? "", p.count > 1 ? p[1] : "")
+        }
+        let (u1, d1) = parts(peer), (u2, d2) = parts(address)
+        let g1 = u1.filter(\.isNumber), g2 = u2.filter(\.isNumber)
+        let sameUser = u1 == u2 || (!g1.isEmpty && g1 == g2) || (g1.count >= 10 && g2.count >= 10 && g1.suffix(10) == g2.suffix(10))
+        return sameUser && (d1.isEmpty || d2.isEmpty || d1 == d2)
+    }
+}
+
 /// Call history, kept only on this phone.
 @MainActor
 final class CallLogStore: ObservableObject {

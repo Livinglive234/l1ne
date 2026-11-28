@@ -242,12 +242,6 @@ struct RecentsView: View {
         else if r.duration > 0 { parts.append(String(format: "%d:%02d", r.duration / 60, r.duration % 60)) }
         else { parts.append(r.direction == .outgoing ? "Not answered" : "Declined") }
         if store.accounts.count > 1, let a = r.accountID.flatMap({ store.account($0) }) { parts.append(a.title) }
-        switch r.security {          // SRTP and DTLS-SRTP protect the audio between the phone and the PBX (point to point); ZRTP between the two phones (end to end)
-        case "zrtp": parts.append("Encrypted end to end")
-        case "zrtp-verified": parts.append("Encrypted end to end, verified")
-        case "srtp", "dtls": parts.append("Encrypted point to point")
-        default: break
-        }
         return parts.joined(separator: " · ")
     }
 

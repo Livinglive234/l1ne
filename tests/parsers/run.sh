@@ -4,5 +4,5 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"; cd "$ROOT"
 OUT="$(mktemp -d)/parsers"
-swiftc -o "$OUT" ios/PhoneFormat.swift ios/RingbackRule.swift ios/SipLog.swift ios/VersionLabel.swift ios/VCard.swift ios/Provisioning.swift ios/Account.swift ios/SystemContacts.swift ios/ContactsStore.swift tests/parsers/main.swift
+swiftc -o "$OUT" ios/PhoneFormat.swift ios/RingbackRule.swift ios/SipLog.swift ios/VersionLabel.swift ios/VCard.swift ios/Provisioning.swift ios/Account.swift ios/SystemContacts.swift ios/ContactsStore.swift ios/CallLog.swift tests/parsers/main.swift
 "$OUT" tests/fixtures

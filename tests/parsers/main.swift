@@ -225,3 +225,10 @@ MainActor.assumeIsolated {
     cs.removeImports(forAccount: acc)
     check(cs.contacts.map(\.name).sorted() == ["Other PBX", "Typed"], "removing an account removes the contacts it imported, not typed ones or another account's")
 }
+
+// calls with the same person
+do {
+    func rec(_ peer: String) -> CallRecord { CallRecord(peer: peer, accountID: nil, direction: .incoming, duration: 1) }
+    check(rec("7001@pbx.example.com").isWith("7001@PBX.example.com") && rec("6517604266").isWith("6517604266@pbx.example.com") && rec("16517604266@pbx").isWith("(651) 760-4266"), "the same extension or number is the same person")
+    check(!rec("7001@pbx").isWith("7002@pbx") && !rec("7001@pbx").isWith("7001@other"), "another extension or server is not")
+}

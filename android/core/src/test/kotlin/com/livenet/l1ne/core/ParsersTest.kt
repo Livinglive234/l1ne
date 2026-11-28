@@ -77,4 +77,10 @@ class ParsersTest {
         assertEquals("", SipAddress.callerIdName("\"6125550142\" <sip:6125550142@pbx.example.com>")); assertEquals("", SipAddress.callerIdName("\"(612) 555-0142\" <sip:6125550142@pbx.example.com>"))
         assertEquals("", SipAddress.callerIdName("<sip:7001@pbx.example.com>")); assertEquals("", SipAddress.callerIdName("sip:7001@pbx.example.com"))
     }
+
+    @Test fun callsWithTheSamePersonAreMatched() {
+        assertTrue(CallHistory.sameParty("7001@pbx.example.com", "7001@PBX.example.com")); assertTrue(CallHistory.sameParty("6517604266", "6517604266@pbx.example.com"))
+        assertTrue(CallHistory.sameParty("16517604266@pbx", "(651) 760-4266")); assertTrue(CallHistory.sameParty("sip:7001@pbx", "7001"))
+        assertFalse(CallHistory.sameParty("7001@pbx", "7002@pbx")); assertFalse(CallHistory.sameParty("7001@pbx", "7001@other"))
+    }
 }
