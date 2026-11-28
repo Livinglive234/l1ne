@@ -48,6 +48,8 @@ typedef struct {
     /* The short authentication string to read out loud, and what is known about the peer. */
     void (*sas)(void *user, const char sas[5], int peer_known_before, int cache_mismatch, int verified_before);
     void (*failed)(void *user, zrtp_failure why, int code);
+    /* The call went clear (a GoClear was accepted, or ours was acknowledged): the keys are gone, stop protecting media. by_us: we asked for it. */
+    void (*cleared)(void *user, int by_us);
     /* The cache of retained secrets. load returns 1 when the peer is known. */
     int (*cache_load)(void *user, const uint8_t zid[ZRTP_ZID_LEN], zrtp_cache_entry *entry);
     void (*cache_store)(void *user, const uint8_t zid[ZRTP_ZID_LEN], const zrtp_cache_entry *entry);
@@ -58,6 +60,7 @@ typedef struct {
 typedef struct zrtp zrtp_t;
 
 /* zrtp_new_ex options */
+#define ZRTP_ALLOW_CLEAR 2       /* accept a GoClear from the other side (the Allow Clear flag in our Confirm). Off by default: it lets the other end switch a call to unencrypted */
 #define ZRTP_ENABLE_EC 1         /* also offer the elliptic-curve key agreement (EC25), preferred when both have it. Off by default: DH3k takes only a few milliseconds even on a modest phone,
                           * and EC25 has not been tested against another implementation (see tests/zrtp/README) */
 
@@ -87,6 +90,10 @@ void zrtp_srtp_seen(zrtp_t *z);
 /* The user said the code matched (1) or did not (0). Saves or removes the retained secret, and is sent as the verified flag next time. */
 void zrtp_set_verified(zrtp_t *z, int verified);
 
+/* GoClear (section 4.7.2): switching an encrypted call to unencrypted on purpose. Only allowed when the other side said it accepts it. Returns 1 when sent. */
+int zrtp_can_go_clear(const zrtp_t *z);
+int zrtp_go_clear(zrtp_t *z);
+int zrtp_is_clear(const zrtp_t *z);
 const char *zrtp_key_agreement(const zrtp_t *z);   /* "EC25" or "DH3k", once chosen */
 int zrtp_is_secure(const zrtp_t *z);
 int zrtp_is_failed(const zrtp_t *z);

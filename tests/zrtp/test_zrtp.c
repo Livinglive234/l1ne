@@ -12,7 +12,7 @@ typedef struct { uint8_t zid[12]; zrtp_cache_entry e; int has; } store_t;
 
 typedef struct side {
     zrtp_t *z; struct side *peer; store_t *cache;
-    zrtp_keys rx, tx; int got_rx, got_tx; char sas[5]; int mismatch, known, failed, fail_code;
+    zrtp_keys rx, tx; int got_rx, got_tx; int cleared, cleared_by_us; char sas[5]; int mismatch, known, failed, fail_code;
     uint8_t q[64][ZRTP_MAX_PACKET]; size_t qn[64]; int qh, qt;
 } side;
 
@@ -34,6 +34,7 @@ static void send_cb(void *u, const uint8_t *p, size_t n) {
 static void rx_cb(void *u, const zrtp_keys *k) { side *s = u; s->rx = *k; s->got_rx = 1; }
 static void sec_cb(void *u, const zrtp_keys *k) { side *s = u; s->tx = *k; s->got_tx = 1; }
 static void sas_cb(void *u, const char *sas, int known, int mismatch, int verified) { side *s = u; strcpy(s->sas, sas); s->known = known; s->mismatch = mismatch; (void)verified; }
+static void clear_cb(void *u, int by_us) { side *s = u; s->cleared = 1; s->cleared_by_us = by_us; }
 static void fail_cb(void *u, zrtp_failure w, int code) { side *s = u; s->failed = 1; s->fail_code = code; (void)w; }
 static int load_cb(void *u, const uint8_t *zid, zrtp_cache_entry *e) { side *s = u; if (s->cache->has && !memcmp(s->cache->zid, zid, 12)) { *e = s->cache->e; return 1; } return 0; }
 static void store_cb(void *u, const uint8_t *zid, const zrtp_cache_entry *e) { side *s = u; memcpy(s->cache->zid, zid, 12); s->cache->e = *e; s->cache->has = 1; }
@@ -41,7 +42,7 @@ static void store_cb(void *u, const uint8_t *zid, const zrtp_cache_entry *e) { s
 static int make_opts;                       /* ZRTP_ENABLE_EC for the next engine made (EC25 is off by default) */
 static void make(side *s, store_t *cache, uint8_t zidbyte, uint32_t ssrc) {
     memset(s, 0, sizeof *s); s->cache = cache;
-    zrtp_callbacks cb = { .user = s, .send = send_cb, .keys_rx = rx_cb, .secure = sec_cb, .sas = sas_cb, .failed = fail_cb, .cache_load = load_cb, .cache_store = store_cb, .now_ms = now };
+    zrtp_callbacks cb = { .user = s, .send = send_cb, .keys_rx = rx_cb, .secure = sec_cb, .sas = sas_cb, .failed = fail_cb, .cleared = clear_cb, .cache_load = load_cb, .cache_store = store_cb, .now_ms = now };
     uint8_t zid[12]; memset(zid, zidbyte, 12);
     s->z = zrtp_new_ex(&cb, zid, ssrc, make_opts);
 }
@@ -129,6 +130,27 @@ int main(void) {
         make_opts = who == 0 ? 0 : ZRTP_ENABLE_EC; make(&a, &ca, 0xA1, 1); make_opts = who == 1 ? 0 : ZRTP_ENABLE_EC; make(&b, &cb, 0xB2, 2); make_opts = 0;
         both_start(&a, &b); run(&a, &b, 10000);
         CHECK(zrtp_is_secure(a.z) && zrtp_is_secure(b.z) && !strcmp(zrtp_key_agreement(a.z), "DH3k") && !strcmp(zrtp_key_agreement(b.z), "DH3k") && !strcmp(a.sas, b.sas), "when %s lacks EC25 both fall back to DH3k", who == 0 ? "the first" : "the second");
+        zrtp_free(a.z); zrtp_free(b.z);
+    }
+    /* GoClear: only when the other side said it accepts it; they confirm with a ClearACK, both wipe their keys */
+    for (int mode = 0; mode < 3; mode++) {
+        ca = (store_t){0}; cb = (store_t){0}; clock_ms += 100000; sent_count = 0;
+        make_opts = ZRTP_ALLOW_CLEAR; make(&a, &ca, 0xA1, 1); make_opts = mode == 0 ? 0 : ZRTP_ALLOW_CLEAR; make(&b, &cb, 0xB2, 2); make_opts = 0;
+        both_start(&a, &b); run(&a, &b, 10000);
+        if (mode == 2) { clock_ms += 10; }
+        int can = zrtp_can_go_clear(a.z), sent = can ? zrtp_go_clear(a.z) : 0; run(&a, &b, 0); for (int i = 0; i < 40; i++) { clock_ms += 10; zrtp_poll(a.z); zrtp_poll(b.z); for (int g = 0; g < 20; g++) { while (a.qh < a.qt) { zrtp_recv(a.z, a.q[a.qh % 64], a.qn[a.qh % 64]); a.qh++; } while (b.qh < b.qt) { zrtp_recv(b.z, b.q[b.qh % 64], b.qn[b.qh % 64]); b.qh++; } } }
+        if (mode == 0) CHECK(!can && !sent && !a.cleared && !b.cleared && zrtp_is_secure(a.z), "GoClear is not sent when the other side does not accept it, and the call stays secure");
+        else CHECK(can && sent && a.cleared && a.cleared_by_us && b.cleared && !b.cleared_by_us && zrtp_is_clear(a.z) && zrtp_is_clear(b.z) && !zrtp_is_secure(a.z), "GoClear: both sides go clear and the sender is told it was acknowledged%s", mode == 2 ? " (again)" : "");
+        zrtp_free(a.z); zrtp_free(b.z);
+    }
+    { /* a GoClear with a wrong MAC is ignored, and one to a side that does not allow it is refused */
+        ca = (store_t){0}; cb = (store_t){0}; clock_ms += 100000; sent_count = 0; tamper_type = NULL;
+        make_opts = ZRTP_ALLOW_CLEAR; make(&a, &ca, 0xA1, 1); make(&b, &cb, 0xB2, 2); make_opts = 0; both_start(&a, &b); run(&a, &b, 10000);
+        uint8_t bad[ZRTP_MAX_PACKET] = {0}; bad[0] = 0x10; bad[4] = 0x5a; bad[5] = 0x52; bad[6] = 0x54; bad[7] = 0x50;
+        bad[12] = 0x50; bad[13] = 0x5a; bad[14] = 0; bad[15] = 5; memcpy(bad + 16, "GoClear ", 8); memset(bad + 24, 0x11, 8);
+        uint32_t c = zrtp_crc32c(bad, 32); bad[32] = c; bad[33] = c >> 8; bad[34] = c >> 16; bad[35] = c >> 24;
+        zrtp_recv(b.z, bad, 36); for (int i = 0; i < 10; i++) { clock_ms += 10; zrtp_poll(b.z); }
+        CHECK(!b.cleared && zrtp_is_secure(b.z), "a GoClear with a wrong MAC is ignored: the call is still secure");
         zrtp_free(a.z); zrtp_free(b.z);
     }
     /* a man in the middle who changes every copy of one message type: the exchange must never complete with different keys on the two sides */

@@ -56,7 +56,7 @@ uint32_t zrtp_crc32c(const uint8_t *data, size_t len) {
 
 /* ---------- state ---------- */
 
-typedef enum { Z_HELLO, Z_COMMIT, Z_DH2, Z_CONF2, Z_DH1, Z_CONF1, Z_SECURE, Z_FAILED } zstate;
+typedef enum { Z_HELLO, Z_COMMIT, Z_DH2, Z_CONF2, Z_DH1, Z_CONF1, Z_SECURE, Z_CLEARING, Z_CLEAR, Z_FAILED } zstate;
 
 typedef struct { uint8_t m[MAXMSG]; size_t n; } msg_t;
 
@@ -77,6 +77,7 @@ struct zrtp {
 
     BIGNUM *x, *pub;                                         /* our DH secret and public value */
     EVP_PKEY *ec; uint8_t ecpub[64]; int kex, kex_made;      /* kex: 0 = DH3k, 1 = EC25; kex_made: which one x/pub or ec hold (1 + kex), 0 = none */
+    int allow_clear, peer_allows_clear; msg_t clear_msg;     /* GoClear: we accept it from the other side / they accept it from us */
     int no_ec;                                               /* do not offer EC25 (tests, and peers that cannot do it) */
     uint8_t hvi[32];
 
@@ -217,7 +218,7 @@ zrtp_t *zrtp_new(const zrtp_callbacks *cb, const uint8_t zid[ZRTP_ZID_LEN], uint
 
 zrtp_t *zrtp_new_ex(const zrtp_callbacks *cb, const uint8_t zid[ZRTP_ZID_LEN], uint32_t ssrc, int opts) {
     zrtp_t *z = calloc(1, sizeof *z); if (!z) return NULL;
-    z->no_ec = (opts & ZRTP_ENABLE_EC) == 0;
+    z->no_ec = (opts & ZRTP_ENABLE_EC) == 0; z->allow_clear = (opts & ZRTP_ALLOW_CLEAR) != 0;
     z->cb = *cb; memcpy(z->zid, zid, ZRTP_ZID_LEN); z->ssrc = ssrc; z->st = Z_HELLO;
     uint8_t s[2]; rnd(s, 2); z->seq = (uint16_t)(s[0] << 8 | s[1]);
     rnd(z->h0, 32); sha256(z->h0, 32, z->h1); sha256(z->h1, 32, z->h2); sha256(z->h2, 32, z->h3);
@@ -253,12 +254,15 @@ int zrtp_is_secure(const zrtp_t *z) { return z->st == Z_SECURE; }
 int zrtp_is_failed(const zrtp_t *z) { return z->st == Z_FAILED; }
 const char *zrtp_sas(const zrtp_t *z) { return z->sas; }
 
+static void do_clear(zrtp_t *z, int by_us);
+
 int zrtp_poll(zrtp_t *z) {
     if (!z->rt.active) return -1;
     uint64_t t = now(z);
     while (z->rt.active && t >= z->rt.due) {
         if (++z->rt.count >= z->rt.max) {                    /* nobody answered */
             int hello = z->st == Z_HELLO; retry_stop(z);
+            if (z->st == Z_CLEARING) { do_clear(z, 1); return -1; }          /* nobody acknowledged the GoClear: the keys go anyway (section 4.7.2) */
             if (hello && z->have_peer_hello) { return -1; }  /* they spoke ZRTP but never acknowledged; their Commit may still arrive */
             fail(z, ZRTP_FAIL_TIMEOUT, 0xB0, !hello); return -1;
         }
@@ -350,7 +354,7 @@ static void build_confirm(zrtp_t *z, int responder) {
     msg_t *m = &z->confirm; msg_begin(m, responder ? "Confirm1" : "Confirm2");
     uint8_t plain[40], iv[16], ct[40], mac[32];
     memcpy(plain, z->h0, 32);
-    uint32_t flags = z->ce.verified ? 0x4 : 0;               /* V: we verified the SAS with this peer in an earlier call */
+    uint32_t flags = (z->ce.verified ? 0x4 : 0) | (z->allow_clear ? 0x2 : 0);     /* V: SAS verified earlier; A: we accept GoClear */               /* V: we verified the SAS with this peer in an earlier call */
     put32(plain + 32, flags); put32(plain + 36, 0xffffffffu);
     rnd(iv, 16);
     cfb(responder ? z->zrtpkey_r : z->zrtpkey_i, iv, plain, 40, ct, 1);
@@ -549,7 +553,7 @@ static void on_confirm1(zrtp_t *z, const msg_t *m) {
     if (!open_confirm(z, m, 1, h0, &flags, &exp)) { fail(z, ZRTP_FAIL_ATTACK, 0x70, 1); return; }
     sha256(h0, 32, chk); if (!eq(chk, z->peer_h1, 32)) { fail(z, ZRTP_FAIL_ATTACK, 0x70, 1); return; }
     if (!mac_ok(&z->dh1, h0)) { fail(z, ZRTP_FAIL_ATTACK, 0x70, 1); return; }
-    z->peer_expires = exp < 0xffffffffu ? exp : 0xffffffffu; z->peer_verified = (flags & 4) != 0;
+    z->peer_expires = exp < 0xffffffffu ? exp : 0xffffffffu; z->peer_verified = (flags & 4) != 0; z->peer_allows_clear = (flags & 2) != 0;
     build_confirm(z, 0);
     z->st = Z_CONF2;
     announce_keys(z);
@@ -564,13 +568,48 @@ static void on_confirm2(zrtp_t *z, const msg_t *m) {
     if (!open_confirm(z, m, 0, h0, &flags, &exp)) { fail(z, ZRTP_FAIL_ATTACK, 0x70, 1); return; }
     sha256(h0, 32, chk); if (!eq(chk, z->peer_h1, 32)) { fail(z, ZRTP_FAIL_ATTACK, 0x70, 1); return; }
     if (!mac_ok(&z->dh2, h0)) { fail(z, ZRTP_FAIL_ATTACK, 0x70, 1); return; }
-    z->peer_expires = exp < 0xffffffffu ? exp : 0xffffffffu; z->peer_verified = (flags & 4) != 0;
+    z->peer_expires = exp < 0xffffffffu ? exp : 0xffffffffu; z->peer_verified = (flags & 4) != 0; z->peer_allows_clear = (flags & 2) != 0;
     msg_t a; msg_begin(&a, "Conf2ACK"); msg_end_plain(&a); send_msg(z, &a);
     announce_keys(z);
     go_secure(z);
 }
 
 static void on_conf2ack(zrtp_t *z) { if (z->st == Z_CONF2) go_secure(z); }
+
+/* ---------- GoClear ---------- */
+
+static void do_clear(zrtp_t *z, int by_us) {
+    if (z->st == Z_CLEAR) return;
+    retry_stop(z); z->st = Z_CLEAR;
+    OPENSSL_cleanse(&z->keys, sizeof z->keys); OPENSSL_cleanse(z->mackey_i, 32); OPENSSL_cleanse(z->mackey_r, 32); OPENSSL_cleanse(z->zrtpkey_i, 16); OPENSSL_cleanse(z->zrtpkey_r, 16);
+    z->have_keys = 0;
+    if (z->cb.cleared) z->cb.cleared(z->cb.user, by_us);
+}
+
+/* clear_mac = MAC(mackey of the sender, "GoClear ") cut to 64 bits */
+static void clear_mac(zrtp_t *z, int sender_is_initiator, uint8_t out[8]) {
+    uint8_t m[32]; hmac256(sender_is_initiator ? z->mackey_i : z->mackey_r, 32, (const uint8_t *)"GoClear ", 8, m); memcpy(out, m, 8);
+}
+
+int zrtp_can_go_clear(const zrtp_t *z) { return z->st == Z_SECURE && z->peer_allows_clear; }
+int zrtp_is_clear(const zrtp_t *z) { return z->st == Z_CLEAR; }
+
+int zrtp_go_clear(zrtp_t *z) {
+    if (!zrtp_can_go_clear(z)) return 0;
+    uint8_t mac[8]; clear_mac(z, z->initiator, mac);
+    msg_begin(&z->clear_msg, "GoClear "); msg_put(&z->clear_msg, mac, 8); msg_end_plain(&z->clear_msg);
+    z->st = Z_CLEARING; retry_start(z, &z->clear_msg, 150, 1200, 10);
+    return 1;
+}
+
+static void on_goclear(zrtp_t *z, const msg_t *m) {
+    if (m->n != 20 || (z->st != Z_SECURE && z->st != Z_CLEARING)) return;
+    if (!z->allow_clear) { msg_t e; msg_begin(&e, "Error   "); uint8_t c[4]; put32(c, 0x100); msg_put(&e, c, 4); msg_end_plain(&e); send_msg(z, &e); return; }     /* not allowed here */
+    uint8_t mac[8]; clear_mac(z, !z->initiator, mac);
+    if (!eq(mac, m->m + 12, 8)) return;                      /* not from the other side: no ClearACK, no action */
+    msg_t a; msg_begin(&a, "ClearACK"); msg_end_plain(&a); send_msg(z, &a);
+    do_clear(z, 0);
+}
 void zrtp_srtp_seen(zrtp_t *z) { if (z->st == Z_CONF2) go_secure(z); }
 
 int zrtp_recv(zrtp_t *z, const uint8_t *pkt, size_t len) {
@@ -579,7 +618,7 @@ int zrtp_recv(zrtp_t *z, const uint8_t *pkt, size_t len) {
     { const uint8_t *w = pkt + len - 4; uint32_t got = (uint32_t)w[0] | (uint32_t)w[1] << 8 | (uint32_t)w[2] << 16 | (uint32_t)w[3] << 24; if (got != zrtp_crc32c(pkt, len - 4)) return 1; }                  /* damaged: dropped */
     const uint8_t *m = pkt + 12; size_t n = len - 16;
     if (m[0] != 0x50 || m[1] != 0x5a || n < 12 || (size_t)((m[2] << 8) | m[3]) * 4 != n || n > MAXMSG) return 1;
-    if (z->st == Z_FAILED) return 1;
+    if (z->st == Z_FAILED || z->st == Z_CLEAR) return 1;
     msg_t msg; memcpy(msg.m, m, n); msg.n = n;
     if (is_type(m, "Hello   ")) on_hello(z, &msg);
     else if (is_type(m, "HelloACK")) on_helloack(z);
@@ -589,6 +628,9 @@ int zrtp_recv(zrtp_t *z, const uint8_t *pkt, size_t len) {
     else if (is_type(m, "Confirm1")) on_confirm1(z, &msg);
     else if (is_type(m, "Confirm2")) on_confirm2(z, &msg);
     else if (is_type(m, "Conf2ACK")) on_conf2ack(z);
+    else if (is_type(m, "GoClear ")) on_goclear(&*z, &msg);
+    else if (is_type(m, "ClearACK")) { if (z->st == Z_CLEARING) do_clear(z, 1); }
+    else if (is_type(m, "Error   ") && (z->st == Z_SECURE || z->st == Z_CLEARING)) { msg_t a; msg_begin(&a, "ErrorACK"); msg_end_plain(&a); send_msg(z, &a); }      /* an Error after the keys are agreed (such as "GoClear not allowed") does not end the call */
     else if (is_type(m, "Error   ")) { msg_t a; msg_begin(&a, "ErrorACK"); msg_end_plain(&a); send_msg(z, &a); fail(z, ZRTP_FAIL_PROTOCOL, n >= 16 ? (int)be32(m + 12) : 0, 0); }
     else if (is_type(m, "Ping    ")) { /* optional: answered with nothing */ }
     return 1;
