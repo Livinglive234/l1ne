@@ -64,8 +64,10 @@ jobs:
         id: native
         uses: actions/cache@v6
         with:
-          path: vendor/PJSIP.xcframework
-          key: ios-native-${{ runner.arch }}-${{ hashFiles('scripts/lib.sh', 'scripts/build-openssl.sh', 'scripts/build-pjsip.sh', 'scripts/fetch-deps.sh', 'scripts/patches/**') }}
+          path: |
+            vendor/PJSIP.xcframework
+            vendor/openssl
+          key: ios-native-v2-${{ runner.arch }}-${{ hashFiles('scripts/lib.sh', 'scripts/build-openssl.sh', 'scripts/build-pjsip.sh', 'scripts/fetch-deps.sh', 'scripts/patches/**') }}
 
       - name: Build the native libraries (OpenSSL + PJSIP)
         if: steps.native.outputs.cache-hit != 'true'
