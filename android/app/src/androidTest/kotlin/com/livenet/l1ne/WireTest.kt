@@ -255,6 +255,46 @@ class WireTest {
         val code = engine.zrtp.value.values.first().code
         assertEquals(4, code.length); assertTrue("zrtp-peer: sas $code" in serverLog(), "both sides show the same code ($code)\n${serverLog()}")
     }
+    // GoClear (switching an encrypted call to unencrypted on purpose), against the same peer, which accepts it
+    private fun zs() = engine.zrtp.value.values.firstOrNull()
+    @Test fun zrtpWeCanSwitchTheCallToUnencryptedAndTheOtherSideIsTold() {
+        val a = registered(account("7100", media = Media.ZRTP) { it.copy(mediaMandatory = false) }); dial(a, "1001"); waitServer("zrtp-peer: secure")
+        waitFor("the switch to be possible") { zs()?.state == 1 && zs()?.canGoClear == true }
+        val id = engine.calls.value.first().id
+        assertTrue(engine.goUnencrypted(id))
+        waitFor("our side to be unencrypted") { zs()?.state == 3 && zs()?.clearedByUs == true }
+        waitServer("zrtp-peer: cleared by_us=0")
+        waitFor("the call to show it is not encrypted", 8) { engine.encryption.value[id] == com.livenet.l1ne.sip.SipEngine.Security.NONE }
+        assertEquals(2, zs()?.clearState, "media flows: we asked for it")
+    }
+    @Test fun zrtpTheSwitchIsNotOfferedWhenEncryptionIsRequired() {
+        val a = registered(account("7100", media = Media.ZRTP) { it.copy(mediaMandatory = true) }); dial(a, "1001"); waitServer("zrtp-peer: secure")
+        waitFor("ZRTP secure") { zs()?.state == 1 }; Thread.sleep(1000)
+        assertEquals(false, zs()?.canGoClear)
+        assertEquals(false, engine.goUnencrypted(engine.calls.value.first().id))
+        assertTrue("zrtp-peer: cleared" !in serverLog())
+    }
+    @Test fun zrtpTheOtherSideSwitchingToUnencryptedWaitsForTheUserWhoCanContinueOrHangUp() {
+        val a = registered(account("7100", media = Media.ZRTP) { it.copy(mediaMandatory = false, zrtpAllowClear = true) }); dial(a, "1001"); waitServer("zrtp-peer: secure")
+        waitFor("ZRTP secure") { zs()?.state == 1 }
+        http("/peer-goclear")
+        waitFor("the switch to arrive") { zs()?.state == 3 }
+        assertEquals(false, zs()?.clearedByUs); assertEquals(1, zs()?.clearState, "nothing is sent until the person decides")
+        waitServer("zrtp-peer: cleared by_us=1")
+        val id = engine.calls.value.first().id
+        fun received() = com.livenet.l1ne.sip.Native.nStats(id).split("|").getOrNull(1)?.toDoubleOrNull()?.toInt() ?: -1
+        Thread.sleep(1000); val before = received()           // the peer's tone in the clear is held back until the person decides
+        main { engine.continueUnencrypted(id) }
+        assertEquals(2, zs()?.clearState)
+        waitFor("the peer's media, now in the clear, to reach the stream") { received() > before + 10 }
+    }
+    @Test fun zrtpTheOtherSideCannotSwitchToUnencryptedUnlessTheAccountAllowsIt() {
+        val a = registered(account("7100", media = Media.ZRTP) { it.copy(mediaMandatory = false) }); dial(a, "1001"); waitServer("zrtp-peer: secure")
+        waitFor("ZRTP secure") { zs()?.state == 1 }
+        http("/peer-goclear"); Thread.sleep(2000)
+        assertEquals(1, zs()?.state, "still encrypted"); assertTrue("zrtp-peer: cleared" !in serverLog())
+        assertTrue("asking to go clear: 0" in serverLog(), "the peer was not even allowed to ask: we never said we accept it\n${serverLog()}")
+    }
     @Test fun zrtpRequiredEndsTheCallWhenThePeerHasNoZrtp() {
         val a = registered(account("7100", media = Media.ZRTP) { it.copy(mediaMandatory = true) }); dial(a, "1007"); waitServer("INVITE 1007")
         waitFor("the call") { engine.calls.value.isNotEmpty() }

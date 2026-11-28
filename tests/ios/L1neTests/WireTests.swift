@@ -275,6 +275,46 @@ final class WireTests: XCTestCase {
         XCTAssertEqual(code.count, 4); XCTAssertTrue(serverLog().contains("zrtp-peer: sas \(code)"), "both sides show the same code (\(code))\n\(serverLog())")
         try waitFor("the call to be shown as ZRTP-encrypted") { engine.calls.first.map { engine.encryption[$0.id] } == .some(.zrtp) }
     }
+    // GoClear (switching an encrypted call to unencrypted on purpose), against the same peer, which accepts it
+    private func zrtpState() -> SIPEngine.ZrtpState? { engine.calls.first.flatMap { engine.zrtp[$0.id] } }
+    func testZrtpWeCanSwitchTheCallToUnencryptedAndTheOtherSideIsTold() throws {
+        let a = try registered(account("7100", media: .zrtp) { $0.mediaMandatory = false }); dial(a, "1001"); try waitServer("zrtp-peer: secure")
+        try waitFor("the switch to be possible") { zrtpState()?.state == 1 && zrtpState()?.canGoClear == true }
+        guard let id = engine.calls.first?.id else { return XCTFail("no call") }
+        XCTAssertTrue(engine.goUnencrypted(id))
+        try waitFor("our side to be unencrypted") { zrtpState()?.state == 3 && zrtpState()?.clearedByUs == true }
+        try waitServer("zrtp-peer: cleared by_us=0")
+        try waitFor("the call to show it is not encrypted") { engine.encryption[id] == SIPEngine.CallSecurity.none }
+        XCTAssertEqual(zrtpState()?.clearState, 2, "media flows: we asked for it")
+    }
+    func testZrtpTheSwitchIsNotOfferedWhenEncryptionIsRequired() throws {
+        let a = try registered(account("7100", media: .zrtp) { $0.mediaMandatory = true }); dial(a, "1001"); try waitServer("zrtp-peer: secure")
+        try waitFor("ZRTP secure") { zrtpState()?.state == 1 }; pause(1)
+        XCTAssertEqual(zrtpState()?.canGoClear, false)
+        if let id = engine.calls.first?.id { XCTAssertFalse(engine.goUnencrypted(id)) }
+        XCTAssertFalse(serverLog().contains("zrtp-peer: cleared"))
+    }
+    func testZrtpTheOtherSideSwitchingToUnencryptedWaitsForTheUserWhoCanContinueOrHangUp() throws {
+        let a = try registered(account("7100", media: .zrtp) { $0.mediaMandatory = false; $0.zrtpAllowClear = true }); dial(a, "1001"); try waitServer("zrtp-peer: secure")
+        try waitFor("ZRTP secure") { zrtpState()?.state == 1 }
+        _ = http("/peer-goclear")
+        try waitFor("the switch to arrive") { zrtpState()?.state == 3 }
+        XCTAssertEqual(zrtpState()?.clearedByUs, false); XCTAssertEqual(zrtpState()?.clearState, 1, "nothing is sent until the person decides")
+        try waitServer("zrtp-peer: cleared by_us=1")
+        guard let id = engine.calls.first?.id else { return XCTFail("no call") }
+        func received() -> Int { var st = pjsua_stream_stat(); return pjsua_call_get_stream_stat(id, 0, &st) == 0 ? Int(st.rtcp.rx.pkt) : -1 }
+        pause(1); let before = received()                   // the peer's tone in the clear is held back until the person decides
+        engine.continueUnencrypted(id)
+        XCTAssertEqual(zrtpState()?.clearState, 2)
+        try waitFor("the peer's media, now in the clear, to reach the stream") { received() > before + 10 }
+    }
+    func testZrtpTheOtherSideCannotSwitchToUnencryptedUnlessTheAccountAllowsIt() throws {
+        let a = try registered(account("7100", media: .zrtp) { $0.mediaMandatory = false }); dial(a, "1001"); try waitServer("zrtp-peer: secure")
+        try waitFor("ZRTP secure") { zrtpState()?.state == 1 }
+        _ = http("/peer-goclear"); pause(2)
+        XCTAssertEqual(zrtpState()?.state, 1, "still encrypted"); XCTAssertFalse(serverLog().contains("zrtp-peer: cleared"))
+        XCTAssertTrue(serverLog().contains("asking to go clear: 0"), "the peer was not even allowed to ask: we never said we accept it\n\(serverLog())")
+    }
     func testZrtpRequiredEndsTheCallWhenThePeerHasNoZrtp() throws {
         let a = try registered(account("7100", media: .zrtp) { $0.mediaMandatory = true }); dial(a, "1007"); try waitServer("INVITE 1007"); try waitFor("the call") { !engine.calls.isEmpty }
         try waitFor("the call to be ended because ZRTP never came", seconds: 25) { engine.calls.isEmpty }

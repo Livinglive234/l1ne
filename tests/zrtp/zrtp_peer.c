@@ -35,6 +35,8 @@ static void cache_store(void *u, const uint8_t zid[12], const zrtp_cache_entry *
 static void keys_rx(void *u, const zrtp_keys *k) { (void)u; l1srtp_init(&rx, k->rx.key, k->rx.salt, k->tag_len); have_rx = 1; }
 static void secure(void *u, const zrtp_keys *k) { (void)u; l1srtp_init(&tx, k->tx.key, k->tx.salt, k->tag_len); have_tx = 1; printf("zrtp-peer: secure\n"); fflush(stdout); }
 static void sas(void *u, const char *s, int known, int mismatch, int verified) { (void)u; printf("zrtp-peer: sas %s known=%d mismatch=%d verified=%d\n", s, known, mismatch, verified); fflush(stdout); }
+static int cleared_now;
+static void cleared_cb(void *u, int by_us) { (void)u; have_tx = have_rx = 0; cleared_now = 1; printf("zrtp-peer: cleared by_us=%d\n", by_us); fflush(stdout); }
 static void failed(void *u, zrtp_failure w, int code) { (void)u; printf("zrtp-peer: failed %d code %x\n", w, code); fflush(stdout); }
 
 /* "plain" mode (a peer with no ZRTP): answers whoever sends it RTP with an 880 Hz tone in the clear, so you can hear that such a call goes on */
@@ -70,8 +72,8 @@ int main(int argc, char **argv) {
     struct sockaddr_in a = { .sin_family = AF_INET, .sin_port = htons((uint16_t)port), .sin_addr.s_addr = htonl(INADDR_ANY) };
     if (bind(sock, (struct sockaddr *)&a, sizeof a) != 0) { perror("bind"); return 1; }
     uint8_t zid[12]; srand((unsigned)getpid()); for (int i = 0; i < 12; i++) zid[i] = (uint8_t)rand();
-    zrtp_callbacks cb = { .send = out, .keys_rx = keys_rx, .secure = secure, .sas = sas, .failed = failed, .cache_load = cache_load, .cache_store = cache_store };
-    zrtp_t *z = zrtp_new(&cb, zid, 0x70707070u);
+    zrtp_callbacks cb = { .send = out, .keys_rx = keys_rx, .secure = secure, .sas = sas, .failed = failed, .cleared = cleared_cb, .cache_load = cache_load, .cache_store = cache_store };
+    zrtp_t *z = zrtp_new_ex(&cb, zid, 0x70707070u, ZRTP_ALLOW_CLEAR);
     int started = 0, seq = 0, got = 0; uint32_t ts = 0;          /* a new caller (another source port) starts a new session */
     for (;;) {
         struct pollfd p = { sock, POLLIN, 0 }; int ms = zrtp_poll(z); if (ms < 0 || ms > 20) ms = 20;
@@ -80,11 +82,12 @@ int main(int argc, char **argv) {
             ssize_t n = recvfrom(sock, buf, sizeof buf, 0, (struct sockaddr *)&from, &fl);
             if (n > 0) {
                 if (!have_remote || from.sin_port != remote.sin_port) {
-                    if (have_remote) { zrtp_free(z); z = zrtp_new(&cb, zid, 0x70707070u); started = 0; seq = 0; got = 0; have_rx = have_tx = 0; }
+                    if (have_remote) { zrtp_free(z); z = zrtp_new_ex(&cb, zid, 0x70707070u, ZRTP_ALLOW_CLEAR); started = 0; seq = 0; got = 0; have_rx = have_tx = 0; cleared_now = 0; }
                     remote = from; have_remote = 1;
                 }
                 if (!started) { started = 1; zrtp_start(z); }
                 if (zrtp_is_zrtp(buf, (size_t)n)) zrtp_recv(z, buf, (size_t)n);
+                else if (cleared_now) { static int cn; if (cn++ == 0) { printf("zrtp-peer: clear media after GoClear\n"); fflush(stdout); } }
                 else if (!have_rx) { static int clear_n; if (clear_n++ < 2) { printf("zrtp-peer: media in the clear before keys: %zd bytes\n", n); fflush(stdout); } }
                 else if (have_rx && !(buf[0] == 0x80 && n > 0 && (buf[1] & 0x7f) >= 72 && (buf[1] & 0x7f) <= 76)) {      /* RTP; RTCP is not looked at */
                     size_t len = (size_t)n;
@@ -94,14 +97,15 @@ int main(int argc, char **argv) {
                 }
             }
         }
+        if (access("/tmp/l1ne-peer-goclear", F_OK) == 0) { unlink("/tmp/l1ne-peer-goclear"); printf("zrtp-peer: asking to go clear: %d\n", zrtp_go_clear(z)); fflush(stdout); }
         zrtp_poll(z);
         static struct timespec last; struct timespec nowt; clock_gettime(CLOCK_MONOTONIC, &nowt);
-        if (have_tx && have_remote && (nowt.tv_sec - last.tv_sec) * 1000 + (nowt.tv_nsec - last.tv_nsec) / 1000000 >= 20) {        /* 20 ms of tone */
+        if ((have_tx || cleared_now) && have_remote && (nowt.tv_sec - last.tv_sec) * 1000 + (nowt.tv_nsec - last.tv_nsec) / 1000000 >= 20) {        /* 20 ms of tone */
             uint8_t pkt[200]; memset(pkt, 0xff, sizeof pkt); static int phase;
             for (int i = 0; i < 160; i++) pkt[12 + i] = ulaw((int16_t)(6000 * sin(2 * 3.14159265 * 440 * phase++ / 8000.0)));       /* a 440 Hz tone: what you hear when SRTP works */
             if (phase > 80000) phase = 0; pkt[0] = 0x80; pkt[1] = 0; pkt[2] = seq >> 8; pkt[3] = (uint8_t)seq; seq++;
             pkt[4] = ts >> 24; pkt[5] = ts >> 16; pkt[6] = ts >> 8; pkt[7] = (uint8_t)ts; ts += 160; pkt[8] = 0x70; pkt[9] = 0x70; pkt[10] = 0x70; pkt[11] = 0x70;
-            size_t len = 12 + 160; if (l1srtp_protect(&tx, pkt, &len, sizeof pkt) == 0) sendto(sock, pkt, len, 0, (struct sockaddr *)&remote, sizeof remote);
+            size_t len = 12 + 160; if (cleared_now) sendto(sock, pkt, len, 0, (struct sockaddr *)&remote, sizeof remote); else if (l1srtp_protect(&tx, pkt, &len, sizeof pkt) == 0) sendto(sock, pkt, len, 0, (struct sockaddr *)&remote, sizeof remote);
             last = nowt;
         }
     }

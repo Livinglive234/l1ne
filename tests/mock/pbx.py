@@ -15,6 +15,7 @@ instance covers every scenario:
 A tiny HTTP control port lets a test see and steer it:
   GET /log            everything the server saw, one line each
   GET /clear          forget the log
+  GET /peer-goclear              make the ZRTP peer (port 40000) ask to switch its call to unencrypted (GoClear)
   GET /invite?user=7100          ring the registered phone (an incoming call); add &autoanswer=1 for an intercom call that asks to be answered by itself
   GET /text?user=7100&text=hi    send the registered phone a text message
 
@@ -223,6 +224,7 @@ async def http(reader, writer):
     u = urlparse(line.split()[1]) if line else urlparse("/"); q = {k: v[0] for k, v in parse_qs(u.query).items()}; out = "ok"
     if u.path == "/log": out = "\n".join(LOG) + "\n"
     elif u.path == "/clear": LOG.clear()
+    elif u.path == "/peer-goclear": open("/tmp/l1ne-peer-goclear", "w").close(); out = "asked the ZRTP peer to switch the call to unencrypted\n"
     elif u.path == "/invite": out = await invite(q.get("user", "7100"), q.get("autoanswer") == "1")
     elif u.path == "/text": out = await text(q.get("user", "7100"), q.get("text", "hello"))
     writer.write(f"HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {len(out.encode())}\r\n\r\n{out}".encode()); await writer.drain(); writer.close()
