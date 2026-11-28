@@ -71,6 +71,54 @@ final class SIPEngine: ObservableObject {
     @Published var muted: Set<Int32> = []
     @Published var held: Set<Int32> = []
     @Published var speaker = false
+
+    /// Where the call's audio goes right now, and which Bluetooth devices (AirPods, a car, a headset) are connected, for the call screen.
+    struct AudioRoute: Equatable {
+        enum Kind { case phone, speaker, bluetooth, headphones, other }
+        var kind = Kind.phone
+        var output = ""                    // the name of the device in use
+        var bluetooth: [String] = []       // names of the connected Bluetooth devices that can carry a call
+    }
+    @Published var route = AudioRoute()
+
+    func refreshAudioRoute() {
+        let s = AVAudioSession.sharedInstance()
+        let out = s.currentRoute.outputs.first
+        var r = AudioRoute(); r.output = out?.portName ?? ""
+        switch out?.portType {
+        case .some(.builtInSpeaker): r.kind = .speaker
+        case .some(.bluetoothHFP), .some(.bluetoothA2DP), .some(.bluetoothLE): r.kind = .bluetooth
+        case .some(.headphones), .some(.usbAudio): r.kind = .headphones
+        case .some(.builtInReceiver), .none: r.kind = .phone
+        default: r.kind = .other
+        }
+        r.bluetooth = (s.availableInputs ?? []).filter { $0.portType == .bluetoothHFP || $0.portType == .bluetoothLE }.map(\.portName)
+        if route != r { route = r }
+    }
+
+    /// Moves the call to one named Bluetooth device.
+    func selectBluetooth(_ name: String) {
+        let s = AVAudioSession.sharedInstance()
+        speaker = false
+        try? s.overrideOutputAudioPort(.none)
+        if let p = (s.availableInputs ?? []).first(where: { $0.portName == name }) { try? s.setPreferredInput(p) }
+        refreshAudioRoute()
+    }
+
+    /// Back to the phone's own earpiece and microphone.
+    func selectPhone() {
+        let s = AVAudioSession.sharedInstance()
+        speaker = false
+        try? s.overrideOutputAudioPort(.none)
+        try? s.setPreferredInput((s.availableInputs ?? []).first { $0.portType == .builtInMic })
+        refreshAudioRoute()
+    }
+
+    func selectSpeaker() {
+        speaker = true
+        try? AVAudioSession.sharedInstance().overrideOutputAudioPort(.speaker)
+        refreshAudioRoute()
+    }
     /// The call shown on the call screen (others are on hold or ringing).
     @Published var currentCallID: Int32?
     @Published var encryption: [Int32: CallSecurity] = [:]
@@ -503,8 +551,7 @@ final class SIPEngine: ObservableObject {
     }
 
     func toggleSpeaker() {
-        speaker.toggle()
-        try? AVAudioSession.sharedInstance().overrideOutputAudioPort(speaker ? .speaker : .none)
+        if speaker { selectPhone() } else { selectSpeaker() }
     }
 
     /// Blind transfer of a call to another number on the same account.
@@ -733,6 +780,10 @@ final class SIPEngine: ObservableObject {
     private func configureAudioSession() {
         let s = AVAudioSession.sharedInstance()
         try? s.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])
+        NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { _ in
+            Task { @MainActor in SIPEngine.shared.refreshAudioRoute() }
+        }
+        refreshAudioRoute()
         // CallKit activates the session (see audioSessionActivated); activating it here would fight with it.
     }
 
@@ -742,6 +793,7 @@ final class SIPEngine: ObservableObject {
     func audioSessionActivated() {
         pjsua_set_snd_dev(PJMEDIA_AUD_DEFAULT_CAPTURE_DEV, PJMEDIA_AUD_DEFAULT_PLAYBACK_DEV)
         if speaker { try? AVAudioSession.sharedInstance().overrideOutputAudioPort(.speaker) }
+        Task { @MainActor in SIPEngine.shared.refreshAudioRoute() }
     }
 
     // MARK: text messages (SIP MESSAGE)

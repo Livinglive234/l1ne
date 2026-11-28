@@ -359,7 +359,7 @@ struct CallScreen: View {
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 3), spacing: 26) {
             roundButton("mic.slash.fill", "mute", on: engine.muted.contains(c.id), enabled: live) { engine.toggleMute(c.id) }
             roundButton("circle.grid.3x3.fill", "keypad", enabled: live) { showKeypad = true }
-            roundButton("speaker.wave.3.fill", "speaker", on: engine.speaker) { engine.toggleSpeaker() }
+            audioButton()
             roundButton("plus", "add call", enabled: live) { router.callMinimized = true; router.tab = .keypad }
             roundButton(engine.held.contains(c.id) ? "play.fill" : "pause.fill", engine.held.contains(c.id) ? "resume" : "hold",
                         on: engine.held.contains(c.id), enabled: live) { engine.toggleHold(c.id) }
@@ -409,6 +409,30 @@ struct CallScreen: View {
         .padding(.horizontal, 16).padding(.top, 28)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Theme.sheet.ignoresSafeArea())
+    }
+
+    /// Speaker, or, when a Bluetooth device is connected, a menu of where the audio can go (the phone, the speaker, each device by name).
+    @ViewBuilder private func audioButton() -> some View {
+        let r = engine.route
+        if r.bluetooth.isEmpty && r.kind != .bluetooth {
+            roundButton("speaker.wave.3.fill", "speaker", on: engine.speaker) { engine.toggleSpeaker() }
+        } else {
+            Menu {
+                Button { engine.selectPhone() } label: { Label("Phone" + (r.kind == .phone ? "  ✓" : ""), systemImage: "iphone") }
+                Button { engine.selectSpeaker() } label: { Label("Speaker" + (r.kind == .speaker ? "  ✓" : ""), systemImage: "speaker.wave.3.fill") }
+                ForEach(r.bluetooth, id: \.self) { n in
+                    Button { engine.selectBluetooth(n) } label: { Label(n + (r.kind == .bluetooth && r.output == n ? "  ✓" : ""), systemImage: "headphones") }
+                }
+            } label: {
+                VStack(spacing: 8) {
+                    Image(systemName: r.kind == .bluetooth ? "headphones" : r.kind == .speaker ? "speaker.wave.3.fill" : "ellipsis.circle.fill").font(.title2).frame(width: 78, height: 78)
+                        .background(r.kind == .bluetooth || r.kind == .speaker ? Theme.brand : CallColors.surface(gray), in: Circle())
+                        .overlay(Circle().stroke(CallColors.border(gray), lineWidth: r.kind == .bluetooth || r.kind == .speaker ? 0 : 1))
+                        .foregroundStyle(r.kind == .bluetooth || r.kind == .speaker ? Theme.onBrand : Theme.text)
+                    Text(r.kind == .bluetooth ? r.output : r.kind == .speaker ? "speaker" : "audio").font(.footnote).foregroundStyle(Theme.text).lineLimit(1)
+                }
+            }
+        }
     }
 
     private func roundButton(_ icon: String, _ label: String, on: Bool = false, enabled: Bool = true, _ action: @escaping () -> Void) -> some View {
