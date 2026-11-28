@@ -1,5 +1,6 @@
 /* Thin JNI bridge over pjsua for L1ne (Android). Events go up through one Kotlin callback:
    Native.onEvent(type, a, b, s1, s2). Calls go down as plain functions. Mirrors ios/SIPEngine.swift. */
+#include <android/log.h>
 #include <jni.h>
 #include <string.h>
 #include <stdio.h>
