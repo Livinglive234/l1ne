@@ -9,7 +9,7 @@ AVD=l1ne_api28; if [ $# -gt 0 ] && [[ "$1" != -* ]]; then AVD="$1"; shift; fi
 cleanup() { pkill -f l1ne-zrtp-peer 2>/dev/null || true; [ -n "${PBX:-}" ] && kill "$PBX" 2>/dev/null || true; [ -n "${EMU:-}" ] && "$SDK/platform-tools/adb" -s emulator-5554 emu kill >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 # the media peer that speaks ZRTP (needs OpenSSL on this Mac; without it the ZRTP tests report that the peer is missing)
-ZP=""; if cc -std=gnu11 -I"$(brew --prefix openssl 2>/dev/null || echo /usr)/include" "$HERE/../../native/zrtp/zrtp.c" "$HERE/../../native/zrtp/l1srtp.c" "$HERE/../zrtp/zrtp_peer.c" -L"$(brew --prefix openssl 2>/dev/null || echo /usr)/lib" -lcrypto -o /tmp/l1ne-zrtp-peer 2>/dev/null; then ZP="--zrtp-peer /tmp/l1ne-zrtp-peer"; fi
+ZP=""; if cc -std=gnu11 -I"$(brew --prefix openssl 2>/dev/null || echo /usr)/include" "$HERE/../../native/zrtp/zrtp.c" "$HERE/../../native/zrtp/l1srtp.c" "$HERE/../zrtp/zrtp_peer.c" -L"$(brew --prefix openssl 2>/dev/null || echo /usr)/lib" -lcrypto -lm -o /tmp/l1ne-zrtp-peer 2>/dev/null; then ZP="--zrtp-peer /tmp/l1ne-zrtp-peer"; fi
 python3 "$HERE/pbx.py" $ZP > /tmp/l1ne-pbx.log 2>&1 & PBX=$!
 if ! "$SDK/platform-tools/adb" devices | grep -q "emulator-"; then
   "$SDK/emulator/emulator" -avd "$AVD" -no-window -no-audio -no-snapshot -gpu swiftshader_indirect >/tmp/l1ne-emu.log 2>&1 & EMU=$!

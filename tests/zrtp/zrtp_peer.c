@@ -13,6 +13,13 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <math.h>
+/* G.711 mu-law of one 16-bit sample */
+static uint8_t ulaw(int16_t pcm) {
+    int s = pcm < 0 ? 0x80 : 0, v = pcm < 0 ? -pcm : pcm; if (v > 32635) v = 32635; v += 0x84;
+    int e = 7; for (int m = 0x4000; (v & m) == 0 && e > 0; m >>= 1) e--;
+    return (uint8_t)~(s | (e << 4) | ((v >> (e + 3)) & 0x0f));
+}
 static int sock; static struct sockaddr_in remote; static int have_remote;
 static l1srtp_t rx, tx; static int have_rx, have_tx;
 
@@ -54,8 +61,10 @@ int main(int argc, char **argv) {
         }
         zrtp_poll(z);
         static struct timespec last; struct timespec nowt; clock_gettime(CLOCK_MONOTONIC, &nowt);
-        if (have_tx && have_remote && (nowt.tv_sec - last.tv_sec) * 1000 + (nowt.tv_nsec - last.tv_nsec) / 1000000 >= 20) {        /* 20 ms of silence */
-            uint8_t pkt[200]; memset(pkt, 0xff, sizeof pkt); pkt[0] = 0x80; pkt[1] = 0; pkt[2] = seq >> 8; pkt[3] = (uint8_t)seq; seq++;
+        if (have_tx && have_remote && (nowt.tv_sec - last.tv_sec) * 1000 + (nowt.tv_nsec - last.tv_nsec) / 1000000 >= 20) {        /* 20 ms of tone */
+            uint8_t pkt[200]; memset(pkt, 0xff, sizeof pkt); static int phase;
+            for (int i = 0; i < 160; i++) pkt[12 + i] = ulaw((int16_t)(6000 * sin(2 * 3.14159265 * 440 * phase++ / 8000.0)));       /* a 440 Hz tone: what you hear when SRTP works */
+            if (phase > 80000) phase = 0; pkt[0] = 0x80; pkt[1] = 0; pkt[2] = seq >> 8; pkt[3] = (uint8_t)seq; seq++;
             pkt[4] = ts >> 24; pkt[5] = ts >> 16; pkt[6] = ts >> 8; pkt[7] = (uint8_t)ts; ts += 160; pkt[8] = 0x70; pkt[9] = 0x70; pkt[10] = 0x70; pkt[11] = 0x70;
             size_t len = 12 + 160; if (l1srtp_protect(&tx, pkt, &len, sizeof pkt) == 0) sendto(sock, pkt, len, 0, (struct sockaddr *)&remote, sizeof remote);
             last = nowt;

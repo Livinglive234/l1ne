@@ -13,7 +13,7 @@ UDID=$(xcrun simctl list devices | grep -F "$SIM" | grep -oE '[0-9A-F]{8}-([0-9A
 xcrun simctl bootstatus "$UDID" -b >/dev/null
 xcrun simctl privacy "$UDID" grant microphone com.livenet.l1ne 2>/dev/null || true
 # the media peer that speaks ZRTP (needs OpenSSL on this Mac; without it the ZRTP tests report that the peer is missing)
-ZP=""; if cc -std=gnu11 -I"$(brew --prefix openssl 2>/dev/null || echo /usr)/include" "$HERE/../../native/zrtp/zrtp.c" "$HERE/../../native/zrtp/l1srtp.c" "$HERE/../zrtp/zrtp_peer.c" -L"$(brew --prefix openssl 2>/dev/null || echo /usr)/lib" -lcrypto -o /tmp/l1ne-zrtp-peer 2>/dev/null; then ZP="--zrtp-peer /tmp/l1ne-zrtp-peer"; fi
+ZP=""; if cc -std=gnu11 -I"$(brew --prefix openssl 2>/dev/null || echo /usr)/include" "$HERE/../../native/zrtp/zrtp.c" "$HERE/../../native/zrtp/l1srtp.c" "$HERE/../zrtp/zrtp_peer.c" -L"$(brew --prefix openssl 2>/dev/null || echo /usr)/lib" -lcrypto -lm -o /tmp/l1ne-zrtp-peer 2>/dev/null; then ZP="--zrtp-peer /tmp/l1ne-zrtp-peer"; fi
 python3 "$HERE/pbx.py" $ZP > /tmp/l1ne-pbx.log 2>&1 & PBX=$!
 sleep 1
 set +e
